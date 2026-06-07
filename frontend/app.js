@@ -759,7 +759,7 @@ function renderEvents() {
     el.dataset.eventId = ev.id;
     el.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-        <div>
+        <div data-act="assign">
           <b>${ev.name}</b>
           <span class="meta">id:${ev.id} • ${ev.status} • (${Math.round(ev.x)}, ${Math.round(ev.y)})</span>
         </div>
@@ -769,7 +769,7 @@ function renderEvents() {
         </div>
       </div>
     `;
-    el.querySelector('[data-act="assign"]').addEventListener('click', () => openAssignModal(ev));
+    el.querySelectorAll('[data-act="assign"]').forEach((e)=>{e.addEventListener('click', () => openAssignModal(ev));});
     const finishBtn = el.querySelector('[data-act="finish"]');
     if (finishBtn) {
       finishBtn.addEventListener('click', async () => {
@@ -782,6 +782,7 @@ function renderEvents() {
         }
       });
     }
+    //el.addEventListener('click', () => openAssignModal(ev));
     el.addEventListener('mouseenter', () => setHighlightedEvent(ev.id));
     el.addEventListener('mouseleave', () => setHighlightedEvent(null));
     container.appendChild(el);
