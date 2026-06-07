@@ -833,6 +833,7 @@ function pushLogRow(row,newMessage=false) {
   cont.insertBefore(el, cont.firstChild);
   if(row.state=="active" && row.type == "global"){
     const stateEl = document.createElement('div');
+	stateEl.id = row.message;
     stateEl.innerHTML = renderState(row.message,3,row.long_message);
     states.append(stateEl);
   }

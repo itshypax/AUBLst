@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   event_id INT NULL,
   message VARCHAR(20) NOT NULL,
   long_message VARCHAR(512) NOT NULL,
-  state ENUM('active','inactive') NOT NULL,
+  state ENUM('active','inactive','disabled') NOT NULL,
   meta JSON NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
