@@ -714,7 +714,7 @@ async function sendHome(vehicle_id){
 function renderHospitals() {
   const container = $('#hospitalsList');
   const list = [...state.hospitals];
-  list.sort((a,b) => (b.icu_available - a.icu_available) || (b.ward_available - a.ward_available) || (a.name||'').localeCompare(b.name||''));
+  //list.sort((a,b) => (b.icu_available - a.icu_available) || (b.ward_available - a.ward_available) || (a.name||'').localeCompare(b.name||''));
   container.innerHTML = '';
   
   const el = document.createElement('tr');
@@ -732,8 +732,8 @@ function renderHospitals() {
     el.className = 'item';
     el.innerHTML = `
       <td><b style="min-width: 1000pt;">${h.name || 'Hospital'} 
+      <td title="${h.ward_available}/${h.ward_total}">${renderState(h.ward_available,ward_ratio)}</td>
       <td title="${h.icu_available}/${h.icu_total}">${renderState(h.icu_available,icu_ratio)}</td>
-        <td title="${h.ward_available}/${h.ward_total}">${renderState(h.ward_available,ward_ratio)}</td>
       <!--<div class="meta">
         ICU: ${h.icu_available}/${h.icu_total} • Ward: ${h.ward_available}/${h.ward_total}
         • Pos: ${Math.round(h.x)},${Math.round(h.y)}
