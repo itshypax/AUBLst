@@ -765,14 +765,13 @@ function renderEvents() {
         </div>
         <div style="white-space:nowrap;">
           ${ev.created_by === 'frontend' ? `<button data-id="${ev.id}" data-act="finish" title="Mark finished">❎</button>` : ``}
-          <button data-id="${ev.id}" data-act="assign" title="Send Units">➡️</button>
         </div>
       </div>
     `;
-    el.querySelectorAll('[data-act="assign"]').forEach((e)=>{e.addEventListener('click', () => openAssignModal(ev));});
     const finishBtn = el.querySelector('[data-act="finish"]');
     if (finishBtn) {
-      finishBtn.addEventListener('click', async () => {
+      finishBtn.addEventListener('click', async (e) => {
+		e.stopPropagation();
         if (!confirm('Mark this event as finished?')) return;
         try {
           await api('events_finish', {event_id: ev.id});
@@ -782,7 +781,7 @@ function renderEvents() {
         }
       });
     }
-    //el.addEventListener('click', () => openAssignModal(ev));
+    el.addEventListener('click', () => openAssignModal(ev));
     el.addEventListener('mouseenter', () => setHighlightedEvent(ev.id));
     el.addEventListener('mouseleave', () => setHighlightedEvent(null));
     container.appendChild(el);
