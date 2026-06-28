@@ -5,6 +5,7 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const state = {
   apiBase: localStorage.getItem('apiBase') || '/backend/api.php',
   sessionToken: localStorage.getItem('sessionToken') || '',
+  pin: localStorage.getItem('pin') || '',
   mapBounds: {min_x:0, min_y:0, max_x:1000, max_y:1000},
   vehicles: [],
   events: [],
@@ -85,6 +86,7 @@ function saveSettings(){
   console.log("saving");
   state.apiBase = $('#apiBase').value.trim() || '/backend/api.php';
   state.sessionToken = $('#sessionToken').value.trim();
+  state.pin = $('#pin').value.trim();
   localStorage.setItem('apiBase', state.apiBase);
   localStorage.setItem('sessionToken', state.sessionToken);
   fetchState(true);
@@ -720,8 +722,8 @@ function renderHospitals() {
   const el = document.createElement('tr');
   el.innerHTML = `
   <th>Name</th>
-  <th>ICU</th>
   <th>Ward</th>
+  <th>ICU</th>
   `;
   container.appendChild(el);
 
@@ -841,7 +843,11 @@ function pushLogRow(row,newMessage=false) {
 }
 async function api(action, payload={}, method='POST') {
   const url = `${state.apiBase}?action=${encodeURIComponent(action)}`;
-  const body = Object.assign({}, payload, {session_token: state.sessionToken});
+  var add_data = {session_token: state.sessionToken};
+  if(state.pin){
+    add_data["pin"] = state.pin
+  }
+  const body = Object.assign({}, payload, add_data);
   const res = await fetch(url, {
     method, headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body)

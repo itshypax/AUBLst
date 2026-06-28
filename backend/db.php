@@ -35,12 +35,17 @@ function get_json_input() {
     return $data ?: [];
 }
 
-function require_session($pdo, $token) {
+function require_session($pdo, $token, $pin=null, $enforce_pin=false) {
     if (!$token) {
         respond_json(400, ['error' => 'Missing session_token']);
     }
-    $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ?');
-    $stmt->execute([$token]);
+    if ($enforce_pin){
+        $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ? and (pin = ? OR pin IS NULL)');
+        $stmt->execute([$token, $pin]);
+    }else{
+        $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ?');
+        $stmt->execute([$token]);
+    }
     $session = $stmt->fetch();
     if (!$session) {
         respond_json(404, ['error' => 'Session not found. Initialize with action=sync first.', 'token' => $token]);

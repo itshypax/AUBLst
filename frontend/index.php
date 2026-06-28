@@ -17,6 +17,10 @@
 			if(isset($_GET['session_token']))
 				echo 'value="'.$_GET['session_token'].'"';
 			?>/></label>
+      <input type="hidden" id="pin" placeholder="PIN (optional)" <?php  
+			if(isset($_GET['pin']))
+				echo 'value="'.$_GET['pin'].'"';
+			?>/>
       <button id="saveSettings">Save</button>
       <button id="reloadBtn" title="Reload state">↻</button>
     </div>

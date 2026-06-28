@@ -23,25 +23,26 @@ function session_token() {
 }
 
 // Utility: create a unique session token and insert a session row
-function create_session(PDO $pdo, ?string $mod_id, ?array $bounds) {
+function create_session(PDO $pdo, ?string $mod_id, ?string $pin, ?array $bounds) {
     $attempts = 0;
     while ($attempts < 10) {
         $attempts++;
         $token = session_token();
         try {
             if ($bounds) {
-                $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id, min_x, min_y, max_x, max_y) VALUES (?, ?, ?, ?, ?, ?)');
+                $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id, pin, min_x, min_y, max_x, max_y) VALUES (?, ?, ?, ?, ?, ?, ?)');
                 $stmt->execute([
                     $token,
                     $mod_id,
+                    $pin,
                     n($bounds['min_x'] ?? 0),
                     n($bounds['min_y'] ?? 0),
                     n($bounds['max_x'] ?? 1000),
                     n($bounds['max_y'] ?? 1000),
                 ]);
             } else {
-                $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id) VALUES (?, ?)');
-                $stmt->execute([$token, $mod_id]);
+                $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id, pin) VALUES (?, ?, ?)');
+                $stmt->execute([$token, $mod_id, $pin]);
             }
             // return the full session row
             $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ?');
@@ -68,8 +69,9 @@ try {
             $data = get_json_input();
             $mod_id = $data['mod_id'] ?? null;
             $bounds = $data['map_bounds'] ?? null;
+            $pin = $data['pin'] ?? null;
 
-            $session = create_session($pdo, $mod_id, $bounds);
+            $session = create_session($pdo, $mod_id,$pin, $bounds);
             respond_json(200, [
                 'ok' => true,
                 'session_id' => (int)$session['id'],
@@ -344,7 +346,8 @@ try {
         case 'events_create':
             $data = get_json_input();
             $token = $data['session_token'] ?? null;
-            $session = require_session($pdo, $token);
+            $pin = $data['pin'] ?? null;
+            $session = require_session($pdo, $token,$pin, true);
             $sid = $session['id'];
             $e = [
                 'name' => $data['name'] ?? 'Event',
@@ -372,8 +375,9 @@ try {
             // Mark a frontend-created event as completed
             // JSON: { session_token, event_id }
             $data = get_json_input();
-            $token = $data['session_token'] ?? null;
-            $session = require_session($pdo, $token);
+            $token = $data['session_token'] ?? null;            
+            $pin = $data['pin'] ?? null;
+            $session = require_session($pdo, $token,$pin, true);
             $sid = $session['id'];
 
             $event_id = $data['event_id'] ?? null;
@@ -404,8 +408,9 @@ try {
 
         case 'events_assign':
             $data = get_json_input();
-            $token = $data['session_token'] ?? null;
-            $session = require_session($pdo, $token);
+            $token = $data['session_token'] ?? null;            
+            $pin = $data['pin'] ?? null;
+            $session = require_session($pdo, $token,$pin, true);
             $sid = $session['id'];
 
             $event_id = $data['event_id'] ?? null;
@@ -490,7 +495,8 @@ try {
         case 'events_unassign':
             $data = get_json_input();
             $token = $data['session_token'] ?? null;
-            $session = require_session($pdo, $token);
+            $pin = $data['pin'] ?? null;
+            $session = require_session($pdo, $token,$pin, true);
             $sid = $session['id'];
 
             $vehicle_ids = $data['vehicle_ids'] ?? [];
@@ -555,7 +561,8 @@ try {
             if(!$token || !$event || !$content){
                 respond_json(400, ['error' => 'session_token, event_id, content needed '.$data]);
             }
-            $session = require_session($pdo, $token);
+            $pin = $data['pin'] ?? null;
+            $session = require_session($pdo, $token,$pin, true);
 
             $sid = $session['id'];
             $note = upsert_notes($pdo, $sid, $data);
