@@ -47,8 +47,11 @@ function require_session($pdo, $token, $pin=null, $enforce_pin=false) {
         $stmt->execute([$token]);
     }
     $session = $stmt->fetch();
-    if (!$session) {
+    if (!$session && !$enforce_pin) {
         respond_json(404, ['error' => 'Session not found. Initialize with action=sync first.', 'token' => $token]);
+    }
+    if (!$session && $enforce_pin) {
+        respond_json(401, ['error' => 'Unauthorized! The correct pin is required to execute this action.', 'token' => $token]);
     }
     return $session;
 }
