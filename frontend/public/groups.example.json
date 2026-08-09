@@ -1,0 +1,8 @@
+{
+  "rettungsdienst": ["MZF"],
+  "verstecken": ["KRAD"],
+  "loeschzuege": {
+    "1": [["1_HLF_1", "1_HLF_2"], ["1_DLK_1"], ["1_ELW_1"], ["1_RTW_A"]],
+    "2": [["2_HLF_1"], ["2_ELW_1"], ["2_RTW_A", "2_RTW_Z"]]
+  }
+}

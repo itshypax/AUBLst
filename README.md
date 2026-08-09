@@ -1,76 +1,163 @@
-# Game Ops Dashboard
+# AUBLst
 
-Full-stack sample for a video-game operations dashboard.
+Web-Leitstelle für Spiele: Das Spiel meldet Fahrzeuge, Einsätze, Krankenhäuser
+und Funkmeldungen an den Server, ein Disponent alarmiert im Browser Fahrzeuge
+und schickt die Befehle zurück ins Spiel. Kommunikation läuft komplett über
+HTTP-Polling, es wird also kein Websocket-fähiges Hosting gebraucht.
 
-## What's included
-- **Backend**: PHP + MySQL (PDO), single `api.php` with actions.
-- **Frontend**: HTML + JS + CSS SPA with four panels (map, vehicles, events, activity log).
-- **DB**: `db/schema.sql` with all required tables.
+Hervorgegangen aus [Floko122/EMDispatch](https://github.com/Floko122/EMDispatch) –
+danke an Floko122 für die Grundlage.
+
+## Aufbau
+
+- `backend/` – PHP 8 + MySQL (PDO). `api.php` nimmt alle Requests entgegen,
+  die Logik liegt unter `backend/src/`.
+- `frontend/` – Leitstellen-Oberfläche, Svelte 5 + TypeScript + Vite.
+  Der Build erzeugt statische Dateien.
+- `backend/maps/` – Kartenbilder als Dateien, benannt nach der mod_id.
+
+Jede Spielinstanz bekommt eine eigene Session (4-stelliger Token, optional
+mit PIN gegen fremde Schreibzugriffe). Ein Server kann darum beliebig viele
+Spiele gleichzeitig bedienen.
 
 ## Setup
 
-### Database
-1. Create the schema:
-   ```sql
-   SOURCE db/schema.sql;
-   ```
-
 ### Backend
-1. Place the `backend/` folder on a PHP-capable server.
-2. Edit `backend/config.php` to set DB credentials (or use env vars `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`).
+
+1. `backend/` auf einen PHP-fähigen Server legen.
+2. Zugangsdaten in `backend/config.php` eintragen oder als Umgebungsvariablen
+   setzen (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`).
+3. Für den öffentlichen Betrieb `CORS_ALLOW_ORIGIN` einschränken.
+
+Mehr braucht es nicht: Beim ersten Request legt das Backend Datenbank und
+Tabellen selbst an (`backend/src/schema.sql`), sofern der DB-Benutzer die
+Rechte dazu hat. Sessions ohne Aktivität werden nach einer Stunde
+automatisch aufgeräumt.
+
+### Kartenbilder
+
+Kartenbild als `backend/maps/<mod_id>.jpg` (oder `.png`/`.webp`) ablegen,
+fertig. Der Upload per `mods_put` (Base64 in die Datenbank) funktioniert
+weiterhin, Dateien haben aber Vorrang.
 
 ### Frontend
-1. Serve the `frontend/` folder (can be the same server).
-2. Open `frontend/index.html` in a browser.
-3. Enter your **API Base** (e.g. `/backend/api.php`) and a **Session Token** (any string).
-4. Have the game call `action=sync` at least once to initialize the session.
 
-## API Overview (game → backend)
-- `POST /backend/api.php?action=sync`
-  Initialize/update session (map bounds, players, vehicles, hospitals, events).
+```bash
+cd frontend
+npm install
+npm run build
+```
 
-- `POST /backend/api.php?action=update_vehicles`
-  Push vehicle status/position changes.
+Beim Build wird die Kurz-ID des letzten Git-Commits in die Kopfzeile
+geschrieben. Ein automatisches Deployment muss deshalb nach `git pull` auch
+`npm run build` ausführen. Falls dort kein Git-Verzeichnis verfügbar ist,
+kann die ID über `VITE_APP_COMMIT` gesetzt werden.
 
-- `POST /backend/api.php?action=update_hospitals`
-  Push bed availability changes.
+Den Inhalt von `frontend/dist/` neben den `backend/`-Ordner legen — als
+Unterordner (z. B. `frontend/`) oder direkt ins Webroot neben `backend/`.
+Die Oberfläche sucht die API standardmäßig unter `../backend/api.php`, was
+in beiden Fällen passt; ein anderer Pfad lässt sich per URL-Parameter
+`api_base` setzen.
 
-- `POST /backend/api.php?action=update_events`
-  Create/update/complete events from the game.
+Liegt die Oberfläche im Webroot, zeigt der Öffnen-Button des EMLstAdapters
+weiter auf `/frontend` — dafür eine Weiterleitung von `/frontend` auf `/`
+einrichten oder den Link im Adapter ignorieren.
 
-- `GET  /backend/api.php?action=commands_pending&session_token=...&last_id=0`
-  Poll for pending frontend-originating commands.
+Aufruf dann z. B.:
 
-- `POST /backend/api.php?action=commands_ack`
-  Acknowledge processed commands (`{command_ids:[...]}`).
+```text
+https://example.org/leitstelle/?session_token=a1b2&pin=1234
+```
 
-## API Overview (frontend → backend)
-- `GET  /backend/api.php?action=state&session_token=...`
-- `POST /backend/api.php?action=events_create`
-- `POST /backend/api.php?action=events_assign`
-- `POST /backend/api.php?action=vehicles_assign_player`
-- `GET  /backend/api.php?action=logs&session_token=...`
+Token und PIN lassen sich auch direkt in der Kopfzeile eintragen. Sie bleiben
+nur für die aktuelle Browser-Sitzung gespeichert und werden nach einem Aufruf
+über URL-Parameter sofort aus der Adresszeile entfernt.
 
-## Coordinate System
-The game provides **map bounds** (`min_x,min_y,max_x,max_y`). The frontend maps world coordinates to the displayed map image (object-fit: contain) and supports pan+zoom. Right-click on the map to create a new frontend-side event at the clicked world coordinate.
+### Fahrzeug-Gruppierung
 
-## Vehicles & Assignment
-- Vehicles with **status 1 or 2** are considered "available" in the UI.
-- Selecting an event (left-click on the map or via the Events panel) opens a modal to assign units and optionally bind them to a specific player.
-- Assignments create `commands` of type `assign`, which the game can poll via `commands_pending` and then `commands_ack` them when processed.
+Die Fahrzeugübersicht trennt Feuerwehr und Rettungsdienst per Tab und
+gruppiert innerhalb der Tabs nach Wachen. Die Wache ist der Präfix der
+Fahrzeug-ID (`1_HLF_1` → Wache 1), Rettungsmittel werden an ihren
+Typkürzeln erkannt (RTW, NEF, ITW, …).
 
-## Grouping (Vehicles panel)
-Optionally provide a JSON file like:
+Einheiten ohne Kartenposition (Abschleppwagen, Bestatter, …) erscheinen
+nicht in der Übersicht, bleiben aber im Alarmierungsfenster wählbar.
+Aktions-Einheiten (`FS_LST_…`, z. B. Sperrungen) werden über die
+Aktionen-Leiste im Fahrzeug-Panel ausgelöst statt über Einsätze.
+
+Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
+(Vorlage: `frontend/public/groups.example.json`, kein Rebuild nötig):
+
 ```json
 {
-  "groups": {
-    "Ambulances": { "types": ["Ambulance"] },
-    "Team Alpha": { "ids": [1,2,3] }
-  }
+  "rettungsdienst": ["MZF"],
+  "verstecken": ["KRAD"]
 }
 ```
 
-## Notes
-- CORS is wide-open by default; restrict `CORS_ALLOW_ORIGIN` for production.
-- For simplicity this sample uses **polling** rather than websockets.
-- Add auth as needed; this demo trusts any holder of the `session_token`.
+## API (Spiel → Server)
+
+- `POST api.php?action=session_create` – neue Session anlegen (Antwort enthält Token)
+- `POST api.php?action=sync` – Session initialisieren/aktualisieren
+  (Kartengrenzen, Spieler, Fahrzeuge, Krankenhäuser, Einsätze, Meldungen, Uhrzeit)
+- `POST api.php?action=update_vehicles` – Fahrzeugstatus/-position melden
+- `POST api.php?action=update_hospitals` – Bettenbelegung melden
+- `POST api.php?action=update_events` – Einsätze anlegen/aktualisieren
+- `POST api.php?action=mods_put` – Kartenbild für eine Mod hochladen
+  (optional, siehe Kartenbilder)
+- `GET  api.php?action=commands_pending&session_token=…&last_id=0` – Befehle abholen
+- `POST api.php?action=commands_ack` – Befehle quittieren (`{command_ids:[…]}`)
+
+## API (Leitstelle → Server)
+
+- `POST api.php?action=state` – kompletter Zustand
+- `POST api.php?action=logs` – Funkmeldungen; Cursor über `since` und `since_id`
+- `POST api.php?action=events_create` / `events_finish` / `events_assign` /
+  `events_unassign` – Einsätze anlegen, abschließen, Fahrzeuge (de)alarmieren
+- `POST api.php?action=events_get_vehicles` / `events_get_note` /
+  `events_set_note` / `events_get_logs` – Details und Verlauf zum Einsatz
+- `POST api.php?action=vehicles_assign_player` – Fahrzeug einem Spieler geben
+- `POST api.php?action=vehicles_alarm` – Einheit ohne Einsatz alarmieren
+  (für Aktionen wie Sperrungen; der Adapter erhält ein assign mit event_id -1)
+
+Schreibende Leitstellen-Actions prüfen die Session-PIN, sofern eine gesetzt
+ist. Befehle an das Spiel landen in der `commands`-Tabelle und werden per
+`commands_pending`/`commands_ack` abgeholt – daran hat sich gegenüber
+EMDispatch nichts geändert, bestehende Spielanbindungen laufen unverändert
+weiter.
+
+Manuell angelegte Einsatznamen bleiben in der Leitstelle unverändert. Im
+`event_create`-Befehl für EM4 werden Umlaute ersetzt (`ä` → `ae`, `ö` → `oe`,
+`ü` → `ue`, `ß` → `ss`). Bei Einsätzen aus EM4 wandelt die Leitstelle diese
+Schreibweise für die Anzeige zurück, etwa `Sanitaetsdienst` zu `Sanitätsdienst`.
+
+## Koordinaten
+
+Das Spiel liefert Kartengrenzen (`min_x, min_y, max_x, max_y`). Die Karte
+zeichnet das Kartenbild eingepasst (wie `object-fit: contain`), kann per Maus
+verschoben und gezoomt werden. Rechtsklick legt einen Einsatz an der
+angeklickten Weltkoordinate an.
+
+Rechtsklick auf ein Fahrzeug (Liste oder Karte) öffnet ein Kontextmenü zum
+Fokussieren auf der Karte, für Klinikzuweisungen und zum Einrücken. Der
+FMS-Status kommt ausschließlich aus EM4 und lässt sich in der Leitstelle
+nicht manuell überschreiben.
+
+## Entwicklung
+
+```bash
+cd frontend
+npm run dev      # Dev-Server mit Hot Reload
+npm run check    # Typprüfung (svelte-check)
+npm test         # Komponenten- und Zustandsprüfungen (Vitest)
+npm run build    # Produktions-Build
+```
+
+## Credits
+
+- Kartenbild: Antonym (Discord: `@ant_0nym`)
+- Fahrzeugbilder: offizielles Auenburg-Handbuch
+
+## Lizenz
+
+Siehe [LICENSE](LICENSE).

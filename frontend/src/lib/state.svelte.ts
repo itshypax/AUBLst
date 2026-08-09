@@ -1,0 +1,191 @@
+import type { Assignment, ClockTime, EventItem, Hospital, HospitalReservation, LogRow, MapBounds, Player, Vehicle } from './types';
+
+export const app = $state({
+  apiBase: '../backend/api.php',
+  sessionToken: '',
+  pin: '',
+  connected: false,
+  stateHealthy: false,
+  logsHealthy: false,
+  lastSuccessfulSync: null as number | null,
+  lastSuccessfulLogPoll: null as number | null,
+  sessionChanging: false,
+  lastError: '',
+  logError: '',
+  mapBounds: { min_x: 0, min_y: 0, max_x: 1000, max_y: 1000 } as MapBounds,
+  players: [] as Player[],
+  vehicles: [] as Vehicle[],
+  events: [] as EventItem[],
+  assignments: [] as Assignment[],
+  hospitals: [] as Hospital[],
+  hospitalReservations: [] as HospitalReservation[],
+  clock: null as ClockTime | null,
+  modId: null as string | null,
+  mapImageUrl: '',
+  logs: [] as LogRow[],
+  lastLogBatch: [] as number[],
+  highlightedEventId: null as number | null,
+  highlightedVehicleId: null as number | null,
+  assignEvent: null as EventItem | null,
+  createEventPos: null as { x: number; y: number } | null,
+  contextMenu: null as { x: number; y: number; vehicleId: number } | null,
+  focusPoint: null as { x: number; y: number; seq: number } | null,
+  confirmDialog: null as { message: string; resolve: (ok: boolean) => void } | null,
+  actionsOpen: false,
+  statisticsOpen: false,
+  recordsOpen: false,
+  hospitalAssignmentVehicleId: null as number | null,
+  soundEnabled: true,
+  soundVolume: 0.7,
+  notice: null as { message: string; kind: 'success' | 'error'; id: number } | null,
+});
+
+let noticeId = 0;
+
+export function showNotice(message: string, kind: 'success' | 'error' = 'success'): void {
+  const id = ++noticeId;
+  app.notice = { message, kind, id };
+  window.setTimeout(() => {
+    if (app.notice?.id === id) app.notice = null;
+  }, 3500);
+}
+
+export function askConfirm(message: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    app.confirmDialog = { message, resolve };
+  });
+}
+
+export function answerConfirm(ok: boolean): void {
+  app.confirmDialog?.resolve(ok);
+  app.confirmDialog = null;
+}
+
+let focusSeq = 0;
+
+export function focusVehicle(v: Vehicle): void {
+  app.focusPoint = { x: v.x, y: v.y, seq: ++focusSeq };
+  app.highlightedVehicleId = v.id;
+}
+
+export function openVehicleMenu(vehicleId: number, x: number, y: number): void {
+  app.contextMenu = { x, y, vehicleId };
+}
+
+export function closeVehicleMenu(): void {
+  app.contextMenu = null;
+}
+
+export function initSettings(): void {
+  const params = new URLSearchParams(location.search);
+  app.apiBase = params.get('api_base') ?? localStorage.getItem('apiBase') ?? app.apiBase;
+  app.sessionToken = params.get('session_token') ?? sessionStorage.getItem(tokenStorageKey(app.apiBase)) ?? '';
+  app.pin = params.get('pin') ?? sessionStorage.getItem(pinStorageKey(app.apiBase, app.sessionToken)) ?? '';
+  app.soundEnabled = localStorage.getItem('soundEnabled') !== 'false';
+  const storedVolume = Number(localStorage.getItem('soundVolume'));
+  app.soundVolume = Number.isFinite(storedVolume) ? Math.min(1, Math.max(0, storedVolume)) : 0.7;
+
+  // Alte Versionen legten Zugangsdaten dauerhaft ab.
+  localStorage.removeItem('sessionToken');
+  localStorage.removeItem('pin');
+  persistSettings();
+
+  if (params.has('pin') || params.has('session_token')) {
+    params.delete('pin');
+    params.delete('session_token');
+    const query = params.toString();
+    history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
+  }
+}
+
+export function persistSettings(): void {
+  localStorage.setItem('apiBase', app.apiBase);
+  sessionStorage.removeItem('sessionToken');
+  const tokenKey = tokenStorageKey(app.apiBase);
+  if (app.sessionToken) sessionStorage.setItem(tokenKey, app.sessionToken);
+  else sessionStorage.removeItem(tokenKey);
+  const key = pinStorageKey(app.apiBase, app.sessionToken);
+  if (app.pin) sessionStorage.setItem(key, app.pin);
+  else sessionStorage.removeItem(key);
+}
+
+export function persistSoundSettings(): void {
+  localStorage.setItem('soundEnabled', String(app.soundEnabled));
+  localStorage.setItem('soundVolume', String(app.soundVolume));
+}
+
+function pinStorageKey(apiBase: string, token: string): string {
+  let endpoint = apiBase;
+  try {
+    endpoint = new URL(apiBase, location.href).origin + new URL(apiBase, location.href).pathname;
+  } catch {
+    // Relative oder noch unvollständige Eingabe bleibt trotzdem getrennt gespeichert.
+  }
+  return `sessionPin:${endpoint}:${token}`;
+}
+
+function tokenStorageKey(apiBase: string): string {
+  let endpoint = apiBase;
+  try {
+    const url = new URL(apiBase, location.href);
+    endpoint = url.origin + url.pathname;
+  } catch {
+    // Noch unvollständige Eingaben bleiben trotzdem von anderen Zielen getrennt.
+  }
+  return `sessionToken:${endpoint}`;
+}
+
+export function resetSessionData(): void {
+  if (app.mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(app.mapImageUrl);
+  app.connected = false;
+  app.stateHealthy = false;
+  app.logsHealthy = false;
+  app.lastSuccessfulSync = null;
+  app.lastSuccessfulLogPoll = null;
+  app.lastError = '';
+  app.logError = '';
+  app.players = [];
+  app.vehicles = [];
+  app.events = [];
+  app.assignments = [];
+  app.hospitals = [];
+  app.hospitalReservations = [];
+  app.clock = null;
+  app.modId = null;
+  app.mapImageUrl = '';
+  app.logs = [];
+  app.lastLogBatch = [];
+  app.highlightedEventId = null;
+  app.highlightedVehicleId = null;
+  app.assignEvent = null;
+  app.createEventPos = null;
+  app.contextMenu = null;
+  app.actionsOpen = false;
+  app.statisticsOpen = false;
+  app.recordsOpen = false;
+  app.hospitalAssignmentVehicleId = null;
+}
+
+export function dataIsStale(now = Date.now()): boolean {
+  return !app.lastSuccessfulSync || now - app.lastSuccessfulSync > 10_000;
+}
+
+export function canWrite(): boolean {
+  return Boolean(app.sessionToken && app.stateHealthy && !dataIsStale());
+}
+
+export function setHighlightedEvent(id: number | null): void {
+  app.highlightedEventId = id;
+}
+
+export function setHighlightedVehicle(id: number | null): void {
+  app.highlightedVehicleId = id;
+}
+
+export function openAssign(ev: EventItem): void {
+  app.assignEvent = ev;
+}
+
+export function eventById(id: number): EventItem | undefined {
+  return app.events.find((ev) => ev.id === id);
+}

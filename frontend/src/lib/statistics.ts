@@ -1,0 +1,314 @@
+import { eventCategory, type EventCategory } from './classify';
+import type { SessionStatisticsResponse } from './types';
+
+export interface StatisticValue {
+  key: string;
+  label: string;
+  value: number;
+  color: string;
+}
+
+export interface TimelineValue {
+  label: string;
+  value: number;
+}
+
+export interface SessionStatisticsModel {
+  token: string;
+  createdAt: Date;
+  generatedAt: Date;
+  durationMs: number;
+  eventCount: number;
+  completedCount: number;
+  dispatchCount: number;
+  logCount: number;
+  averageEventDurationMs: number | null;
+  peakLabel: string;
+  peakCount: number;
+  categories: StatisticValue[];
+  statuses: StatisticValue[];
+  sources: StatisticValue[];
+  timeline: TimelineValue[];
+  vehicles: StatisticValue[];
+  vehicleUtilization: StatisticValue[];
+}
+
+const CATEGORY_META: Record<EventCategory, { label: string; color: string }> = {
+  fire: { label: 'Brand', color: '#e8524a' },
+  hazard: { label: 'Gefahrgut', color: '#f0a03c' },
+  water: { label: 'Wasser', color: '#2aa6b7' },
+  thl: { label: 'Hilfeleistung', color: '#4c8dff' },
+  medical: { label: 'Medizin', color: '#2ec98e' },
+  other: { label: 'Sonstige', color: '#9a9da4' },
+};
+
+function parseDate(value: string): Date {
+  const parsed = new Date(value.replace(' ', 'T'));
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function countValues<T extends string>(values: T[]): Map<T, number> {
+  const counts = new Map<T, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return counts;
+}
+
+function timelineFor(data: SessionStatisticsResponse, start: Date, end: Date): TimelineValue[] {
+  const duration = Math.max(1, end.getTime() - start.getTime());
+  const minute = 60_000;
+  const bucketSizes = [5, 15, 30, 60, 120, 240, 480, 720, 1440, 2880, 10_080, 43_200].map((minutes) => minutes * minute);
+  const bucketMs = bucketSizes.find((size) => Math.ceil(duration / size) <= 12) ?? duration;
+  const bucketCount = Math.min(12, Math.max(1, Math.ceil(duration / bucketMs)));
+  const values = Array.from({ length: bucketCount }, () => 0);
+
+  for (const event of data.events) {
+    const time = parseDate(event.created_at).getTime();
+    const index = Math.min(bucketCount - 1, Math.max(0, Math.floor((time - start.getTime()) / bucketMs)));
+    values[index] += 1;
+  }
+
+  const showDate = duration >= 86_400_000;
+  return values.map((value, index) => {
+    const date = new Date(start.getTime() + index * bucketMs);
+    const label = showDate
+      ? date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
+      : date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return { label, value };
+  });
+}
+
+export function buildSessionStatistics(data: SessionStatisticsResponse): SessionStatisticsModel {
+  const createdAt = parseDate(data.session.created_at);
+  const generatedAt = parseDate(data.session.generated_at);
+  const categoryCounts = countValues(data.events.map((event) => eventCategory(event.name)));
+  const statusCounts = countValues(data.events.map((event) => event.status));
+  const sourceCounts = countValues(data.events.map((event) => event.created_by));
+  const vehicleCounts = new Map<string, { label: string; value: number }>();
+
+  for (const dispatch of data.dispatches) {
+    const key = dispatch.game_vehicle_id || dispatch.vehicle_name;
+    const current = vehicleCounts.get(key);
+    vehicleCounts.set(key, {
+      label: dispatch.vehicle_name || dispatch.game_vehicle_id || 'Unbekannt',
+      value: (current?.value ?? 0) + 1,
+    });
+  }
+
+  const completedDurations = data.events
+    .filter((event) => event.status === 'completed')
+    .map((event) => parseDate(event.updated_at).getTime() - parseDate(event.created_at).getTime())
+    .filter((duration) => duration >= 0);
+  const timeline = timelineFor(data, createdAt, generatedAt);
+  const peak = timeline.reduce((best, item) => item.value > best.value ? item : best, timeline[0] ?? { label: '–', value: 0 });
+  const eventById = new Map(data.events.map((event) => [event.id, event]));
+  const intervalsByVehicle = new Map<string, { label: string; intervals: Array<[number, number]> }>();
+  for (const dispatch of data.dispatches) {
+    if (dispatch.event_id == null) continue;
+    const event = eventById.get(Number(dispatch.event_id));
+    if (!event) continue;
+    const start = parseDate(dispatch.created_at).getTime();
+    const end = event.status === 'active' ? generatedAt.getTime() : parseDate(event.updated_at).getTime();
+    if (end <= start) continue;
+    const key = dispatch.game_vehicle_id || dispatch.vehicle_name;
+    const entry = intervalsByVehicle.get(key) ?? { label: dispatch.vehicle_name || key || 'Unbekannt', intervals: [] };
+    entry.intervals.push([start, end]);
+    intervalsByVehicle.set(key, entry);
+  }
+  const sessionDuration = Math.max(1, generatedAt.getTime() - createdAt.getTime());
+  const vehicleUtilization = [...intervalsByVehicle.entries()].map(([key, entry]) => {
+    const sorted = entry.intervals.sort((a, b) => a[0] - b[0]);
+    let total = 0;
+    let current = sorted[0];
+    for (const interval of sorted.slice(1)) {
+      if (interval[0] <= current[1]) current[1] = Math.max(current[1], interval[1]);
+      else { total += current[1] - current[0]; current = interval; }
+    }
+    if (current) total += current[1] - current[0];
+    return { key, label: entry.label, value: Math.min(100, Math.round(total / sessionDuration * 100)), color: '#2aa6b7' };
+  }).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, 'de', { numeric: true })).slice(0, 8);
+
+  return {
+    token: data.session.token,
+    createdAt,
+    generatedAt,
+    durationMs: Math.max(0, generatedAt.getTime() - createdAt.getTime()),
+    eventCount: data.events.length,
+    completedCount: statusCounts.get('completed') ?? 0,
+    dispatchCount: data.dispatches.length,
+    logCount: Number(data.log_count) || 0,
+    averageEventDurationMs: completedDurations.length
+      ? completedDurations.reduce((sum, duration) => sum + duration, 0) / completedDurations.length
+      : null,
+    peakLabel: peak.label,
+    peakCount: peak.value,
+    categories: (Object.keys(CATEGORY_META) as EventCategory[]).map((key) => ({
+      key,
+      label: CATEGORY_META[key].label,
+      value: categoryCounts.get(key) ?? 0,
+      color: CATEGORY_META[key].color,
+    })),
+    statuses: [
+      { key: 'completed', label: 'Abgeschlossen', value: statusCounts.get('completed') ?? 0, color: '#2ec98e' },
+      { key: 'active', label: 'Laufend', value: statusCounts.get('active') ?? 0, color: '#f0a03c' },
+      { key: 'canceled', label: 'Abgebrochen', value: statusCounts.get('canceled') ?? 0, color: '#e8524a' },
+    ],
+    sources: [
+      { key: 'game', label: 'Aus EM4', value: sourceCounts.get('game') ?? 0, color: '#9a9da4' },
+      { key: 'frontend', label: 'Leitstelle', value: sourceCounts.get('frontend') ?? 0, color: '#4c8dff' },
+    ],
+    timeline,
+    vehicles: [...vehicleCounts.entries()]
+      .map(([key, value]) => ({ key, ...value, color: '#4c8dff' }))
+      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, 'de', { numeric: true }))
+      .slice(0, 8),
+    vehicleUtilization,
+  };
+}
+
+export function formatStatisticDuration(milliseconds: number | null): string {
+  if (milliseconds === null) return '–';
+  const totalMinutes = Math.max(0, Math.round(milliseconds / 60_000));
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days) return `${days} T ${hours} Std.`;
+  if (hours) return `${hours} Std. ${minutes} Min.`;
+  return `${minutes} Min.`;
+}
+
+function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius = 8): void {
+  ctx.beginPath();
+  ctx.roundRect(x, y, width, height, radius);
+  ctx.fill();
+  ctx.stroke();
+}
+
+function drawSection(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, title: string): void {
+  ctx.fillStyle = '#151619';
+  ctx.strokeStyle = '#34373c';
+  ctx.lineWidth = 1;
+  roundedRect(ctx, x, y, width, height);
+  ctx.fillStyle = '#e9eaec';
+  ctx.font = '600 22px system-ui, sans-serif';
+  ctx.fillText(title, x + 24, y + 36);
+}
+
+function drawHorizontalBars(
+  ctx: CanvasRenderingContext2D,
+  values: StatisticValue[],
+  x: number,
+  y: number,
+  width: number,
+  rowHeight: number,
+): void {
+  const max = Math.max(1, ...values.map((item) => item.value));
+  values.forEach((item, index) => {
+    const rowY = y + index * rowHeight;
+    ctx.fillStyle = '#b9bcc2';
+    ctx.font = '18px system-ui, sans-serif';
+    ctx.fillText(item.label, x, rowY + 17);
+    ctx.fillStyle = '#27292d';
+    ctx.fillRect(x + 190, rowY, width - 235, 20);
+    ctx.fillStyle = item.color;
+    ctx.fillRect(x + 190, rowY, (width - 235) * (item.value / max), 20);
+    ctx.fillStyle = '#e9eaec';
+    ctx.textAlign = 'right';
+    ctx.fillText(String(item.value), x + width, rowY + 17);
+    ctx.textAlign = 'left';
+  });
+}
+
+function drawTimeline(ctx: CanvasRenderingContext2D, values: TimelineValue[], x: number, y: number, width: number, height: number): void {
+  const max = Math.max(1, ...values.map((item) => item.value));
+  const gap = 10;
+  const barWidth = Math.max(8, (width - gap * Math.max(0, values.length - 1)) / Math.max(1, values.length));
+  values.forEach((item, index) => {
+    const barHeight = (height - 38) * (item.value / max);
+    const barX = x + index * (barWidth + gap);
+    ctx.fillStyle = '#27292d';
+    ctx.fillRect(barX, y, barWidth, height - 38);
+    ctx.fillStyle = '#4c8dff';
+    ctx.fillRect(barX, y + height - 38 - barHeight, barWidth, barHeight);
+    ctx.fillStyle = '#9a9da4';
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(item.label, barX + barWidth / 2, y + height - 12);
+    if (item.value) {
+      ctx.fillStyle = '#e9eaec';
+      ctx.fillText(String(item.value), barX + barWidth / 2, y + height - 48 - barHeight);
+    }
+  });
+  ctx.textAlign = 'left';
+}
+
+export async function exportSessionStatisticsPng(model: SessionStatisticsModel): Promise<void> {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1600;
+  canvas.height = 1340;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('PNG konnte nicht erstellt werden');
+
+  ctx.fillStyle = '#101113';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#e9eaec';
+  ctx.font = '700 42px system-ui, sans-serif';
+  ctx.fillText('Session-Statistik', 64, 72);
+  ctx.fillStyle = '#9a9da4';
+  ctx.font = '20px system-ui, sans-serif';
+  ctx.fillText(`Sitzung ${model.token} · ${model.createdAt.toLocaleString('de-DE')} bis ${model.generatedAt.toLocaleString('de-DE')}`, 64, 108);
+
+  const metrics = [
+    ['Einsätze', model.eventCount],
+    ['Abgeschlossen', model.completedCount],
+    ['Alarmierungen', model.dispatchCount],
+    ['Funkmeldungen', model.logCount],
+    ['Ø Einsatzdauer', formatStatisticDuration(model.averageEventDurationMs)],
+    ['Spitzenzeit', `${model.peakLabel} · ${model.peakCount}`],
+  ] as const;
+  metrics.forEach(([label, value], index) => {
+    const x = 64 + (index % 3) * 498;
+    const y = 142 + Math.floor(index / 3) * 116;
+    ctx.fillStyle = '#17181b';
+    ctx.strokeStyle = '#34373c';
+    roundedRect(ctx, x, y, 470, 92);
+    ctx.fillStyle = '#9a9da4';
+    ctx.font = '18px system-ui, sans-serif';
+    ctx.fillText(label, x + 22, y + 30);
+    ctx.fillStyle = '#e9eaec';
+    ctx.font = '700 30px system-ui, sans-serif';
+    ctx.fillText(String(value), x + 22, y + 70);
+  });
+
+  drawSection(ctx, 64, 390, 710, 318, 'Einsätze je Kategorie');
+  drawHorizontalBars(ctx, model.categories, 88, 448, 660, 56);
+  drawSection(ctx, 802, 390, 734, 318, 'Einsätze im Verlauf');
+  drawTimeline(ctx, model.timeline, 830, 450, 678, 230);
+
+  drawSection(ctx, 64, 738, 710, 330, 'Fahrzeugauslastung in Prozent');
+  drawHorizontalBars(ctx, model.vehicleUtilization.slice(0, 6), 88, 800, 660, 42);
+  drawSection(ctx, 802, 738, 734, 330, 'Session');
+  drawHorizontalBars(ctx, model.statuses, 830, 800, 650, 46);
+  drawHorizontalBars(ctx, model.sources, 830, 950, 650, 46);
+  ctx.fillStyle = '#9a9da4';
+  ctx.font = '18px system-ui, sans-serif';
+  ctx.fillText(`Dauer: ${formatStatisticDuration(model.durationMs)} · Spitzenzeit: ${model.peakLabel} (${model.peakCount})`, 830, 1045);
+
+  drawSection(ctx, 64, 1098, 1472, 150, 'Häufig alarmierte Fahrzeuge');
+  drawHorizontalBars(ctx, model.vehicles.slice(0, 5), 88, 1154, 1400, 28);
+
+  ctx.fillStyle = '#71747b';
+  ctx.font = '16px system-ui, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('Erstellt mit aublst.hypax.wtf/frontend', 1536, 1300);
+  ctx.textAlign = 'left';
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((value) => value ? resolve(value) : reject(new Error('PNG konnte nicht erstellt werden')), 'image/png');
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `aublst-session-${model.token}-statistik.png`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
