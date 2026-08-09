@@ -1,7 +1,8 @@
 <script lang="ts">
   import { Check, FolderOpen, Hospital, Radio } from 'lucide-svelte';
   import { isHospitalTransportUnit } from '../lib/classify';
-  import { dismissLog, isSpeechRequest } from '../lib/polling';
+  import { dismissLog } from '../lib/polling';
+  import { isSpeechRequest, speechRequestVehicle as findSpeechRequestVehicle } from '../lib/speech-requests';
   import { app, canWrite, eventById, openAssign, setHighlightedEvent } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import type { LogRow, Vehicle } from '../lib/types';
@@ -19,38 +20,10 @@
     if (ev) openAssign(ev);
   }
 
-  function normalized(value: string | null | undefined): string {
-    return (value ?? '').toLocaleLowerCase('de').replace(/[^a-z0-9äöüß]/g, '');
-  }
-
-  function appearsAsIdentifier(message: string, identifier: string): boolean {
-    const parts = identifier
-      .toLocaleLowerCase('de')
-      .split(/[^a-z0-9äöüß]+/)
-      .filter(Boolean);
-    if (!parts.length) return false;
-    const pattern = parts.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^a-z0-9äöüß]*');
-    return new RegExp(`(^|[^a-z0-9äöüß])${pattern}($|[^a-z0-9äöüß])`, 'i').test(message);
-  }
-
   function speechRequestVehicle(row: LogRow): Vehicle | undefined {
     if (row.state === 'inactive' || !isSpeechRequest(row)) return undefined;
-    const entity = normalized(row.entity_id);
-    const transportUnits = app.vehicles.filter(isHospitalTransportUnit);
-
-    if (entity) {
-      const exact = transportUnits.find((vehicle) =>
-        [vehicle.game_vehicle_id, vehicle.name].some((identifier) => normalized(identifier) === entity),
-      );
-      if (exact) return exact;
-    }
-
-    const message = `${row.message} ${row.long_message}`;
-    return transportUnits.find((vehicle) =>
-      [vehicle.game_vehicle_id, vehicle.name]
-        .filter((identifier): identifier is string => Boolean(identifier))
-        .some((identifier) => appearsAsIdentifier(message, identifier)),
-    );
+    const vehicle = findSpeechRequestVehicle(row, app.vehicles);
+    return vehicle && isHospitalTransportUnit(vehicle) ? vehicle : undefined;
   }
 
   async function dismiss(id: number): Promise<void> {

@@ -2,6 +2,7 @@
   import ActionsModal from './components/ActionsModal.svelte';
   import AssignModal from './components/AssignModal.svelte';
   import ConfirmDialog from './components/ConfirmDialog.svelte';
+  import ConnectionLostBanner from './components/ConnectionLostBanner.svelte';
   import CreateEventDialog from './components/CreateEventDialog.svelte';
   import EventsPanel from './components/EventsPanel.svelte';
   import HospitalsPanel from './components/HospitalsPanel.svelte';
@@ -9,6 +10,8 @@
   import LogPanel from './components/LogPanel.svelte';
   import IncidentRecordsModal from './components/IncidentRecordsModal.svelte';
   import MapPanel from './components/MapPanel.svelte';
+  import SessionGate from './components/SessionGate.svelte';
+  import SpeechRequestsQueue from './components/SpeechRequestsQueue.svelte';
   import StatisticsModal from './components/StatisticsModal.svelte';
   import Topbar from './components/Topbar.svelte';
   import Tooltip from './components/Tooltip.svelte';
@@ -43,6 +46,8 @@
   let colRatio = $state(initialLayout.col);
   let leftRowRatio = $state(initialLayout.left);
   let rightRowRatio = $state(initialLayout.right);
+  const showSessionGate = $derived(app.lastSuccessfulSync === null && !app.stateHealthy);
+  const connectionLost = $derived(app.lastSuccessfulSync !== null && !app.stateHealthy);
 
   type DragKind = 'col' | 'left' | 'right';
   let drag: { kind: DragKind; container: HTMLElement } | null = $state(null);
@@ -99,72 +104,77 @@
 
 <Topbar onResetLayout={resetLayout} />
 
-<main
-  class="layout"
-  style="grid-template-columns: minmax(0, {colRatio}fr) 6px minmax(0, {1 - colRatio}fr);"
->
-  <div
-    class="col"
-    style="grid-template-rows: minmax(0, {leftRowRatio}fr) 6px minmax(0, {1 - leftRowRatio}fr);"
+{#if showSessionGate}
+  <SessionGate />
+{:else}
+  {#if connectionLost}<ConnectionLostBanner />{/if}
+  <main
+    class="layout"
+    style="grid-template-columns: minmax(0, {colRatio}fr) 6px minmax(0, {1 - colRatio}fr);"
   >
-    <MapPanel />
     <div
-      class="splitter-row"
-      class:active={drag?.kind === 'left'}
-      onpointerdown={(e) => startDrag('left', e)}
-      onkeydown={(e) => onSeparatorKey('left', e)}
-      ondblclick={() => { leftRowRatio = DEFAULT_LAYOUT.left; persistLayout(); }}
-      role="slider"
-      aria-orientation="horizontal"
-      aria-label="Höhe von Karte und Meldungen ändern"
-      aria-valuemin="15"
-      aria-valuemax="85"
-      aria-valuenow={Math.round(leftRowRatio * 100)}
-      tabindex="0"
-    ></div>
-    <div class="bottom-row">
-      <LogPanel />
-      <HospitalsPanel />
+      class="col"
+      style="grid-template-rows: minmax(0, {leftRowRatio}fr) 6px minmax(0, {1 - leftRowRatio}fr);"
+    >
+      <MapPanel />
+      <div
+        class="splitter-row"
+        class:active={drag?.kind === 'left'}
+        onpointerdown={(e) => startDrag('left', e)}
+        onkeydown={(e) => onSeparatorKey('left', e)}
+        ondblclick={() => { leftRowRatio = DEFAULT_LAYOUT.left; persistLayout(); }}
+        role="slider"
+        aria-orientation="horizontal"
+        aria-label="Höhe von Karte und Meldungen ändern"
+        aria-valuemin="15"
+        aria-valuemax="85"
+        aria-valuenow={Math.round(leftRowRatio * 100)}
+        tabindex="0"
+      ></div>
+      <div class="bottom-row">
+        <LogPanel />
+        <HospitalsPanel />
+      </div>
     </div>
-  </div>
 
-  <div
-    class="splitter-col"
-    class:active={drag?.kind === 'col'}
-    onpointerdown={(e) => startDrag('col', e)}
-    onkeydown={(e) => onSeparatorKey('col', e)}
-    ondblclick={() => { colRatio = DEFAULT_LAYOUT.col; persistLayout(); }}
-    role="slider"
-    aria-orientation="vertical"
-    aria-label="Breite von Karte und Übersicht ändern"
-    aria-valuemin="15"
-    aria-valuemax="85"
-    aria-valuenow={Math.round(colRatio * 100)}
-    tabindex="0"
-  ></div>
-
-  <div
-    class="col"
-    style="grid-template-rows: minmax(0, {rightRowRatio}fr) 6px minmax(0, {1 - rightRowRatio}fr);"
-  >
-    <VehiclesPanel />
     <div
-      class="splitter-row"
-      class:active={drag?.kind === 'right'}
-      onpointerdown={(e) => startDrag('right', e)}
-      onkeydown={(e) => onSeparatorKey('right', e)}
-      ondblclick={() => { rightRowRatio = DEFAULT_LAYOUT.right; persistLayout(); }}
+      class="splitter-col"
+      class:active={drag?.kind === 'col'}
+      onpointerdown={(e) => startDrag('col', e)}
+      onkeydown={(e) => onSeparatorKey('col', e)}
+      ondblclick={() => { colRatio = DEFAULT_LAYOUT.col; persistLayout(); }}
       role="slider"
-      aria-orientation="horizontal"
-      aria-label="Höhe von Fahrzeugen und Einsätzen ändern"
+      aria-orientation="vertical"
+      aria-label="Breite von Karte und Übersicht ändern"
       aria-valuemin="15"
       aria-valuemax="85"
-      aria-valuenow={Math.round(rightRowRatio * 100)}
+      aria-valuenow={Math.round(colRatio * 100)}
       tabindex="0"
     ></div>
-    <EventsPanel />
-  </div>
-</main>
+
+    <div
+      class="col"
+      style="grid-template-rows: minmax(0, {rightRowRatio}fr) 6px minmax(0, {1 - rightRowRatio}fr);"
+    >
+      <VehiclesPanel />
+      <div
+        class="splitter-row"
+        class:active={drag?.kind === 'right'}
+        onpointerdown={(e) => startDrag('right', e)}
+        onkeydown={(e) => onSeparatorKey('right', e)}
+        ondblclick={() => { rightRowRatio = DEFAULT_LAYOUT.right; persistLayout(); }}
+        role="slider"
+        aria-orientation="horizontal"
+        aria-label="Höhe von Fahrzeugen und Einsätzen ändern"
+        aria-valuemin="15"
+        aria-valuemax="85"
+        aria-valuenow={Math.round(rightRowRatio * 100)}
+        tabindex="0"
+      ></div>
+      <EventsPanel />
+    </div>
+  </main>
+{/if}
 
 {#key app.assignEvent?.id}
   {#if app.assignEvent}
@@ -200,6 +210,10 @@
 
 {#if app.confirmDialog}
   <ConfirmDialog />
+{/if}
+
+{#if app.speechQueueOpen && app.lastSuccessfulSync !== null}
+  <SpeechRequestsQueue />
 {/if}
 
 {#if app.notice}

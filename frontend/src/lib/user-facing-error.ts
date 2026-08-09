@@ -20,10 +20,20 @@ export function userFacingError(raw: string, area: ErrorArea): UserFacingError {
         };
   }
 
-  if (error.includes('pin') && (error.includes('invalid') || error.includes('incorrect') || error.includes('wrong'))) {
+  if (
+    error.includes('pin') &&
+    (error.includes('invalid') || error.includes('incorrect') || error.includes('wrong') || error.includes('correct pin') || error.includes('required'))
+  ) {
     return {
       title: 'PIN nicht akzeptiert',
       message: 'Prüfe die eingegebene PIN und verbinde die Sitzung erneut.',
+    };
+  }
+
+  if (error.includes('zu viele fehlgeschlagene') || error.includes('too many') || error.includes('429')) {
+    return {
+      title: 'Zu viele Versuche',
+      message: 'Warte kurz und versuche die Verbindung danach erneut.',
     };
   }
 

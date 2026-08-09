@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/migrations.php';
+
 function pdo_conn(): PDO {
     static $pdo = null;
     if ($pdo === null) {
@@ -30,61 +32,17 @@ function pdo_conn(): PDO {
 
 function ensure_schema(PDO $pdo): void {
     $stmt = $pdo->query("SHOW TABLES LIKE 'sessions'");
-    if ($stmt->fetch()) {
-        ensure_indexes($pdo);
-        return;
-    }
-    $sql = file_get_contents(__DIR__ . '/schema.sql');
-    foreach (preg_split('/;\s*\n/', $sql) as $statement) {
-        $statement = trim($statement);
-        if ($statement === '' || str_starts_with($statement, '--')) {
-            continue;
-        }
-        $pdo->exec($statement);
-    }
-}
-
-function ensure_indexes(PDO $pdo): void {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS hospital_reservations (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        session_id INT NOT NULL,
-        vehicle_id INT NOT NULL,
-        hospital_id INT NOT NULL,
-        bed_type ENUM('ward','icu') NOT NULL,
-        status ENUM('reserved','arrived') NOT NULL DEFAULT 'reserved',
-        baseline_available INT NOT NULL DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        arrived_at TIMESTAMP NULL,
-        UNIQUE KEY uniq_hospital_reservation_vehicle (session_id, vehicle_id),
-        INDEX idx_hospital_reservation_capacity (session_id, hospital_id, bed_type, status),
-        CONSTRAINT fk_hospital_reservation_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
-        CONSTRAINT fk_hospital_reservation_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
-        CONSTRAINT fk_hospital_reservation_hospital FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB");
-    $pdo->exec("CREATE TABLE IF NOT EXISTS alarm_history (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        session_id INT NOT NULL,
-        command_id INT NULL,
-        event_id INT NULL,
-        event_name VARCHAR(255) NULL,
-        vehicle_id INT NULL,
-        game_vehicle_id VARCHAR(255) NOT NULL,
-        vehicle_name VARCHAR(255) NULL,
-        assigned_player_id INT NULL,
-        player_name VARCHAR(255) NULL,
-        mode VARCHAR(255) NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uniq_alarm_history_command (command_id),
-        INDEX idx_alarm_history_session (session_id, created_at, id),
-        INDEX idx_alarm_history_event (session_id, event_id, created_at),
-        INDEX idx_alarm_history_vehicle (session_id, vehicle_id, created_at),
-        CONSTRAINT fk_alarm_history_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB");
-    $stmt = $pdo->query("SHOW INDEX FROM activity_logs WHERE Key_name = 'idx_session_updated'");
     if (!$stmt->fetch()) {
-        $pdo->exec('ALTER TABLE activity_logs ADD INDEX idx_session_updated (session_id, updated_at, id)');
+        $sql = file_get_contents(__DIR__ . '/schema.sql');
+        foreach (preg_split('/;\s*\n/', $sql) as $statement) {
+            $statement = trim($statement);
+            if ($statement === '' || str_starts_with($statement, '--')) {
+                continue;
+            }
+            $pdo->exec($statement);
+        }
     }
+    run_migrations($pdo);
 }
 
 // Sessions ohne Aktivität seit einer Stunde entsorgen, alles Zugehörige
@@ -110,4 +68,5 @@ function maybe_cleanup(PDO $pdo): void {
           IFNULL(l.last_log, '1970-01-01'),
           IFNULL(c.last_cmd, '1970-01-01')
         ) < (NOW() - INTERVAL 1 HOUR)");
+    $pdo->exec("DELETE FROM auth_rate_limits WHERE updated_at < (NOW() - INTERVAL 1 DAY)");
 }

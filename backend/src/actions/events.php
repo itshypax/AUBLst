@@ -112,18 +112,13 @@ function action_events_assign(PDO $pdo): void {
     }
 
     $unavailable = [];
-    $untracked_unit_ids = ['ASF', 'BSW', 'JA', 'FUSTW', 'TD'];
     foreach ($vehicle_ids as $vid) {
         $vehicle = $vehicles_by_id[$vid] ?? null;
         if (!$vehicle) {
             $unavailable[] = "Fahrzeug #$vid";
             continue;
         }
-        $game_vehicle_id = strtoupper((string)($vehicle['game_vehicle_id'] ?? ''));
-        $vehicle_type = strtoupper((string)($vehicle['type'] ?? ''));
-        $is_untracked_unit = in_array($game_vehicle_id, $untracked_unit_ids, true)
-            || in_array($vehicle_type, $untracked_unit_ids, true);
-        if (!$is_untracked_unit && !in_array((int)$vehicle['status'], [1, 2], true)) {
+        if (!vehicle_available_for_alarm($vehicle)) {
             $unavailable[] = $vehicle['name'] ?? $vehicle['game_vehicle_id'] ?? "Fahrzeug #$vid";
         }
     }

@@ -8,8 +8,7 @@ function action_update_vehicles(PDO $pdo): void {
 
     foreach (($data['updates'] ?? []) as $u) {
         if (isset($u['status'])) {
-            $status = (int)$u['status'];
-            if ($status < 0 || $status > 9) {
+            if (!valid_vehicle_status($u['status'])) {
                 respond_json(400, ['error' => 'Ungültiger Fahrzeugstatus.']);
             }
         }

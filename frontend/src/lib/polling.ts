@@ -1,5 +1,6 @@
-import { apiGet, fetchMapImage } from './api';
+import { api, apiGet, fetchMapImage } from './api';
 import { advanceLogCursor, INITIAL_LOG_CURSOR, mergeLogRows } from './log-stream';
+import { isSpeechRequest } from './speech-requests';
 import { app, persistSettings, resetSessionData } from './state.svelte';
 import { playAlarm, playPhone, playSpeechRequest } from './sounds';
 import type { LogRow, StateResponse } from './types';
@@ -37,31 +38,23 @@ function nextDelay(base: number, failures: number): number {
   return Math.min(MAX_BACKOFF, base * Math.max(1, 2 ** failures));
 }
 
-export function isSpeechRequest(row: LogRow): boolean {
-  const signal = row.message.trim().toLocaleLowerCase('de-DE').replace(/\s+/g, '');
-  return (
-    row.message.toLocaleLowerCase('de-DE').includes('sprechwunsch') ||
-    row.long_message.toLocaleLowerCase('de-DE').includes('sprechwunsch') ||
-    signal === '5' ||
-    signal === 's5' ||
-    signal === 'status5' ||
-    signal === 'fms5'
-  );
-}
-
 function scheduleState(delay = nextDelay(STATE_INTERVAL, stateFailures)): void {
+  const scheduledGeneration = generation;
   clearTimeout(stateTimer);
   stateTimer = window.setTimeout(async () => {
+    if (scheduledGeneration !== generation) return;
     await refreshState();
-    scheduleState();
+    if (scheduledGeneration === generation) scheduleState();
   }, delay);
 }
 
 function scheduleLogs(delay = nextDelay(LOG_INTERVAL, logFailures)): void {
+  const scheduledGeneration = generation;
   clearTimeout(logTimer);
   logTimer = window.setTimeout(async () => {
+    if (scheduledGeneration !== generation) return;
     await pollLogs();
-    scheduleLogs();
+    if (scheduledGeneration === generation) scheduleLogs();
   }, delay);
 }
 
@@ -78,6 +71,29 @@ function restartLoops(runImmediately: boolean): void {
   }
 }
 
+async function connectCurrentSession(): Promise<void> {
+  if (!app.sessionToken) return;
+  const requestGeneration = generation;
+  try {
+    await api('session_validate', {}, { requireFresh: false });
+  } catch (error) {
+    if (requestGeneration !== generation) return;
+    app.connected = false;
+    app.stateHealthy = false;
+    app.logsHealthy = false;
+    app.lastError = (error as Error).message;
+    return;
+  }
+  if (requestGeneration !== generation) return;
+
+  const logRequest = pollLogs().finally(() => {
+    if (requestGeneration === generation) scheduleLogs();
+  });
+  await refreshState();
+  if (requestGeneration === generation) scheduleState();
+  void logRequest;
+}
+
 export async function switchSession(apiBase: string, token: string, pin: string): Promise<void> {
   generation += 1;
   stateController?.abort();
@@ -91,8 +107,13 @@ export async function switchSession(apiBase: string, token: string, pin: string)
   app.sessionToken = token.trim();
   app.pin = pin.trim();
   persistSettings();
-  app.sessionChanging = false;
-  if (started && app.sessionToken) restartLoops(true);
+  try {
+    if (started && app.sessionToken) {
+      await connectCurrentSession();
+    }
+  } finally {
+    app.sessionChanging = false;
+  }
 }
 
 export async function refreshState(): Promise<void> {
@@ -206,7 +227,7 @@ export async function pollLogs(): Promise<void> {
 }
 
 export async function dismissLog(id: number): Promise<void> {
-  await apiGet('log_viewed', { mid: id }, { requireFresh: true });
+  await api('log_viewed', { mid: id }, { requireFresh: true });
   app.logs = app.logs.map((row) => (row.id === id ? { ...row, state: 'inactive' as const } : row));
   app.lastLogBatch = app.lastLogBatch.filter((item) => item !== id);
 }
@@ -215,5 +236,8 @@ export function startPolling(): void {
   if (started) return;
   started = true;
   document.addEventListener('visibilitychange', () => restartLoops(!document.hidden));
-  if (app.sessionToken) restartLoops(true);
+  if (app.sessionToken) {
+    app.sessionChanging = true;
+    void connectCurrentSession().finally(() => (app.sessionChanging = false));
+  }
 }

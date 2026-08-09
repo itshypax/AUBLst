@@ -3,7 +3,11 @@ declare(strict_types=1);
 
 function action_session_create(PDO $pdo): void {
     $data = get_json_input();
-    $session = create_session($pdo, $data['mod_id'] ?? null, $data['pin'] ?? null, $data['map_bounds'] ?? null);
+    $pin = isset($data['pin']) ? trim((string)$data['pin']) : null;
+    if (REQUIRE_SESSION_PIN && !$pin) {
+        respond_json(400, ['error' => 'Für neue Sitzungen ist ein PIN erforderlich.']);
+    }
+    $session = create_session($pdo, $data['mod_id'] ?? null, $pin ?: null, $data['map_bounds'] ?? null);
     respond_json(200, [
         'ok' => true,
         'session_id' => (int)$session['id'],
@@ -16,6 +20,12 @@ function action_session_create(PDO $pdo): void {
             'max_y' => (float)$session['max_y'],
         ],
     ]);
+}
+
+function action_session_validate(PDO $pdo): void {
+    $data = get_json_input();
+    $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
+    respond_json(200, ['ok' => true, 'session_token' => $session['token']]);
 }
 
 function action_session_statistics(PDO $pdo): void {
@@ -55,6 +65,15 @@ function action_sync(PDO $pdo): void {
     $token = $data['session_token'] ?? null;
     if (!$token) respond_json(400, ['error' => 'Missing session_token']);
 
+    $pin = isset($data['pin']) ? trim((string)$data['pin']) : null;
+    if (REQUIRE_SESSION_PIN && !$pin) {
+        $stmt = $pdo->prepare('SELECT id FROM sessions WHERE token = ?');
+        $stmt->execute([$token]);
+        if (!$stmt->fetchColumn()) {
+            respond_json(400, ['error' => 'Für die erste Synchronisierung einer Sitzung ist ein PIN erforderlich.']);
+        }
+    }
+
     $mod_id = $data['mod_id'] ?? null;
 
     $pdo->beginTransaction();
@@ -63,27 +82,29 @@ function action_sync(PDO $pdo): void {
     // mod_id is fixed for the lifetime of a session, IFNULL keeps the first value
     $bounds = $data['map_bounds'] ?? null;
     if ($bounds) {
-        $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id, min_x, min_y, max_x, max_y)
-            VALUES (?, ?, ?, ?, ?, ?)
+        $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id, pin, min_x, min_y, max_x, max_y)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 min_x = VALUES(min_x),
                 min_y = VALUES(min_y),
                 max_x = VALUES(max_x),
                 max_y = VALUES(max_y),
                 updated_at = CURRENT_TIMESTAMP,
-                mod_id = IFNULL(mod_id, VALUES(mod_id))');
+                mod_id = IFNULL(mod_id, VALUES(mod_id)),
+                pin = IFNULL(pin, VALUES(pin))');
         $stmt->execute([
-            $token, $mod_id,
+            $token, $mod_id, $pin,
             n($bounds['min_x'] ?? 0), n($bounds['min_y'] ?? 0),
             n($bounds['max_x'] ?? 1000), n($bounds['max_y'] ?? 1000),
         ]);
     } else {
-        $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id)
-            VALUES (?, ?)
+        $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id, pin)
+            VALUES (?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 updated_at = CURRENT_TIMESTAMP,
-                mod_id = IFNULL(mod_id, VALUES(mod_id))');
-        $stmt->execute([$token, $mod_id]);
+                mod_id = IFNULL(mod_id, VALUES(mod_id)),
+                pin = IFNULL(pin, VALUES(pin))');
+        $stmt->execute([$token, $mod_id, $pin]);
     }
 
     $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ?');

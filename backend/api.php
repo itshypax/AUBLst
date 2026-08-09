@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/src/http.php';
 require_once __DIR__ . '/src/database.php';
+require_once __DIR__ . '/src/domain.php';
 require_once __DIR__ . '/src/session.php';
 require_once __DIR__ . '/src/repository.php';
 require_once __DIR__ . '/src/actions/sessions.php';
@@ -16,12 +17,16 @@ require_once __DIR__ . '/src/actions/commands.php';
 require_once __DIR__ . '/src/actions/logs.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    if (!current_cors_request_allowed()) {
+        respond_json(403, ['error' => 'Origin not allowed']);
+    }
     send_cors_headers();
     exit;
 }
 
 const ACTIONS = [
     'session_create'         => 'action_session_create',
+    'session_validate'       => 'action_session_validate',
     'session_statistics'     => 'action_session_statistics',
     'events_archive'         => 'action_events_archive',
     'event_record'           => 'action_event_record',

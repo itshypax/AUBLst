@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { ChartNoAxesCombined, CircleAlert, ClipboardList, Clock, KeyRound, Play, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from 'lucide-svelte';
+  import { ChartNoAxesCombined, CircleAlert, ClipboardList, Clock, KeyRound, Play, RadioTower, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from 'lucide-svelte';
   import { pollLogs, refreshState, switchSession } from '../lib/polling';
   import { configureSounds, testSound } from '../lib/sounds';
+  import { buildSpeechRequestEntries } from '../lib/speech-requests';
   import { app, persistSoundSettings } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import { userFacingError } from '../lib/user-facing-error';
@@ -19,12 +20,23 @@
   const versionTooltip = appCommitDate
     ? `Commit ${appCommit} vom ${new Date(appCommitDate).toLocaleString('de-DE')}`
     : `Commit ${appCommit}`;
+  const speechRequestCount = $derived(buildSpeechRequestEntries(app.logs, app.vehicles, app.events, app.assignments).length);
+
+  $effect(() => {
+    if (!details?.open && !app.sessionChanging) {
+      tokenInput = app.sessionToken;
+      pinInput = app.pin;
+    }
+  });
 
   async function apply(): Promise<void> {
     applying = true;
-    await switchSession(app.apiBase, tokenInput, pinInput);
-    applying = false;
-    details.open = false;
+    try {
+      await switchSession(app.apiBase, tokenInput, pinInput);
+      details.open = false;
+    } finally {
+      applying = false;
+    }
   }
 
   function onKey(e: KeyboardEvent): void {
@@ -90,6 +102,7 @@
     if (app.sessionChanging) return { kind: 'busy', text: 'Sitzung wird gewechselt', title: '' };
     if (!app.sessionToken) return { kind: 'off', text: 'Keine Sitzung', title: 'Sitzung einrichten' };
     if (!app.stateHealthy) {
+      if (app.lastSuccessfulSync === null) return { kind: 'error', text: 'Nicht verbunden', title: stateIssue?.message ?? '' };
       const age = app.lastSuccessfulSync ? ` · Stand ${new Date(app.lastSuccessfulSync).toLocaleTimeString('de-DE')}` : '';
       return { kind: 'error', text: `Verbindung unterbrochen${age}`, title: stateIssue?.message ?? '' };
     }
@@ -127,15 +140,29 @@
     <span>{connection.text}</span>
   </div>
 
-  <button class="ghost icon-button" data-tooltip="Daten neu laden" aria-label="Daten neu laden" disabled={!app.sessionToken || applying} onclick={() => { void refreshState(); void pollLogs(); }}>
+  {#if app.lastSuccessfulSync !== null}
+    <button
+      class="ghost icon-button speech-button"
+      class:active={app.speechQueueOpen}
+      data-tooltip={speechRequestCount ? `${speechRequestCount} offene Sprechwünsche` : 'Sprechwünsche'}
+      aria-label={speechRequestCount ? `Sprechwünsche öffnen, ${speechRequestCount} offen` : 'Sprechwünsche öffnen'}
+      aria-expanded={app.speechQueueOpen}
+      onclick={() => (app.speechQueueOpen = !app.speechQueueOpen)}
+    >
+      <RadioTower size={16} />
+      {#if speechRequestCount}<span class="speech-count">{speechRequestCount}</span>{/if}
+    </button>
+  {/if}
+
+  <button class="ghost icon-button" data-tooltip="Daten neu laden" aria-label="Daten neu laden" disabled={app.lastSuccessfulSync === null || applying} onclick={() => { void refreshState(); void pollLogs(); }}>
     <RefreshCw size={16} />
   </button>
 
-  <button class="ghost icon-button" data-tooltip="Session-Statistik" aria-label="Session-Statistik öffnen" disabled={!app.sessionToken || applying} onclick={() => (app.statisticsOpen = true)}>
+  <button class="ghost icon-button" data-tooltip="Session-Statistik" aria-label="Session-Statistik öffnen" disabled={app.lastSuccessfulSync === null || applying} onclick={() => (app.statisticsOpen = true)}>
     <ChartNoAxesCombined size={16} />
   </button>
 
-  <button class="ghost icon-button" data-tooltip="Einsatzakte" aria-label="Einsatzakte öffnen" disabled={!app.sessionToken || applying} onclick={() => (app.recordsOpen = true)}>
+  <button class="ghost icon-button" data-tooltip="Einsatzakte" aria-label="Einsatzakte öffnen" disabled={app.lastSuccessfulSync === null || applying} onclick={() => (app.recordsOpen = true)}>
     <ClipboardList size={16} />
   </button>
 
@@ -239,6 +266,9 @@
   .connection-alert span { color: inherit; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
   .reset-layout { justify-content: flex-start; border-top: 1px solid var(--border); border-radius: 0; padding-top: 10px; }
   .icon-button { width: 30px; height: 30px; padding: 0; justify-content: center; }
+  .speech-button { position: relative; }
+  .speech-button.active { background: var(--accent-soft); color: var(--text); }
+  .speech-count { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border: 2px solid var(--bg-raised); border-radius: 8px; background: var(--danger); color: #fff; font-size: 10px; line-height: 12px; text-align: center; }
   @media (max-width: 1100px) {
     .connection span { display: none; }
     .game-state { max-width: 160px; }

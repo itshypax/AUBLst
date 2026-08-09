@@ -3,7 +3,7 @@
   import { untrack } from 'svelte';
   import { eventCategory, station, type EventCategory } from '../lib/classify';
   import { canvasToWorld, imageDrawRect, toScreen, worldToCanvas, type MapView, type Point } from '../lib/mapview';
-  import { app, openAssign, openVehicleMenu, setHighlightedEvent, setHighlightedVehicle } from '../lib/state.svelte';
+  import { app, assignedEventForVehicle, openAssign, openVehicleMenu, setHighlightedEvent, setHighlightedVehicle } from '../lib/state.svelte';
   import { statusDisplay } from '../lib/status';
   import { vehicleIconName } from '../lib/vehicleIcons';
   import type { EventItem, Vehicle } from '../lib/types';
@@ -282,8 +282,15 @@
     panning = false;
     wrapper.releasePointerCapture(e.pointerId);
     if (dragged || e.button !== 0) return;
-    const ev = eventNear(clientToCanvas(e.clientX, e.clientY));
-    if (ev) openAssign(ev);
+    const pos = clientToCanvas(e.clientX, e.clientY);
+    const ev = eventNear(pos);
+    if (ev) {
+      openAssign(ev);
+      return;
+    }
+    const veh = vehicleNear(pos);
+    const assignedEvent = veh ? assignedEventForVehicle(veh.id) : undefined;
+    if (assignedEvent) openAssign(assignedEvent);
   }
 
   function onPointerLeave(): void {

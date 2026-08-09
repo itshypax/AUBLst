@@ -99,6 +99,7 @@ export interface LogRow {
   message: string;
   long_message: string;
   state: 'active' | 'inactive' | 'disabled';
+  created_at?: string;
   updated_at: string;
 }
 

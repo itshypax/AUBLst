@@ -1,8 +1,36 @@
 <?php
 declare(strict_types=1);
 
+function cors_origin_allowed(string $origin, string $configured, string $requestHost): bool {
+    if ($origin === '') return true;
+    if ($configured === '*') return true;
+    if ($configured !== '') {
+        $allowed = array_filter(array_map(
+            static fn(string $item): string => rtrim(trim($item), '/'),
+            explode(',', $configured)
+        ));
+        return in_array(rtrim($origin, '/'), $allowed, true);
+    }
+
+    $originHost = parse_url($origin, PHP_URL_HOST);
+    $host = preg_replace('/:\d+$/', '', $requestHost);
+    return is_string($originHost) && $originHost !== '' && strcasecmp($originHost, (string)$host) === 0;
+}
+
+function current_cors_request_allowed(): bool {
+    return cors_origin_allowed(
+        (string)($_SERVER['HTTP_ORIGIN'] ?? ''),
+        (string)CORS_ALLOW_ORIGIN,
+        (string)($_SERVER['HTTP_HOST'] ?? '')
+    );
+}
+
 function send_cors_headers(): void {
-    header('Access-Control-Allow-Origin: ' . CORS_ALLOW_ORIGIN);
+    $origin = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
+    if ($origin !== '' && current_cors_request_allowed()) {
+        header('Access-Control-Allow-Origin: ' . (CORS_ALLOW_ORIGIN === '*' ? '*' : $origin));
+        header('Vary: Origin');
+    }
     header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
     header('Access-Control-Allow-Methods: GET, POST, PATCH, PUT, DELETE, OPTIONS');
 }
@@ -10,6 +38,8 @@ function send_cors_headers(): void {
 function respond_json(int $code, $data): void {
     http_response_code($code);
     header('Content-Type: application/json');
+    header('Cache-Control: no-store');
+    header('X-Content-Type-Options: nosniff');
     send_cors_headers();
     echo json_encode($data);
     exit;

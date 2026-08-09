@@ -1,3 +1,4 @@
 node_modules/
 frontend/dist/
 backend/config.local.php
+.release/

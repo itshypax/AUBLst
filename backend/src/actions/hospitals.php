@@ -29,16 +29,13 @@ function action_hospital_reservation_set(PDO $pdo): void {
     if (!$vehicle) {
         respond_json(404, ['error' => 'Fahrzeug nicht gefunden.']);
     }
-    $vehicle_text = strtoupper(implode(' ', array_filter([
-        $vehicle['game_vehicle_id'] ?? null, $vehicle['name'] ?? null, $vehicle['type'] ?? null,
-    ])));
-    if (!preg_match('/(^|[^A-Z])(RTW|ITW)([^A-Z]|$)/', $vehicle_text)) {
+    if (!is_hospital_transport_vehicle($vehicle)) {
         respond_json(400, ['error' => 'Eine Klinik kann nur einem RTW oder ITW zugewiesen werden.']);
     }
     $stmt = $pdo->prepare("SELECT id FROM hospital_reservations WHERE session_id = ? AND vehicle_id = ? AND status = 'reserved'");
     $stmt->execute([$sid, $vehicle_id]);
     $has_reservation = (bool)$stmt->fetchColumn();
-    if (!in_array((int)$vehicle['status'], [4, 5, 7], true) && !$has_reservation) {
+    if (!hospital_reservation_can_be_created($vehicle, $has_reservation)) {
         respond_json(409, ['error' => 'Eine neue Klinikzuweisung ist für RTW und ITW in Status 4, 5 oder 7 möglich.']);
     }
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { app, initSettings, resetSessionData } from './state.svelte';
+import { app, assignedEventForVehicle, initSettings, resetSessionData } from './state.svelte';
 
 beforeEach(() => {
   localStorage.clear();
@@ -38,5 +38,21 @@ describe('Sitzungsdaten', () => {
     expect(app.events).toEqual([]);
     expect(app.sessionToken).toBe('b2c3');
     expect(app.pin).toBe('5678');
+  });
+
+  it('findet den zugeordneten aktiven Einsatz eines Fahrzeugs', () => {
+    const vehicle = { id: 7, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', type: 'HLF', modes: null, x: 120, y: -40, status: 4, assigned_player_id: null };
+    const event = { id: 1030, game_event_id: '30', name: 'Verkehrsunfall', x: 130, y: -50, status: 'active' as const, created_by: 'game' as const };
+    app.vehicles = [vehicle];
+    app.events = [event];
+    app.assignments = [{ event_id: event.id, vehicle_id: vehicle.id }];
+
+    expect(assignedEventForVehicle(vehicle.id)).toEqual(event);
+  });
+
+  it('liefert für ein Fahrzeug ohne aktiven Einsatz keinen Treffer', () => {
+    const vehicle = { id: 8, game_vehicle_id: '2_RTW_A', name: '2-RTW-A', type: 'RTW', modes: null, x: 220, y: -90, status: 2, assigned_player_id: null };
+
+    expect(assignedEventForVehicle(vehicle.id)).toBeUndefined();
   });
 });

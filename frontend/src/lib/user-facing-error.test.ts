@@ -20,4 +20,12 @@ describe('userFacingError', () => {
     expect(result.message).not.toContain('PDOException');
     expect(result.message).not.toContain('SQLSTATE');
   });
+
+  it('übersetzt PIN- und Sperrfehler ohne Servertext', () => {
+    expect(userFacingError('Unauthorized! The correct pin is required to execute this action.', 'state').title).toBe('PIN nicht akzeptiert');
+    expect(userFacingError('Zu viele fehlgeschlagene Verbindungsversuche. Bitte später erneut versuchen.', 'state')).toEqual({
+      title: 'Zu viele Versuche',
+      message: 'Warte kurz und versuche die Verbindung danach erneut.',
+    });
+  });
 });

@@ -22,9 +22,9 @@ function action_logs(PDO $pdo): void {
 }
 
 function action_log_viewed(PDO $pdo): void {
-    $token = request_value('session_token');
-    $mid = request_value('mid', 0);
-    $session = require_session($pdo, $token);
+    $data = get_json_input();
+    $mid = $data['mid'] ?? 0;
+    $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
     $sid = $session['id'];
 
     $stmt = $pdo->prepare("UPDATE activity_logs SET state = 'inactive' WHERE session_id = ? AND id = ?");

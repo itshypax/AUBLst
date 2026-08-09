@@ -25,14 +25,17 @@ Spiele gleichzeitig bedienen.
 ### Backend
 
 1. `backend/` auf einen PHP-fähigen Server legen.
-2. Zugangsdaten in `backend/config.php` eintragen oder als Umgebungsvariablen
-   setzen (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`).
-3. Für den öffentlichen Betrieb `CORS_ALLOW_ORIGIN` einschränken.
+2. `backend/config.local.example.php` nach `backend/config.local.php` kopieren
+   und dort die Zugangsdaten eintragen. Die lokale Datei wird von Git und vom
+   Release-Paket ausgelassen.
+3. Für den öffentlichen Betrieb in derselben Datei die Frontend-Adresse bei
+   `CORS_ALLOW_ORIGIN` eintragen und `REQUIRE_SESSION_PIN` aktivieren.
 
-Mehr braucht es nicht: Beim ersten Request legt das Backend Datenbank und
-Tabellen selbst an (`backend/src/schema.sql`), sofern der DB-Benutzer die
-Rechte dazu hat. Sessions ohne Aktivität werden nach einer Stunde
-automatisch aufgeräumt.
+Beim ersten Request legt das Backend Datenbank und Tabellen selbst an
+(`backend/src/schema.sql`), sofern der DB-Benutzer die Rechte dazu hat.
+Spätere Schemaänderungen laufen einmalig über die versionierten Migrationen.
+Sessions ohne Aktivität werden nach einer Stunde automatisch aufgeräumt.
+Wiederholte falsche Sitzungs- oder PIN-Eingaben werden vorübergehend gesperrt.
 
 ### Kartenbilder
 
@@ -69,9 +72,10 @@ Aufruf dann z. B.:
 https://example.org/leitstelle/?session_token=a1b2&pin=1234
 ```
 
-Token und PIN lassen sich auch direkt in der Kopfzeile eintragen. Sie bleiben
-nur für die aktuelle Browser-Sitzung gespeichert und werden nach einem Aufruf
-über URL-Parameter sofort aus der Adresszeile entfernt.
+Ohne aktive Sitzung erscheint zuerst ein Verbindungsdialog für Token und PIN.
+Später lässt sich die Sitzung weiterhin über die Kopfzeile wechseln. Die
+Zugangsdaten bleiben nur für die aktuelle Browser-Sitzung gespeichert und
+werden nach einem Aufruf über URL-Parameter sofort aus der Adresszeile entfernt.
 
 ### Fahrzeug-Gruppierung
 
@@ -98,6 +102,7 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
 ## API (Spiel → Server)
 
 - `POST api.php?action=session_create` – neue Session anlegen (Antwort enthält Token)
+- `POST api.php?action=session_validate` – Session und gegebenenfalls PIN prüfen
 - `POST api.php?action=sync` – Session initialisieren/aktualisieren
   (Kartengrenzen, Spieler, Fahrzeuge, Krankenhäuser, Einsätze, Meldungen, Uhrzeit)
 - `POST api.php?action=update_vehicles` – Fahrzeugstatus/-position melden
@@ -152,6 +157,31 @@ npm run check    # Typprüfung (svelte-check)
 npm test         # Komponenten- und Zustandsprüfungen (Vitest)
 npm run build    # Produktions-Build
 ```
+
+Die Backend-Regeln für Fahrzeugstatus, Alarmierbarkeit, Klinikvormerkungen
+und CORS haben einen kleinen Testlauf ohne zusätzliche Bibliotheken:
+
+```bash
+php backend/tests/run.php
+```
+
+### Manuelles Plesk-Release
+
+Das Release-Skript prüft das Frontend, baut `dist` und legt ein ZIP mit genau
+den beiden Plesk-Ordnern `backend/` und `frontend/` unter `.release/` ab:
+
+```powershell
+.\scripts\build-release.ps1
+```
+
+Ist PHP nicht als `php` verfügbar, kann der Pfad zur PHP-CLI mitgegeben werden:
+
+```powershell
+.\scripts\build-release.ps1 -PhpPath "C:\Pfad\zu\php.exe" -RequirePhp
+```
+
+`backend/config.local.php` wird nie in das ZIP kopiert. Die vorhandene
+Produktionskonfiguration auf Plesk bleibt beim Hochladen damit erhalten.
 
 ## Credits
 

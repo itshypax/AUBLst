@@ -34,6 +34,7 @@ export const app = $state({
   actionsOpen: false,
   statisticsOpen: false,
   recordsOpen: false,
+  speechQueueOpen: false,
   hospitalAssignmentVehicleId: null as number | null,
   soundEnabled: true,
   soundVolume: 0.7,
@@ -66,6 +67,12 @@ let focusSeq = 0;
 export function focusVehicle(v: Vehicle): void {
   app.focusPoint = { x: v.x, y: v.y, seq: ++focusSeq };
   app.highlightedVehicleId = v.id;
+}
+
+export function assignedEventForVehicle(vehicleId: number): EventItem | undefined {
+  const assignment = app.assignments.find((item) => Number(item.vehicle_id) === vehicleId);
+  if (!assignment) return undefined;
+  return app.events.find((event) => event.id === Number(assignment.event_id) && event.status === 'active');
 }
 
 export function openVehicleMenu(vehicleId: number, x: number, y: number): void {
@@ -163,6 +170,7 @@ export function resetSessionData(): void {
   app.actionsOpen = false;
   app.statisticsOpen = false;
   app.recordsOpen = false;
+  app.speechQueueOpen = false;
   app.hospitalAssignmentVehicleId = null;
 }
 
