@@ -36,12 +36,13 @@ function action_session_statistics(PDO $pdo): void {
     $stmt = $pdo->prepare('SELECT COUNT(*) FROM activity_logs WHERE session_id = ?');
     $stmt->execute([$sid]);
     $log_count = (int)$stmt->fetchColumn();
+    $generated_at = (string)$pdo->query('SELECT NOW()')->fetchColumn();
 
     respond_json(200, [
         'session' => [
             'token' => $session['token'],
             'created_at' => $session['created_at'],
-            'generated_at' => date('Y-m-d H:i:s'),
+            'generated_at' => $generated_at,
         ],
         'events' => $events,
         'dispatches' => $dispatches,

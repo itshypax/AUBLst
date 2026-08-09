@@ -23,15 +23,34 @@
     return (value ?? '').toLocaleLowerCase('de').replace(/[^a-z0-9äöüß]/g, '');
   }
 
+  function appearsAsIdentifier(message: string, identifier: string): boolean {
+    const parts = identifier
+      .toLocaleLowerCase('de')
+      .split(/[^a-z0-9äöüß]+/)
+      .filter(Boolean);
+    if (!parts.length) return false;
+    const pattern = parts.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^a-z0-9äöüß]*');
+    return new RegExp(`(^|[^a-z0-9äöüß])${pattern}($|[^a-z0-9äöüß])`, 'i').test(message);
+  }
+
   function speechRequestVehicle(row: LogRow): Vehicle | undefined {
     if (row.state === 'inactive' || !isSpeechRequest(row)) return undefined;
     const entity = normalized(row.entity_id);
-    const message = normalized(`${row.message} ${row.long_message}`);
-    return app.vehicles.find((vehicle) => {
-      if (!isHospitalTransportUnit(vehicle)) return false;
-      const identifiers = [vehicle.game_vehicle_id, vehicle.name, vehicle.type].map(normalized).filter((value) => value.length >= 4);
-      return identifiers.some((identifier) => identifier === entity || message.includes(identifier));
-    });
+    const transportUnits = app.vehicles.filter(isHospitalTransportUnit);
+
+    if (entity) {
+      const exact = transportUnits.find((vehicle) =>
+        [vehicle.game_vehicle_id, vehicle.name].some((identifier) => normalized(identifier) === entity),
+      );
+      if (exact) return exact;
+    }
+
+    const message = `${row.message} ${row.long_message}`;
+    return transportUnits.find((vehicle) =>
+      [vehicle.game_vehicle_id, vehicle.name]
+        .filter((identifier): identifier is string => Boolean(identifier))
+        .some((identifier) => appearsAsIdentifier(message, identifier)),
+    );
   }
 
   async function dismiss(id: number): Promise<void> {

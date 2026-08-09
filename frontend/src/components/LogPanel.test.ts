@@ -33,4 +33,23 @@ describe('Funkmeldungen', () => {
 
     expect(app.hospitalAssignmentVehicleId).toBe(4);
   });
+
+  it('verwechselt eine zweistellige Wache nicht mit ihrer Endziffer', async () => {
+    const user = userEvent.setup();
+    app.vehicles = [
+      ...app.vehicles,
+      { ...app.vehicles[0], id: 74, game_vehicle_id: '74_RTW_B', name: '74-RTW-B' },
+    ];
+    app.logs = [{
+      ...app.logs[0],
+      entity_id: '74_RTW_B',
+      long_message: 'Rettung Auenburg 74-RTW-B mit Sprechwunsch',
+    }];
+    render(LogPanel);
+
+    await user.click(screen.getByRole('button', { name: 'Klinik für 74-RTW-B zuweisen' }));
+
+    expect(app.hospitalAssignmentVehicleId).toBe(74);
+    expect(screen.queryByRole('button', { name: 'Klinik für 4-RTW-B zuweisen' })).toBeNull();
+  });
 });
