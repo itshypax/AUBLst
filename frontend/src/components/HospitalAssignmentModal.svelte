@@ -2,6 +2,7 @@
   import { Bed, Hospital, ShieldPlus, X } from 'lucide-svelte';
   import { api } from '../lib/api';
   import { focusTrap } from '../lib/focus';
+  import { reservationAffectsCapacity } from '../lib/hospital-reservations';
   import { refreshState } from '../lib/polling';
   import { app, canWrite, showNotice } from '../lib/state.svelte';
   import type { Hospital as HospitalRow } from '../lib/types';
@@ -39,7 +40,12 @@
   }
 
   function reserved(hospitalId: number, bedType: 'ward' | 'icu'): number {
-    return app.hospitalReservations.filter((item) => item.hospital_id === hospitalId && item.bed_type === bedType && item.vehicle_id !== vehicleId).length;
+    return app.hospitalReservations.filter((item) =>
+      item.hospital_id === hospitalId
+      && item.bed_type === bedType
+      && item.vehicle_id !== vehicleId
+      && reservationAffectsCapacity(item, app.vehicles),
+    ).length;
   }
 
   function free(hospital: HospitalRow, bedType: 'ward' | 'icu'): number {

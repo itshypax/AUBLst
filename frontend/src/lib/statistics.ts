@@ -225,26 +225,35 @@ function drawTimeline(ctx: CanvasRenderingContext2D, values: TimelineValue[], x:
   values.forEach((item, index) => {
     const barHeight = (height - 38) * (item.value / max);
     const barX = x + index * (barWidth + gap);
+    const barTop = y + height - 38 - barHeight;
     ctx.fillStyle = '#27292d';
     ctx.fillRect(barX, y, barWidth, height - 38);
     ctx.fillStyle = '#4c8dff';
-    ctx.fillRect(barX, y + height - 38 - barHeight, barWidth, barHeight);
+    ctx.fillRect(barX, barTop, barWidth, barHeight);
     ctx.fillStyle = '#9a9da4';
     ctx.font = '14px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(item.label, barX + barWidth / 2, y + height - 12);
     if (item.value) {
       ctx.fillStyle = '#e9eaec';
-      ctx.fillText(String(item.value), barX + barWidth / 2, y + height - 48 - barHeight);
+      ctx.fillText(String(item.value), barX + barWidth / 2, Math.max(y + 16, barTop - 10));
     }
   });
   ctx.textAlign = 'left';
 }
 
 export async function exportSessionStatisticsPng(model: SessionStatisticsModel): Promise<void> {
+  const categoryRowHeight = model.categories.length > 1
+    ? Math.max(24, Math.min(56, 235 / (model.categories.length - 1)))
+    : 56;
+  const frequentVehicleRows = Math.min(5, model.vehicles.length);
+  const frequentVehicleHeight = Math.max(150, 88 + Math.max(0, frequentVehicleRows - 1) * 28);
+  const frequentVehicleY = 1098;
+  const footerY = frequentVehicleY + frequentVehicleHeight + 52;
+
   const canvas = document.createElement('canvas');
   canvas.width = 1600;
-  canvas.height = 1340;
+  canvas.height = footerY + 40;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('PNG konnte nicht erstellt werden');
 
@@ -280,7 +289,7 @@ export async function exportSessionStatisticsPng(model: SessionStatisticsModel):
   });
 
   drawSection(ctx, 64, 390, 710, 318, 'Einsätze je Kategorie');
-  drawHorizontalBars(ctx, model.categories, 88, 448, 660, 56);
+  drawHorizontalBars(ctx, model.categories, 88, 448, 660, categoryRowHeight);
   drawSection(ctx, 802, 390, 734, 318, 'Einsätze im Verlauf');
   drawTimeline(ctx, model.timeline, 830, 450, 678, 230);
 
@@ -293,13 +302,13 @@ export async function exportSessionStatisticsPng(model: SessionStatisticsModel):
   ctx.font = '18px system-ui, sans-serif';
   ctx.fillText(`Dauer: ${formatStatisticDuration(model.durationMs)} · Spitzenzeit: ${model.peakLabel} (${model.peakCount})`, 830, 1045);
 
-  drawSection(ctx, 64, 1098, 1472, 150, 'Häufig alarmierte Fahrzeuge');
+  drawSection(ctx, 64, frequentVehicleY, 1472, frequentVehicleHeight, 'Häufig alarmierte Fahrzeuge');
   drawHorizontalBars(ctx, model.vehicles.slice(0, 5), 88, 1154, 1400, 28);
 
   ctx.fillStyle = '#71747b';
   ctx.font = '16px system-ui, sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText('Erstellt mit aublst.hypax.wtf/frontend', 1536, 1300);
+  ctx.fillText('Erstellt mit aublst.hypax.wtf/frontend', 1536, footerY);
   ctx.textAlign = 'left';
 
   const blob = await new Promise<Blob>((resolve, reject) => {

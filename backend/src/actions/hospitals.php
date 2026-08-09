@@ -48,8 +48,10 @@ function action_hospital_reservation_set(PDO $pdo): void {
     if (!$hospital) respond_json(404, ['error' => 'Klinik nicht gefunden.']);
 
     $available_column = $bed_type === 'icu' ? 'icu_available' : 'ward_available';
-    $stmt = $pdo->prepare('SELECT COUNT(*) FROM hospital_reservations
-        WHERE session_id = ? AND hospital_id = ? AND bed_type = ? AND vehicle_id <> ?');
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM hospital_reservations r
+        JOIN vehicles v ON v.id = r.vehicle_id AND v.session_id = r.session_id
+        WHERE r.session_id = ? AND r.hospital_id = ? AND r.bed_type = ? AND r.vehicle_id <> ?
+          AND (r.status = 'reserved' OR (r.status = 'arrived' AND v.status = 8))");
     $stmt->execute([$sid, $hospital_id, $bed_type, $vehicle_id]);
     $reserved_elsewhere = (int)$stmt->fetchColumn();
     if ((int)$hospital[$available_column] - $reserved_elsewhere <= 0) {

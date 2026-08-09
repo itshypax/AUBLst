@@ -64,7 +64,7 @@ function upsert_vehicle(PDO $pdo, $session_id, array $veh) {
             $stmt->execute([$session_id, $current['id']]);
         } elseif (in_array($status, [1, 2], true)) {
             $stmt = $pdo->prepare("DELETE FROM hospital_reservations
-                WHERE session_id = ? AND vehicle_id = ? AND status = 'reserved'");
+                WHERE session_id = ? AND vehicle_id = ?");
             $stmt->execute([$session_id, $current['id']]);
         }
     }

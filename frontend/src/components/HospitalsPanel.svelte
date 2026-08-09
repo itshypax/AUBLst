@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Hospital as HospitalIcon, Map as MapIcon } from 'lucide-svelte';
+  import { reservationAffectsCapacity } from '../lib/hospital-reservations';
   import { app } from '../lib/state.svelte';
 
   interface HospitalLocation {
@@ -32,7 +33,11 @@
 
 
   function reservationCount(hospitalId: number, bedType: 'ward' | 'icu'): number {
-    return app.hospitalReservations.filter((item) => item.hospital_id === hospitalId && item.bed_type === bedType).length;
+    return app.hospitalReservations.filter((item) =>
+      item.hospital_id === hospitalId
+      && item.bed_type === bedType
+      && reservationAffectsCapacity(item, app.vehicles),
+    ).length;
   }
 </script>
 

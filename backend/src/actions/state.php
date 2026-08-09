@@ -26,6 +26,11 @@ function action_state(PDO $pdo): void {
     $assignments->execute([$sid]);
     $assignments = $assignments->fetchAll();
 
+    $cleanup = $pdo->prepare('DELETE r FROM hospital_reservations r
+        JOIN vehicles v ON v.id = r.vehicle_id AND v.session_id = r.session_id
+        WHERE r.session_id = ? AND v.status IN (1, 2)');
+    $cleanup->execute([$sid]);
+
     $hospital_reservations = $pdo->prepare('SELECT r.id, r.vehicle_id, r.hospital_id, r.bed_type, r.status,
         r.created_at, r.updated_at, r.arrived_at, v.game_vehicle_id, v.name AS vehicle_name, h.name AS hospital_name
         FROM hospital_reservations r
