@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChartNoAxesCombined, CircleAlert, ClipboardList, Clock, KeyRound, Play, RadioTower, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from 'lucide-svelte';
+  import { CircleAlert, ClipboardList, Clock, KeyRound, LayoutGrid, Play, RadioTower, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from 'lucide-svelte';
   import { pollLogs, refreshState, switchSession } from '../lib/polling';
   import { configureSounds, testSound } from '../lib/sounds';
   import { buildSpeechRequestEntries } from '../lib/speech-requests';
@@ -8,7 +8,7 @@
   import { userFacingError } from '../lib/user-facing-error';
   import type { LogRow } from '../lib/types';
 
-  let { onResetLayout }: { onResetLayout: () => void } = $props();
+  let { onResetLayout, onOpenWorkspaceEditor, workspaceName }: { onResetLayout: () => void; onOpenWorkspaceEditor: () => void; workspaceName: string } = $props();
 
   let tokenInput = $state(app.sessionToken);
   let pinInput = $state(app.pin);
@@ -159,15 +159,11 @@
     </button>
   {/if}
 
-  <button class="ghost icon-button" data-tooltip="Daten neu laden" aria-label="Daten neu laden" disabled={app.lastSuccessfulSync === null || applying} onclick={() => { void refreshState(); void pollLogs(); }}>
-    <RefreshCw size={16} />
+  <button class="ghost icon-button" data-tooltip={`Arbeitsansicht: ${workspaceName}`} aria-label={`Arbeitsansicht ${workspaceName} bearbeiten`} onclick={onOpenWorkspaceEditor}>
+    <LayoutGrid size={16} />
   </button>
 
-  <button class="ghost icon-button" data-tooltip="Session-Statistik" aria-label="Session-Statistik öffnen" disabled={app.lastSuccessfulSync === null || applying} onclick={() => (app.statisticsOpen = true)}>
-    <ChartNoAxesCombined size={16} />
-  </button>
-
-  <button class="ghost icon-button" data-tooltip="Einsatzakte" aria-label="Einsatzakte öffnen" disabled={app.lastSuccessfulSync === null || applying} onclick={() => (app.recordsOpen = true)}>
+  <button class="ghost icon-button" data-tooltip="Einsatzakte und Statistik" aria-label="Sitzungsübersicht öffnen" disabled={app.lastSuccessfulSync === null || applying} onclick={() => (app.sessionOverviewOpen = true)}>
     <ClipboardList size={16} />
   </button>
 
@@ -189,6 +185,9 @@
         </label>
       </div>
       <button class="apply" disabled={applying} onclick={() => void apply()}>{applying ? 'Wird verbunden …' : 'Verbinden'}</button>
+      <button class="ghost reload-data" disabled={app.lastSuccessfulSync === null || applying} onclick={() => { void refreshState(); void pollLogs(); }}>
+        <RefreshCw size={15} /> Daten neu laden
+      </button>
 
       <div class="settings-title sound-title">Ton</div>
       <div class="sound-row">
@@ -257,6 +256,7 @@
   label > span { display: inline-flex; align-items: center; gap: 4px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .apply { justify-content: center; }
+  .reload-data { justify-content: flex-start; }
   .sound-row { display: flex; align-items: center; gap: 8px; }
   .sound-toggle { min-width: 74px; }
   .volume { flex: 1; }

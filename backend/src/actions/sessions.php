@@ -43,6 +43,11 @@ function action_session_statistics(PDO $pdo): void {
     $stmt->execute([$sid]);
     $dispatches = $stmt->fetchAll();
 
+    $stmt = $pdo->prepare('SELECT game_vehicle_id, vehicle_name, status, created_at
+        FROM vehicle_status_history WHERE session_id = ? ORDER BY created_at ASC, id ASC');
+    $stmt->execute([$sid]);
+    $status_history = $stmt->fetchAll();
+
     $stmt = $pdo->prepare('SELECT COUNT(*) FROM activity_logs WHERE session_id = ?');
     $stmt->execute([$sid]);
     $log_count = (int)$stmt->fetchColumn();
@@ -56,6 +61,7 @@ function action_session_statistics(PDO $pdo): void {
         ],
         'events' => $events,
         'dispatches' => $dispatches,
+        'status_history' => $status_history,
         'log_count' => $log_count,
     ]);
 }

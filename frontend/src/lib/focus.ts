@@ -10,9 +10,11 @@ const FOCUSABLE = [
 interface FocusTrapOptions {
   initial?: string;
   inertSiblings?: boolean;
+  disabled?: boolean;
 }
 
 export function focusTrap(node: HTMLElement, options: FocusTrapOptions = {}) {
+  if (options.disabled) return { destroy() {} };
   const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const siblings = node.parentElement ? [...node.parentElement.children].filter((item) => item !== node) : [];
   const inertStates = siblings.map((item) => ({ item: item as HTMLElement, inert: (item as HTMLElement).inert }));

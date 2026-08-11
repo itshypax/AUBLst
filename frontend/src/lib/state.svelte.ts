@@ -34,8 +34,7 @@ export const app = $state({
   focusPoint: null as { x: number; y: number; seq: number } | null,
   confirmDialog: null as { message: string; resolve: (ok: boolean) => void } | null,
   actionsOpen: false,
-  statisticsOpen: false,
-  recordsOpen: false,
+  sessionOverviewOpen: false,
   speechQueueOpen: false,
   hospitalAssignmentVehicleId: null as number | null,
   soundEnabled: true,
@@ -171,8 +170,7 @@ export function resetSessionData(): void {
   app.createEventPos = null;
   app.contextMenu = null;
   app.actionsOpen = false;
-  app.statisticsOpen = false;
-  app.recordsOpen = false;
+  app.sessionOverviewOpen = false;
   app.speechQueueOpen = false;
   app.hospitalAssignmentVehicleId = null;
 }

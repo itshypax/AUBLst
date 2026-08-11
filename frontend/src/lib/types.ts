@@ -146,6 +146,13 @@ export interface StatisticsDispatch {
   created_at: string;
 }
 
+export interface StatisticsVehicleStatus {
+  game_vehicle_id: string;
+  vehicle_name: string | null;
+  status: number;
+  created_at: string;
+}
+
 export interface SessionStatisticsResponse {
   session: {
     token: string;
@@ -154,6 +161,7 @@ export interface SessionStatisticsResponse {
   };
   events: StatisticsEvent[];
   dispatches: StatisticsDispatch[];
+  status_history: StatisticsVehicleStatus[];
   log_count: number;
 }
 

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { Crosshair, Hospital, Undo2 } from 'lucide-svelte';
+  import { Crosshair, Hospital, Route, Undo2 } from 'lucide-svelte';
   import { api } from '../lib/api';
   import { isHospitalTransportUnit } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
-  import { app, canWrite, closeVehicleMenu, focusVehicle } from '../lib/state.svelte';
+  import { app, assignedEventForVehicle, canWrite, closeVehicleMenu, focusVehicle, showNotice } from '../lib/state.svelte';
   import StatusBadge from './StatusBadge.svelte';
 
   const menu = app.contextMenu!;
@@ -13,9 +13,13 @@
   const isTransportUnit = $derived(Boolean(vehicle && isHospitalTransportUnit(vehicle)));
   const hospitalReservation = $derived(vehicle ? app.hospitalReservations.find((item) => item.vehicle_id === vehicle.id && item.status === 'reserved') : undefined);
   const canManageHospital = $derived(Boolean(vehicle && isTransportUnit && ([4, 5, 7].includes(Number(vehicle.status)) || hospitalReservation)));
+  const currentEvent = $derived(vehicle ? assignedEventForVehicle(vehicle.id) : undefined);
+  const reassignableEvents = $derived(app.events.filter((event) => event.status === 'active' && event.id !== currentEvent?.id));
 
   let el: HTMLDivElement | undefined = $state();
   let pos = $state({ x: menu.x, y: menu.y });
+  let choosingEvent = $state(false);
+  let reassigning = $state(false);
 
   $effect(() => {
     if (!vehicle) {
@@ -52,6 +56,21 @@
     }
   }
 
+  async function reassign(eventId: number): Promise<void> {
+    if (!vehicle || reassigning) return;
+    reassigning = true;
+    try {
+      await api('events_reassign', { vehicle_id: vehicle.id, event_id: eventId });
+      const target = app.events.find((event) => event.id === eventId);
+      showNotice(`${vehicle.name || vehicle.game_vehicle_id} ist jetzt ${target?.name || `Einsatz ${eventId}`} zugeordnet`);
+      closeVehicleMenu();
+      await refreshState();
+    } catch (err) {
+      app.lastError = (err as Error).message;
+      reassigning = false;
+    }
+  }
+
   function onKeydown(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
       closeVehicleMenu();
@@ -79,7 +98,10 @@
   <div class="menu" bind:this={el} style="left: {pos.x}px; top: {pos.y}px;" role="menu" aria-label={`Aktionen für ${vehicle.name || vehicle.game_vehicle_id}`} onkeydown={onKeydown} use:focusTrap={{ initial: '[role="menuitem"]:not([disabled])', inertSiblings: false }} tabindex="-1">
     <div class="head">
       <StatusBadge value={vehicle.status} />
-      <span class="name">{vehicle.name || vehicle.type || vehicle.game_vehicle_id}</span>
+      <span class="vehicle-title">
+        <span class="name">{vehicle.name || vehicle.type || vehicle.game_vehicle_id}</span>
+        {#if currentEvent}<span class="assignment">{currentEvent.name || `Einsatz ${currentEvent.id}`}</span>{/if}
+      </span>
     </div>
     <button class="item" role="menuitem" onclick={focus}>
       <Crosshair size={14} />
@@ -92,6 +114,20 @@
       </button>
     {/if}
     {#if Number(vehicle.status) >= 3 && Number(vehicle.status) <= 4}
+      <button class="item" role="menuitem" aria-expanded={choosingEvent} disabled={!canWrite() || !reassignableEvents.length} onclick={() => (choosingEvent = !choosingEvent)}>
+        <Route size={14} />
+        {currentEvent ? 'Anderem Einsatz zuordnen' : 'Einsatz zuordnen'}
+      </button>
+      {#if choosingEvent}
+        <div class="event-list" aria-label="Zieleinsatz">
+          {#each reassignableEvents as event (event.id)}
+            <button class="event-item" role="menuitem" disabled={reassigning || !canWrite()} onclick={() => void reassign(event.id)}>
+              <span>{event.name || 'Einsatz'}</span>
+              <small>Nr. {event.id}</small>
+            </button>
+          {/each}
+        </div>
+      {/if}
       <button class="item" role="menuitem" disabled={!canWrite()} onclick={() => void sendHome()}>
         <Undo2 size={14} />
         Einrücken lassen
@@ -137,6 +173,20 @@
     white-space: nowrap;
   }
 
+  .vehicle-title {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .assignment {
+    color: var(--text-dim);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .item {
     background: transparent;
     border: none;
@@ -148,6 +198,34 @@
 
   .item:hover {
     background: var(--accent-soft);
+  }
+
+  .event-list {
+    max-height: 190px;
+    overflow: auto;
+    margin: 0 4px 3px 22px;
+    padding-left: 6px;
+    border-left: 1px solid var(--border-strong);
+  }
+
+  .event-item {
+    width: 100%;
+    justify-content: space-between;
+    border: 0;
+    background: transparent;
+    padding: 5px 6px;
+    text-align: left;
+  }
+
+  .event-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .event-item small {
+    color: var(--text-dim);
+    flex: 0 0 auto;
   }
 
 </style>

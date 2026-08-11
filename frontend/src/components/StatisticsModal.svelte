@@ -3,9 +3,10 @@
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
   import { focusTrap } from '../lib/focus';
-  import { app } from '../lib/state.svelte';
   import { buildSessionStatistics, exportSessionStatisticsPng, formatStatisticDuration, type SessionStatisticsModel, type StatisticValue } from '../lib/statistics';
   import type { SessionStatisticsResponse } from '../lib/types';
+
+  let { embedded = false, onClose = () => {} }: { embedded?: boolean; onClose?: () => void } = $props();
 
   let model = $state<SessionStatisticsModel | null>(null);
   let loading = $state(true);
@@ -15,7 +16,7 @@
   const timelineMax = $derived(Math.max(1, ...(model?.timeline.map((item) => item.value) ?? [1])));
 
   function close(): void {
-    if (!exporting) app.statisticsOpen = false;
+    if (!exporting) onClose();
   }
 
   function percent(item: StatisticValue, items: StatisticValue[]): number {
@@ -55,9 +56,9 @@
   onMount(() => void load());
 </script>
 
-<div class="backdrop" role="presentation" onclick={(event) => event.target === event.currentTarget && close()} onkeydown={onKeydown} use:focusTrap={{ initial: '[data-autofocus]' }} tabindex="-1">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="statistics-title">
-    <header>
+<div class="backdrop" class:embedded role="presentation" onclick={(event) => !embedded && event.target === event.currentTarget && close()} onkeydown={(event) => !embedded && onKeydown(event)} use:focusTrap={{ initial: '[data-autofocus]', disabled: embedded }} tabindex="-1">
+  <div class="modal" role={embedded ? 'region' : 'dialog'} aria-modal={embedded ? undefined : 'true'} aria-labelledby={embedded ? undefined : 'statistics-title'} aria-label={embedded ? 'Statistik' : undefined}>
+    {#if !embedded}<header>
       <span class="header-icon"><ChartNoAxesCombined size={18} /></span>
       <div>
         <h2 id="statistics-title">Session-Statistik</h2>
@@ -68,7 +69,7 @@
         {/if}
       </div>
       <button class="ghost close" data-autofocus data-tooltip="Schließen" aria-label="Schließen" disabled={exporting} onclick={close}><X size={18} /></button>
-    </header>
+    </header>{/if}
 
     <div class="content">
       {#if loading}
@@ -133,12 +134,19 @@
           <section class="chart">
             <h3>Fahrzeugauslastung</h3>
             {#if model.vehicleUtilization.length}
+              <div class="utilization-key" aria-label="Legende Fahrzeugauslastung">
+                <span><i class="busy"></i> Im Einsatz</span>
+                <span><i class="unavailable"></i> Nicht verfügbar</span>
+              </div>
               <div class="bar-list compact">
                 {#each model.vehicleUtilization as item (item.key)}
-                  <div class="bar-row">
+                  <div class="bar-row utilization-row">
                     <span>{item.label}</span>
-                    <span class="bar-track" data-tooltip={`${item.label}: ${item.value} % der Session im Einsatz`}><span style={`width: ${item.value}%; background: ${item.color};`}></span></span>
-                    <strong>{item.value}%</strong>
+                    <span class="bar-track utilization-track" data-tooltip={`${item.label}: ${item.value} % im Einsatz, ${item.unavailable} % nicht verfügbar`}>
+                      <span style={`width: ${item.value}%; background: ${item.color};`}></span>
+                      <span style={`width: ${item.unavailable}%; background: var(--status-6-border);`}></span>
+                    </span>
+                    <strong>{item.value}% <span>{item.unavailable}%</span></strong>
                   </div>
                 {/each}
               </div>
@@ -183,6 +191,8 @@
 <style>
   .backdrop { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(4, 6, 10, 0.72); }
   .modal { width: min(1120px, 96vw); max-height: min(900px, 94vh); display: flex; flex-direction: column; overflow: hidden; background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .backdrop.embedded { position: static; inset: auto; width: 100%; height: 100%; padding: 0; background: transparent; }
+  .backdrop.embedded .modal { width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; }
   header { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid var(--border); background: var(--panel-header); }
   .header-icon { display: inline-flex; color: var(--text-dim); }
   header div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
@@ -209,8 +219,15 @@
   .bar-row { display: grid; grid-template-columns: minmax(110px, 145px) minmax(80px, 1fr) 38px; align-items: center; gap: 9px; font-size: 12px; }
   .bar-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .bar-row strong { text-align: right; font-variant-numeric: tabular-nums; }
+  .utilization-key { display: flex; gap: 14px; margin: -6px 0 11px; color: var(--text-dim); font-size: 10px; }
+  .utilization-key span { display: inline-flex; align-items: center; gap: 5px; }
+  .utilization-key i { width: 8px; height: 8px; background: #2aa6b7; }
+  .utilization-key i.unavailable { background: var(--status-6-border); }
+  .utilization-row { grid-template-columns: minmax(110px, 145px) minmax(80px, 1fr) 72px; }
+  .utilization-row strong > span { color: var(--text-dim); font-weight: 500; }
   .bar-track { display: block; height: 12px; overflow: hidden; border: 1px solid var(--border); background: #202226; }
   .bar-track > span { display: block; min-width: 0; height: 100%; }
+  .utilization-track { display: flex; }
   .timeline { height: 175px; display: flex; align-items: stretch; gap: 7px; }
   .timeline-column { display: grid; grid-template-rows: 18px minmax(0, 1fr) 22px; flex: 1; min-width: 0; text-align: center; }
   .timeline-value { color: var(--text-dim); font-size: 10px; font-variant-numeric: tabular-nums; }

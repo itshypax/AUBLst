@@ -4,23 +4,20 @@
   import ConfirmDialog from './components/ConfirmDialog.svelte';
   import ConnectionLostBanner from './components/ConnectionLostBanner.svelte';
   import CreateEventDialog from './components/CreateEventDialog.svelte';
-  import EventsPanel from './components/EventsPanel.svelte';
-  import HospitalsPanel from './components/HospitalsPanel.svelte';
   import HospitalAssignmentModal from './components/HospitalAssignmentModal.svelte';
-  import LogPanel from './components/LogPanel.svelte';
-  import IncidentRecordsModal from './components/IncidentRecordsModal.svelte';
-  import MapPanel from './components/MapPanel.svelte';
   import RoutingEditorPage from './components/RoutingEditorPage.svelte';
   import SessionGate from './components/SessionGate.svelte';
   import SpeechRequestsQueue from './components/SpeechRequestsQueue.svelte';
-  import StatisticsModal from './components/StatisticsModal.svelte';
+  import SessionOverviewModal from './components/SessionOverviewModal.svelte';
   import Topbar from './components/Topbar.svelte';
   import Tooltip from './components/Tooltip.svelte';
   import VehicleContextMenu from './components/VehicleContextMenu.svelte';
-  import VehiclesPanel from './components/VehiclesPanel.svelte';
+  import WorkspaceArea from './components/WorkspaceArea.svelte';
+  import WorkspaceEditorModal from './components/WorkspaceEditorModal.svelte';
   import { loadGroupOverrides } from './lib/classify';
   import { startPolling } from './lib/polling';
   import { app, initSettings } from './lib/state.svelte';
+  import { cloneWorkspace, loadWorkspaces, saveWorkspaces, setWorkspaceInUrl, WORKSPACE_STORAGE_KEY, workspaceIdFromUrl, workspaceUrl, type WorkspaceLayout } from './lib/workspaces';
 
   const pageParams = new URLSearchParams(location.search);
   const localHostname = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '::1';
@@ -33,27 +30,23 @@
     startPolling();
   }
 
-  const DEFAULT_LAYOUT = { col: 0.58, left: 0.72, right: 0.55 };
-
   const clamp = (x: number) => Math.min(0.85, Math.max(0.15, x));
-
-  function storedLayout(): typeof DEFAULT_LAYOUT {
-    try {
-      const saved = JSON.parse(localStorage.getItem('panelLayout') ?? '{}');
-      return {
-        col: Number.isFinite(saved.col) ? clamp(saved.col) : DEFAULT_LAYOUT.col,
-        left: Number.isFinite(saved.left) ? clamp(saved.left) : DEFAULT_LAYOUT.left,
-        right: Number.isFinite(saved.right) ? clamp(saved.right) : DEFAULT_LAYOUT.right,
-      };
-    } catch {
-      return DEFAULT_LAYOUT;
-    }
-  }
-
-  const initialLayout = storedLayout();
-  let colRatio = $state(initialLayout.col);
-  let leftRowRatio = $state(initialLayout.left);
-  let rightRowRatio = $state(initialLayout.right);
+  const loadedWorkspaces = loadWorkspaces();
+  const initialWorkspaceId = workspaceIdFromUrl(loadedWorkspaces);
+  const initialWorkspace = loadedWorkspaces.find((workspace) => workspace.id === initialWorkspaceId) ?? loadedWorkspaces[0];
+  let workspaces = $state(loadedWorkspaces);
+  let activeWorkspaceId = $state(initialWorkspace.id);
+  let workspaceEditorOpen = $state(false);
+  let colRatio = $state(initialWorkspace.ratios.col);
+  let leftRowRatio = $state(initialWorkspace.ratios.left);
+  let rightRowRatio = $state(initialWorkspace.ratios.right);
+  const activeWorkspace = $derived(workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0]);
+  const hasLeftTop = $derived(activeWorkspace.areas.leftTop.length > 0);
+  const hasLeftBottom = $derived(activeWorkspace.areas.leftBottom.length > 0);
+  const hasRightTop = $derived(activeWorkspace.areas.rightTop.length > 0);
+  const hasRightBottom = $derived(activeWorkspace.areas.rightBottom.length > 0);
+  const hasLeft = $derived(hasLeftTop || hasLeftBottom);
+  const hasRight = $derived(hasRightTop || hasRightBottom);
   const showSessionGate = $derived(app.lastSuccessfulSync === null && !app.stateHealthy);
   const connectionLost = $derived(app.lastSuccessfulSync !== null && !app.stateHealthy);
 
@@ -85,14 +78,62 @@
   }
 
   function persistLayout(): void {
-    localStorage.setItem('panelLayout', JSON.stringify({ col: colRatio, left: leftRowRatio, right: rightRowRatio }));
+    saveWorkspace({ ...cloneWorkspace(activeWorkspace), ratios: { col: colRatio, left: leftRowRatio, right: rightRowRatio } });
   }
 
   function resetLayout(): void {
-    colRatio = DEFAULT_LAYOUT.col;
-    leftRowRatio = DEFAULT_LAYOUT.left;
-    rightRowRatio = DEFAULT_LAYOUT.right;
+    colRatio = 0.58;
+    leftRowRatio = 0.72;
+    rightRowRatio = 0.55;
     persistLayout();
+  }
+
+  function saveWorkspace(workspace: WorkspaceLayout): void {
+    const index = workspaces.findIndex((item) => item.id === workspace.id);
+    workspaces = index === -1
+      ? [...workspaces, cloneWorkspace(workspace)]
+      : workspaces.map((item) => item.id === workspace.id ? cloneWorkspace(workspace) : item);
+    saveWorkspaces(workspaces);
+    if (workspace.id === activeWorkspaceId) {
+      colRatio = workspace.ratios.col;
+      leftRowRatio = workspace.ratios.left;
+      rightRowRatio = workspace.ratios.right;
+    }
+  }
+
+  function selectWorkspace(id: string): void {
+    const workspace = workspaces.find((item) => item.id === id);
+    if (!workspace) return;
+    activeWorkspaceId = id;
+    colRatio = workspace.ratios.col;
+    leftRowRatio = workspace.ratios.left;
+    rightRowRatio = workspace.ratios.right;
+    setWorkspaceInUrl(id);
+  }
+
+  function deleteWorkspace(id: string): void {
+    if (id === 'standard') return;
+    workspaces = workspaces.filter((workspace) => workspace.id !== id);
+    saveWorkspaces(workspaces);
+    if (activeWorkspaceId === id) selectWorkspace(workspaces[0].id);
+  }
+
+  function openWorkspaceTab(id: string): void {
+    window.open(workspaceUrl(id), '_blank', 'noopener');
+  }
+
+  function onWorkspaceStorage(event: StorageEvent): void {
+    if (event.key !== WORKSPACE_STORAGE_KEY) return;
+    const next = loadWorkspaces();
+    workspaces = next;
+    const current = next.find((workspace) => workspace.id === activeWorkspaceId);
+    if (current) {
+      colRatio = current.ratios.col;
+      leftRowRatio = current.ratios.left;
+      rightRowRatio = current.ratios.right;
+    } else {
+      selectWorkspace(next[0].id);
+    }
   }
 
   function onSeparatorKey(kind: DragKind, e: KeyboardEvent): void {
@@ -108,12 +149,12 @@
   }
 </script>
 
-<svelte:window onpointermove={onMove} onpointerup={endDrag} />
+<svelte:window onpointermove={onMove} onpointerup={endDrag} onstorage={onWorkspaceStorage} />
 
 {#if routingEditorRequested}
   <RoutingEditorPage modId={routingEditorModId} />
 {:else}
-  <Topbar onResetLayout={resetLayout} />
+  <Topbar onResetLayout={resetLayout} onOpenWorkspaceEditor={() => (workspaceEditorOpen = true)} workspaceName={activeWorkspace.name} />
 
 {#if showSessionGate}
   <SessionGate />
@@ -121,70 +162,96 @@
   {#if connectionLost}<ConnectionLostBanner />{/if}
   <main
     class="layout"
-    style="grid-template-columns: minmax(0, {colRatio}fr) 6px minmax(0, {1 - colRatio}fr);"
+    class:single-column={!hasLeft || !hasRight}
+    style={hasLeft && hasRight
+      ? `grid-template-columns: minmax(0, ${colRatio}fr) 6px minmax(0, ${1 - colRatio}fr);`
+      : 'grid-template-columns: minmax(0, 1fr);'}
   >
-    <div
-      class="col"
-      style="grid-template-rows: minmax(0, {leftRowRatio}fr) 6px minmax(0, {1 - leftRowRatio}fr);"
-    >
-      <MapPanel />
+    {#if hasLeft}
       <div
-        class="splitter-row"
-        class:active={drag?.kind === 'left'}
-        onpointerdown={(e) => startDrag('left', e)}
-        onkeydown={(e) => onSeparatorKey('left', e)}
-        ondblclick={() => { leftRowRatio = DEFAULT_LAYOUT.left; persistLayout(); }}
-        role="slider"
-        aria-orientation="horizontal"
-        aria-label="Höhe von Karte und Meldungen ändern"
-        aria-valuemin="15"
-        aria-valuemax="85"
-        aria-valuenow={Math.round(leftRowRatio * 100)}
-        tabindex="0"
-      ></div>
-      <div class="bottom-row">
-        <LogPanel />
-        <HospitalsPanel />
+        class="col"
+        style={hasLeftTop && hasLeftBottom
+          ? `grid-template-rows: minmax(0, ${leftRowRatio}fr) 6px minmax(0, ${1 - leftRowRatio}fr);`
+          : 'grid-template-rows: minmax(0, 1fr);'}
+      >
+        {#if hasLeftTop}<WorkspaceArea panels={activeWorkspace.areas.leftTop} direction={activeWorkspace.directions.leftTop} />{/if}
+        {#if hasLeftTop && hasLeftBottom}
+          <div
+            class="splitter-row"
+            class:active={drag?.kind === 'left'}
+            onpointerdown={(e) => startDrag('left', e)}
+            onkeydown={(e) => onSeparatorKey('left', e)}
+            ondblclick={() => { leftRowRatio = 0.72; persistLayout(); }}
+            role="slider"
+            aria-orientation="horizontal"
+            aria-label="Höhe der linken Bereiche ändern"
+            aria-valuemin="15"
+            aria-valuemax="85"
+            aria-valuenow={Math.round(leftRowRatio * 100)}
+            tabindex="0"
+          ></div>
+        {/if}
+        {#if hasLeftBottom}<WorkspaceArea panels={activeWorkspace.areas.leftBottom} direction={activeWorkspace.directions.leftBottom} />{/if}
       </div>
-    </div>
+    {/if}
 
-    <div
-      class="splitter-col"
-      class:active={drag?.kind === 'col'}
-      onpointerdown={(e) => startDrag('col', e)}
-      onkeydown={(e) => onSeparatorKey('col', e)}
-      ondblclick={() => { colRatio = DEFAULT_LAYOUT.col; persistLayout(); }}
-      role="slider"
-      aria-orientation="vertical"
-      aria-label="Breite von Karte und Übersicht ändern"
-      aria-valuemin="15"
-      aria-valuemax="85"
-      aria-valuenow={Math.round(colRatio * 100)}
-      tabindex="0"
-    ></div>
-
-    <div
-      class="col"
-      style="grid-template-rows: minmax(0, {rightRowRatio}fr) 6px minmax(0, {1 - rightRowRatio}fr);"
-    >
-      <VehiclesPanel />
+    {#if hasLeft && hasRight}
       <div
-        class="splitter-row"
-        class:active={drag?.kind === 'right'}
-        onpointerdown={(e) => startDrag('right', e)}
-        onkeydown={(e) => onSeparatorKey('right', e)}
-        ondblclick={() => { rightRowRatio = DEFAULT_LAYOUT.right; persistLayout(); }}
+        class="splitter-col"
+        class:active={drag?.kind === 'col'}
+        onpointerdown={(e) => startDrag('col', e)}
+        onkeydown={(e) => onSeparatorKey('col', e)}
+        ondblclick={() => { colRatio = 0.58; persistLayout(); }}
         role="slider"
-        aria-orientation="horizontal"
-        aria-label="Höhe von Fahrzeugen und Einsätzen ändern"
+        aria-orientation="vertical"
+        aria-label="Breite der Arbeitsbereiche ändern"
         aria-valuemin="15"
         aria-valuemax="85"
-        aria-valuenow={Math.round(rightRowRatio * 100)}
+        aria-valuenow={Math.round(colRatio * 100)}
         tabindex="0"
       ></div>
-      <EventsPanel />
-    </div>
+    {/if}
+
+    {#if hasRight}
+      <div
+        class="col"
+        style={hasRightTop && hasRightBottom
+          ? `grid-template-rows: minmax(0, ${rightRowRatio}fr) 6px minmax(0, ${1 - rightRowRatio}fr);`
+          : 'grid-template-rows: minmax(0, 1fr);'}
+      >
+        {#if hasRightTop}<WorkspaceArea panels={activeWorkspace.areas.rightTop} direction={activeWorkspace.directions.rightTop} />{/if}
+        {#if hasRightTop && hasRightBottom}
+          <div
+            class="splitter-row"
+            class:active={drag?.kind === 'right'}
+            onpointerdown={(e) => startDrag('right', e)}
+            onkeydown={(e) => onSeparatorKey('right', e)}
+            ondblclick={() => { rightRowRatio = 0.55; persistLayout(); }}
+            role="slider"
+            aria-orientation="horizontal"
+            aria-label="Höhe der rechten Bereiche ändern"
+            aria-valuemin="15"
+            aria-valuemax="85"
+            aria-valuenow={Math.round(rightRowRatio * 100)}
+            tabindex="0"
+          ></div>
+        {/if}
+        {#if hasRightBottom}<WorkspaceArea panels={activeWorkspace.areas.rightBottom} direction={activeWorkspace.directions.rightBottom} />{/if}
+      </div>
+    {/if}
   </main>
+{/if}
+
+{#if workspaceEditorOpen}
+  <WorkspaceEditorModal
+    {workspaces}
+    activeId={activeWorkspaceId}
+    onSelect={selectWorkspace}
+    onSave={saveWorkspace}
+    onDelete={deleteWorkspace}
+    onOpenTab={openWorkspaceTab}
+    onClose={() => (workspaceEditorOpen = false)}
+  />
 {/if}
 
 {#key app.assignEvent?.id}
@@ -207,12 +274,8 @@
   <ActionsModal />
 {/if}
 
-{#if app.statisticsOpen}
-  <StatisticsModal />
-{/if}
-
-{#if app.recordsOpen}
-  <IncidentRecordsModal />
+{#if app.sessionOverviewOpen}
+  <SessionOverviewModal />
 {/if}
 
 {#if app.hospitalAssignmentVehicleId !== null}
@@ -253,13 +316,6 @@
     min-width: 0;
   }
 
-  .bottom-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-    gap: 8px;
-    min-height: 0;
-  }
-
   .splitter-col {
     margin: 0 1px;
   }
@@ -288,9 +344,16 @@
     .layout {
       display: grid;
       grid-template-columns: 1fr !important;
-      grid-template-rows: minmax(620px, 1fr) minmax(620px, 1fr);
       gap: 8px;
       overflow: auto;
+    }
+
+    .layout:not(.single-column) {
+      grid-template-rows: minmax(620px, 1fr) minmax(620px, 1fr);
+    }
+
+    .layout.single-column {
+      grid-template-rows: minmax(620px, 1fr);
     }
 
     .splitter-col {
@@ -299,14 +362,12 @@
   }
 
   @media (max-width: 760px) {
-    .layout {
+    .layout:not(.single-column) {
       grid-template-rows: 820px 680px;
-      padding: 6px;
     }
 
-    .bottom-row {
-      grid-template-columns: 1fr;
-      grid-template-rows: minmax(220px, 1fr) minmax(180px, 0.8fr);
+    .layout {
+      padding: 6px;
     }
   }
 </style>

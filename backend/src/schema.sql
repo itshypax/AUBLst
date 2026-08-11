@@ -57,6 +57,20 @@ CREATE TABLE IF NOT EXISTS vehicles (
   CONSTRAINT fk_vehicles_player FOREIGN KEY (assigned_player_id) REFERENCES players(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS vehicle_status_history (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  session_id INT NOT NULL,
+  vehicle_id INT NOT NULL,
+  game_vehicle_id VARCHAR(255) NOT NULL,
+  vehicle_name VARCHAR(255) NULL,
+  status TINYINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_vehicle_status_session (session_id, created_at, id),
+  INDEX idx_vehicle_status_vehicle (session_id, vehicle_id, created_at, id),
+  CONSTRAINT fk_vehicle_status_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_vehicle_status_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS hospitals (
   id INT AUTO_INCREMENT PRIMARY KEY,
   session_id INT NOT NULL,

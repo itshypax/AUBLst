@@ -164,6 +164,61 @@ function action_events_assign(PDO $pdo): void {
     respond_json(200, ['ok' => true]);
 }
 
+function action_events_reassign(PDO $pdo): void {
+    $data = get_json_input();
+    $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
+    $sid = $session['id'];
+    $event_id = (int)($data['event_id'] ?? 0);
+    $vehicle_id = (int)($data['vehicle_id'] ?? 0);
+
+    if (!$event_id || !$vehicle_id) {
+        respond_json(400, ['error' => 'event_id und vehicle_id werden benötigt.']);
+    }
+
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare("SELECT id FROM events WHERE id = ? AND session_id = ? AND status = 'active' FOR UPDATE");
+    $stmt->execute([$event_id, $sid]);
+    if (!$stmt->fetchColumn()) {
+        $pdo->rollBack();
+        respond_json(404, ['error' => 'Der ausgewählte Einsatz ist nicht mehr aktiv.']);
+    }
+
+    $stmt = $pdo->prepare('SELECT id, status FROM vehicles WHERE id = ? AND session_id = ? FOR UPDATE');
+    $stmt->execute([$vehicle_id, $sid]);
+    $vehicle = $stmt->fetch();
+    if (!$vehicle) {
+        $pdo->rollBack();
+        respond_json(404, ['error' => 'Fahrzeug nicht gefunden.']);
+    }
+    if (!in_array((int)$vehicle['status'], [3, 4], true)) {
+        $pdo->rollBack();
+        respond_json(409, ['error' => 'Nur Fahrzeuge in Status 3 oder 4 können manuell umdisponiert werden.']);
+    }
+
+    $stmt = $pdo->prepare('SELECT event_id, assigned_player_id FROM assignments WHERE session_id = ? AND vehicle_id = ? LIMIT 1 FOR UPDATE');
+    $stmt->execute([$sid, $vehicle_id]);
+    $previous = $stmt->fetch() ?: null;
+
+    unassign_vehicle($pdo, $sid, $vehicle_id);
+    $stmt = $pdo->prepare('INSERT INTO assignments (session_id, event_id, vehicle_id, assigned_player_id, status)
+        VALUES (?, ?, ?, ?, ?)');
+    $stmt->execute([
+        $sid,
+        $event_id,
+        $vehicle_id,
+        $previous['assigned_player_id'] ?? null,
+        (int)$vehicle['status'] === 4 ? 'on_scene' : 'enroute',
+    ]);
+    $pdo->commit();
+
+    respond_json(200, [
+        'ok' => true,
+        'previous_event_id' => $previous ? (int)$previous['event_id'] : null,
+        'event_id' => $event_id,
+        'vehicle_id' => $vehicle_id,
+    ]);
+}
+
 function action_events_get_vehicles(PDO $pdo): void {
     $data = get_json_input();
     $session = require_session($pdo, $data['session_token'] ?? null);
