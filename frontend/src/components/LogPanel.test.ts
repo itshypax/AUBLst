@@ -1,5 +1,4 @@
 import { cleanup, render, screen } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { app, resetSessionData } from '../lib/state.svelte';
 import LogPanel from './LogPanel.svelte';
@@ -25,31 +24,31 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Funkmeldungen', () => {
-  it('öffnet aus einem Sprechwunsch direkt die Klinikzuweisung', async () => {
-    const user = userEvent.setup();
+  it('zeigt Sprechwünsche nur als Eintrag in der Chronologie', () => {
     render(LogPanel);
 
-    await user.click(screen.getByRole('button', { name: 'Klinik für 4-RTW-B zuweisen' }));
-
-    expect(app.hospitalAssignmentVehicleId).toBe(4);
+    expect(screen.getByText('Florian Auenburg 4-RTW-B mit Sprechwunsch')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Klinik .* zuweisen/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Einsatz öffnen' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Meldung abarbeiten' })).toBeNull();
   });
 
-  it('verwechselt eine zweistellige Wache nicht mit ihrer Endziffer', async () => {
-    const user = userEvent.setup();
-    app.vehicles = [
-      ...app.vehicles,
-      { ...app.vehicles[0], id: 74, game_vehicle_id: '74_RTW_B', name: '74-RTW-B' },
-    ];
+  it('kennzeichnet abgearbeitete Sprechwünsche weiterhin im Verlauf', () => {
+    app.logs = [{ ...app.logs[0], state: 'inactive' }];
+    render(LogPanel);
+
+    expect(screen.getByLabelText('Abgearbeitet')).toBeTruthy();
+  });
+
+  it('behält die Aktionen für andere Funkmeldungen bei', () => {
     app.logs = [{
       ...app.logs[0],
-      entity_id: '74_RTW_B',
-      long_message: 'Rettung Auenburg 74-RTW-B mit Sprechwunsch',
+      message: 'Rückmeldung',
+      long_message: 'Fahrzeug meldet Einsatzstelle erreicht',
     }];
     render(LogPanel);
 
-    await user.click(screen.getByRole('button', { name: 'Klinik für 74-RTW-B zuweisen' }));
-
-    expect(app.hospitalAssignmentVehicleId).toBe(74);
-    expect(screen.queryByRole('button', { name: 'Klinik für 4-RTW-B zuweisen' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Einsatz öffnen' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Meldung abarbeiten' })).toBeTruthy();
   });
 });

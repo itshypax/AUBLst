@@ -93,7 +93,7 @@
       {@const Icon = isControlRoomEvent ? RadioTower : categoryIcon[cat]}
       {@const iconTitle = isControlRoomEvent ? 'Leitstellen-Einsatz' : categoryTitle[cat]}
       {@const isAvailableInGame = !isControlRoomEvent || (ev.game_event_id !== null && String(ev.game_event_id).trim() !== '')}
-      <div class="row" role="group" class:highlighted={app.highlightedEventId === ev.id} onmouseenter={() => setHighlightedEvent(ev.id)} onmouseleave={() => setHighlightedEvent(null)}>
+      <div class="row {cat}" role="group" class:control-room={isControlRoomEvent} class:highlighted={app.highlightedEventId === ev.id} class:open={app.assignEvent?.id === ev.id} onmouseenter={() => setHighlightedEvent(ev.id)} onmouseleave={() => setHighlightedEvent(null)}>
         <button class="event-open" onclick={() => openAssign(ev)}>
           <span class="cat {cat}" class:control-room={isControlRoomEvent} data-tooltip={iconTitle} aria-label={iconTitle}><Icon size={16} /></span>
           <span class="info">
@@ -136,14 +136,26 @@
     margin-bottom: 4px;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
+    border-left-width: 3px;
+    border-left-color: var(--text-dim);
     background: var(--bg-raised);
   }
 
   .row:hover,
-  .row.highlighted {
-    border-color: var(--selection);
+  .row.highlighted,
+  .row.open {
+    border-top-color: var(--selection);
+    border-right-color: var(--selection);
+    border-bottom-color: var(--selection);
     background: var(--accent-soft);
   }
+
+  .row.fire { border-left-color: var(--danger); }
+  .row.hazard { border-left-color: var(--warn); }
+  .row.thl { border-left-color: var(--accent); }
+  .row.water { border-left-color: var(--water); }
+  .row.medical { border-left-color: var(--good); }
+  .row.control-room { border-left-color: var(--accent); }
 
   .event-open { flex: 1; min-width: 0; justify-content: flex-start; padding: 0; border: 0; background: transparent; text-align: left; }
   .event-open:hover:not(:disabled) { background: transparent; border-color: transparent; }

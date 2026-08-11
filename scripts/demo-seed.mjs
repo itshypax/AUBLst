@@ -55,7 +55,7 @@ await post('sync', {
     { game_vehicle_id: 'FS_LST_2', name: 'SWA Bahn', modes: 'Tramverkehr einstellen,Bahnstrecke sperren', x: -1000000, y: -1000000, status: 2 },
     { game_vehicle_id: 'FS_LST_3', name: 'Autobahn', modes: 'Richtung Osten sperren,Richtung Osten freigeben,Richtung Westen sperren,Richtung Westen freigeben', x: -1000000, y: -1000000, status: 2 },
     { game_vehicle_id: 'ASF', name: 'Abschleppwagen', modes: '1,2,3,4,Masterlift,Tieflader', x: -1000000, y: -1000000, status: 2 },
-    { game_vehicle_id: 'BSW', name: 'Bestatter', modes: '1,2,3,4', x: -1000000, y: -1000000, status: 2 },
+    { game_vehicle_id: 'BSW', name: 'Bestattungswagen', modes: '1,2,3,4', x: -1000000, y: -1000000, status: 2 },
     { game_vehicle_id: 'FuSTW', name: 'Streifenwagen', modes: '1,2,3', x: -1000000, y: -1000000, status: 2 },
     { game_vehicle_id: 'JA', name: 'Jaeger', x: -1000000, y: -1000000, status: 2 },
     { game_vehicle_id: 'TD', name: 'Stadtwerke', x: -1000000, y: -1000000, status: 2 },

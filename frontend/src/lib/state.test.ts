@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { app, assignedEventForVehicle, initSettings, resetSessionData } from './state.svelte';
+import { app, assignedEventForVehicle, initSettings, openAssign, resetSessionData, toggleDispatchVehicle } from './state.svelte';
 
 beforeEach(() => {
   localStorage.clear();
@@ -54,5 +54,21 @@ describe('Sitzungsdaten', () => {
     const vehicle = { id: 8, game_vehicle_id: '2_RTW_A', name: '2-RTW-A', type: 'RTW', modes: null, x: 220, y: -90, status: 2, assigned_player_id: null };
 
     expect(assignedEventForVehicle(vehicle.id)).toBeUndefined();
+  });
+
+  it('hält Vormerkungen am geöffneten Einsatz und leert sie beim Einsatzwechsel', () => {
+    const first = { id: 1, game_event_id: '1', name: 'Türöffnung', x: 10, y: 20, status: 'active' as const, created_by: 'game' as const };
+    const second = { ...first, id: 2, game_event_id: '2', name: 'Brandmeldeanlage' };
+
+    openAssign(first);
+    toggleDispatchVehicle(11);
+    toggleDispatchVehicle(12);
+    expect(app.dispatchVehicleIds).toEqual([11, 12]);
+
+    toggleDispatchVehicle(11);
+    expect(app.dispatchVehicleIds).toEqual([12]);
+
+    openAssign(second);
+    expect(app.dispatchVehicleIds).toEqual([]);
   });
 });

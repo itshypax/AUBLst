@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import ActionsModal from './components/ActionsModal.svelte';
   import AssignModal from './components/AssignModal.svelte';
   import ConfirmDialog from './components/ConfirmDialog.svelte';
@@ -16,8 +17,18 @@
   import WorkspaceEditorModal from './components/WorkspaceEditorModal.svelte';
   import { loadGroupOverrides } from './lib/classify';
   import { startPolling } from './lib/polling';
-  import { app, initSettings } from './lib/state.svelte';
-  import { cloneWorkspace, loadWorkspaces, saveWorkspaces, setWorkspaceInUrl, WORKSPACE_STORAGE_KEY, workspaceIdFromUrl, workspaceUrl, type WorkspaceLayout } from './lib/workspaces';
+  import {
+    app,
+    closeEventFromSync,
+    focusVehicleFromSync,
+    initSettings,
+    openEventFromSync,
+    reconcileSyncedEvent,
+    setDispatchSelectionFromSync,
+    setHighlightFromSync,
+  } from './lib/state.svelte';
+  import { startUiSync, uiSyncScope, updateUiSyncPresence } from './lib/ui-sync';
+  import { AREA_IDS, cloneWorkspace, loadWorkspaces, saveWorkspaces, setWorkspaceInUrl, WORKSPACE_STORAGE_KEY, workspaceIdFromUrl, workspaceUrl, type AreaId, type WorkspaceLayout } from './lib/workspaces';
 
   const pageParams = new URLSearchParams(location.search);
   const localHostname = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '::1';
@@ -47,8 +58,38 @@
   const hasRightBottom = $derived(activeWorkspace.areas.rightBottom.length > 0);
   const hasLeft = $derived(hasLeftTop || hasLeftBottom);
   const hasRight = $derived(hasRightTop || hasRightBottom);
+  const hasCurrentEventPanel = $derived(AREA_IDS.some((area) => activeWorkspace.areas[area].includes('current_event')));
   const showSessionGate = $derived(app.lastSuccessfulSync === null && !app.stateHealthy);
   const connectionLost = $derived(app.lastSuccessfulSync !== null && !app.stateHealthy);
+
+  const stopUiSync = startUiSync({
+    onOpenEvent: (eventId, hostedHere) => openEventFromSync(eventId, hostedHere),
+    onCloseEvent: closeEventFromSync,
+    onHighlight: setHighlightFromSync,
+    onFocusVehicle: focusVehicleFromSync,
+    onDispatchSelection: setDispatchSelectionFromSync,
+    onSnapshot: (eventId, vehicleIds, hostedHere) => openEventFromSync(eventId, hostedHere, vehicleIds),
+    onCurrentEventHostChange: (remoteHostAvailable) => {
+      if (app.assignEvent) app.currentEventHostedRemotely = !hasCurrentEventPanel && remoteHostAvailable;
+    },
+  });
+  onDestroy(stopUiSync);
+
+  $effect(() => {
+    updateUiSyncPresence(
+      uiSyncScope(app.apiBase, app.sessionToken),
+      activeWorkspace.id,
+      AREA_IDS.flatMap((area) => activeWorkspace.areas[area]),
+      app.assignEvent?.id ?? null,
+      app.dispatchVehicleIds,
+      Boolean(app.assignEvent && !app.currentEventHostedRemotely),
+    );
+  });
+
+  $effect(() => {
+    void app.events;
+    reconcileSyncedEvent();
+  });
 
   type DragKind = 'col' | 'left' | 'right';
   let drag: { kind: DragKind; container: HTMLElement } | null = $state(null);
@@ -81,9 +122,16 @@
     saveWorkspace({ ...cloneWorkspace(activeWorkspace), ratios: { col: colRatio, left: leftRowRatio, right: rightRowRatio } });
   }
 
+  function persistPanelRatios(area: AreaId, ratios: number[]): void {
+    saveWorkspace({
+      ...cloneWorkspace(activeWorkspace),
+      panelRatios: { ...activeWorkspace.panelRatios, [area]: ratios },
+    });
+  }
+
   function resetLayout(): void {
     colRatio = 0.58;
-    leftRowRatio = 0.72;
+    leftRowRatio = 0.62;
     rightRowRatio = 0.55;
     persistLayout();
   }
@@ -174,14 +222,14 @@
           ? `grid-template-rows: minmax(0, ${leftRowRatio}fr) 6px minmax(0, ${1 - leftRowRatio}fr);`
           : 'grid-template-rows: minmax(0, 1fr);'}
       >
-        {#if hasLeftTop}<WorkspaceArea panels={activeWorkspace.areas.leftTop} direction={activeWorkspace.directions.leftTop} />{/if}
+        {#if hasLeftTop}<WorkspaceArea panels={activeWorkspace.areas.leftTop} direction={activeWorkspace.directions.leftTop} ratios={activeWorkspace.panelRatios.leftTop} onRatiosChange={(ratios) => persistPanelRatios('leftTop', ratios)} />{/if}
         {#if hasLeftTop && hasLeftBottom}
           <div
             class="splitter-row"
             class:active={drag?.kind === 'left'}
             onpointerdown={(e) => startDrag('left', e)}
             onkeydown={(e) => onSeparatorKey('left', e)}
-            ondblclick={() => { leftRowRatio = 0.72; persistLayout(); }}
+            ondblclick={() => { leftRowRatio = 0.62; persistLayout(); }}
             role="slider"
             aria-orientation="horizontal"
             aria-label="Höhe der linken Bereiche ändern"
@@ -191,7 +239,7 @@
             tabindex="0"
           ></div>
         {/if}
-        {#if hasLeftBottom}<WorkspaceArea panels={activeWorkspace.areas.leftBottom} direction={activeWorkspace.directions.leftBottom} />{/if}
+        {#if hasLeftBottom}<WorkspaceArea panels={activeWorkspace.areas.leftBottom} direction={activeWorkspace.directions.leftBottom} ratios={activeWorkspace.panelRatios.leftBottom} onRatiosChange={(ratios) => persistPanelRatios('leftBottom', ratios)} />{/if}
       </div>
     {/if}
 
@@ -219,7 +267,7 @@
           ? `grid-template-rows: minmax(0, ${rightRowRatio}fr) 6px minmax(0, ${1 - rightRowRatio}fr);`
           : 'grid-template-rows: minmax(0, 1fr);'}
       >
-        {#if hasRightTop}<WorkspaceArea panels={activeWorkspace.areas.rightTop} direction={activeWorkspace.directions.rightTop} />{/if}
+        {#if hasRightTop}<WorkspaceArea panels={activeWorkspace.areas.rightTop} direction={activeWorkspace.directions.rightTop} ratios={activeWorkspace.panelRatios.rightTop} onRatiosChange={(ratios) => persistPanelRatios('rightTop', ratios)} />{/if}
         {#if hasRightTop && hasRightBottom}
           <div
             class="splitter-row"
@@ -236,7 +284,7 @@
             tabindex="0"
           ></div>
         {/if}
-        {#if hasRightBottom}<WorkspaceArea panels={activeWorkspace.areas.rightBottom} direction={activeWorkspace.directions.rightBottom} />{/if}
+        {#if hasRightBottom}<WorkspaceArea panels={activeWorkspace.areas.rightBottom} direction={activeWorkspace.directions.rightBottom} ratios={activeWorkspace.panelRatios.rightBottom} onRatiosChange={(ratios) => persistPanelRatios('rightBottom', ratios)} />{/if}
       </div>
     {/if}
   </main>
@@ -255,7 +303,7 @@
 {/if}
 
 {#key app.assignEvent?.id}
-  {#if app.assignEvent}
+  {#if app.assignEvent && !hasCurrentEventPanel && !app.currentEventHostedRemotely}
     <AssignModal />
   {/if}
 {/key}

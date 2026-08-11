@@ -2,11 +2,11 @@
   import { ArrowUpDown, Play, Search, Send, Siren, Undo2, X } from 'lucide-svelte';
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
-  import { alarmGroups, hasLoeschzug, hasMapPosition, isHiddenUnit, loeschzugFor, vehicleAlarmPriority, type StationGroup } from '../lib/classify';
+  import { alarmGroups, hasLoeschzug, hasMapPosition, isHiddenUnit, loeschzugFor, vehicleAlarmPriority, vehicleDisplayName, vehicleTypeLabel, type StationGroup } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
   import { createRouteCalculator, formatDistance, type RouteDistance } from '../lib/routing';
-  import { app, canWrite, showNotice } from '../lib/state.svelte';
+  import { app, canWrite, clearCurrentEvent, showNotice } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import type { AssignedVehicle, EventFeedback, LogRow, StateResponse, Vehicle } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
@@ -127,8 +127,8 @@
       const distanceB = distanceMeters(b) ?? Number.POSITIVE_INFINITY;
       if (distanceA !== distanceB) return distanceA - distanceB;
     }
-    const nameA = a.name || a.type || a.game_vehicle_id || String(a.id);
-    const nameB = b.name || b.type || b.game_vehicle_id || String(b.id);
+    const nameA = vehicleDisplayName(a) || String(a.id);
+    const nameB = vehicleDisplayName(b) || String(b.id);
     return nameA.localeCompare(nameB, 'de', { numeric: true });
   }
 
@@ -265,12 +265,12 @@
 
   function nameOf(id: number): string {
     const v = vehicles.find((x) => x.id === id);
-    return v ? v.name || v.type || v.game_vehicle_id : `#${id}`;
+    return v ? vehicleDisplayName(v) : `#${id}`;
   }
 
   function close(): void {
     if (busy) return;
-    app.assignEvent = null;
+    clearCurrentEvent();
   }
 
   async function submit(): Promise<void> {
@@ -312,7 +312,7 @@
         if (v) lastModes[v.game_vehicle_id] = chosenModes[id];
       }
       localStorage.setItem(LAST_MODES_KEY, JSON.stringify(lastModes));
-      app.assignEvent = null;
+      clearCurrentEvent();
       showNotice(`${selected.length} ${selected.length === 1 ? 'Fahrzeug alarmiert' : 'Fahrzeuge alarmiert'}`);
       void refreshState();
     } catch (err) {
@@ -492,15 +492,15 @@
                     {#if g.key !== 'hidden'}
                       <StatusBadge value={v.status} />
                     {/if}
-                    <span class="name" data-tooltip={`${v.name || v.game_vehicle_id}${v.type ? ` · Typ ${v.type}` : ''} · ${v.game_vehicle_id}`}>
-                      {v.name || v.type || v.game_vehicle_id}
+                    <span class="name" data-tooltip={`${vehicleDisplayName(v)}${vehicleTypeLabel(v) ? ` · Typ ${vehicleTypeLabel(v)}` : ''} · ${v.game_vehicle_id}`}>
+                      {vehicleDisplayName(v)}
                     </span>
                     {#if distanceText(v)}
                       <span class="dist">{distanceText(v)}</span>
                     {/if}
                   </label>
                   {#if v.modes}
-                    <select bind:value={modes[v.id]} data-tooltip="Ausrückmodus" aria-label={`Ausrückmodus für ${v.name || v.game_vehicle_id}`} disabled={busy}>
+                    <select bind:value={modes[v.id]} data-tooltip="Ausrückmodus" aria-label={`Ausrückmodus für ${vehicleDisplayName(v)}`} disabled={busy}>
                       {#each v.modes.split(',') as m (m)}
                         <option value={m}>{m}</option>
                       {/each}

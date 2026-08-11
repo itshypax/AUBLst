@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { Hospital, MoreHorizontal, Search, TrafficCone, TriangleAlert, Truck, Undo2 } from 'lucide-svelte';
+  import { Check, Hospital, Plus, Search, TrafficCone, TriangleAlert, Truck, Undo2 } from 'lucide-svelte';
   import { api } from '../lib/api';
-  import { actionUnits, isHospitalTransportUnit, stationColumns, stationGroups, tabLabel, type MainTab } from '../lib/classify';
+  import { actionUnits, isHiddenUnit, isHospitalTransportUnit, stationColumns, stationGroups, tabLabel, vehicleTypeLabel, type MainTab } from '../lib/classify';
   import { refreshState } from '../lib/polling';
-  import { app, canWrite, focusVehicle, openVehicleMenu, setHighlightedVehicle } from '../lib/state.svelte';
+  import { app, canWrite, focusVehicle, openVehicleMenu, setHighlightedVehicle, toggleDispatchVehicle } from '../lib/state.svelte';
   import type { HospitalReservation, Vehicle } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
 
@@ -67,6 +67,10 @@
     return v.name || v.type || v.game_vehicle_id;
   }
 
+  function canStage(v: Vehicle): boolean {
+    return isHiddenUnit(v) || Number(v.status) === 1 || Number(v.status) === 2;
+  }
+
   function reservationFor(v: Vehicle) {
     return app.hospitalReservations.find((item) => item.vehicle_id === v.id
       && (item.status === 'reserved' || (item.status === 'arrived' && Number(v.status) === 8)));
@@ -74,7 +78,8 @@
 
   function rowTitle(v: Vehicle, reservation?: HospitalReservation): string {
     const parts = [v.name || v.game_vehicle_id];
-    if (v.type) parts.push(`Typ ${v.type}`);
+    const typeLabel = vehicleTypeLabel(v);
+    if (typeLabel) parts.push(`Typ ${typeLabel}`);
     parts.push(v.game_vehicle_id);
     if (reservation) {
       const destination = (reservation.hospital_name || 'Klinik').replace(/^Krankenhaus\s+/i, '');
@@ -185,6 +190,7 @@
                   <div
                     class="row"
                     class:highlighted={app.highlightedVehicleId === v.id}
+                    class:staged={app.dispatchVehicleIds.includes(v.id)}
                     role="listitem"
                   >
                     <button
@@ -221,9 +227,17 @@
                         <Undo2 size={14} />
                       </button>
                     {/if}
-                    <button class="ghost row-action" data-tooltip="Fahrzeugaktionen" aria-label={`Aktionen für ${displayName(v)}`} onclick={(e) => { e.stopPropagation(); openMenuForElement(v, e.currentTarget as HTMLElement); }}>
-                      <MoreHorizontal size={15} />
-                    </button>
+                    {#if app.assignEvent && (canStage(v) || app.dispatchVehicleIds.includes(v.id))}
+                      <button
+                        class="ghost row-action dispatch-action"
+                        class:selected={app.dispatchVehicleIds.includes(v.id)}
+                        data-tooltip={app.dispatchVehicleIds.includes(v.id) ? 'Vormerkung entfernen' : `Für Einsatz ${app.assignEvent.id} vormerken`}
+                        aria-label={`${displayName(v)} ${app.dispatchVehicleIds.includes(v.id) ? 'aus der Vormerkung entfernen' : `für Einsatz ${app.assignEvent.id} vormerken`}`}
+                        onclick={(e) => { e.stopPropagation(); toggleDispatchVehicle(v.id); }}
+                      >
+                        {#if app.dispatchVehicleIds.includes(v.id)}<Check size={15} />{:else}<Plus size={15} />{/if}
+                      </button>
+                    {/if}
                   </div>
                 {/each}
               </div>
@@ -337,10 +351,13 @@
   .destination.intensive { color: var(--danger-text); }
 
   .row:hover,
-  .row.highlighted {
+  .row.highlighted,
+  .row.staged {
     background: var(--accent-soft);
     border-color: var(--selection);
   }
+
+  .row.staged { border-left: 2px solid var(--warn); }
 
   .row .name {
     overflow: hidden;
@@ -351,6 +368,8 @@
   .row-action { justify-self: end; }
   .row-action { opacity: 0.25; }
   .row:hover .row-action, .row:focus-within .row-action { opacity: 1; }
+  .dispatch-action { opacity: .72; }
+  .dispatch-action.selected { opacity: 1; }
   .hospital-action { color: var(--accent); }
   .hospital-action.intensive { color: var(--danger-text); }
 

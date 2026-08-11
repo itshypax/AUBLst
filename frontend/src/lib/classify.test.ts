@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Vehicle } from './types';
-import { alarmGroups, eventCategory, hasLoeschzug, isHospitalTransportUnit, sortVehiclesByAlarmPriority } from './classify';
+import { alarmGroups, eventCategory, hasLoeschzug, isHospitalTransportUnit, sortVehiclesByAlarmPriority, vehicleDisplayName, vehicleTypeLabel } from './classify';
 
 function vehicle(id: number, type: string): Vehicle {
   return {
@@ -17,6 +17,15 @@ function vehicle(id: number, type: string): Vehicle {
 }
 
 describe('Fahrzeuggruppierung', () => {
+  it('zeigt das interne BSW-Kürzel als Bestattungswagen an', () => {
+    expect(vehicleDisplayName({ ...vehicle(1, 'BSW'), game_vehicle_id: 'BSW', name: 'Bestatter' })).toBe('Bestattungswagen');
+  });
+
+  it('blendet numerische Typklassen aus', () => {
+    expect(vehicleTypeLabel({ ...vehicle(1, 'RTW'), type: '24' })).toBe('');
+    expect(vehicleTypeLabel({ ...vehicle(2, 'RTW'), type: 'RTW' })).toBe('RTW');
+  });
+
   it('erkennt RTW und ITW als Kliniktransporter', () => {
     expect(isHospitalTransportUnit(vehicle(1, 'RTW'))).toBe(true);
     expect(isHospitalTransportUnit(vehicle(2, 'ITW'))).toBe(true);

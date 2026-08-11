@@ -77,4 +77,13 @@ describe('Einsatzübersicht', () => {
     const hazardIcon = screen.getByLabelText('Gefahrguteinsatz');
     expect(hazardIcon.querySelector('.lucide-biohazard')).not.toBeNull();
   });
+
+  it('färbt den linken Balken passend zur Einsatzart', () => {
+    render(EventsPanel);
+
+    expect(screen.getByLabelText('Brandeinsatz').closest('.row')?.classList.contains('fire')).toBe(true);
+    expect(screen.getByLabelText('Wassereinsatz').closest('.row')?.classList.contains('water')).toBe(true);
+    expect(screen.getByLabelText('Gefahrguteinsatz').closest('.row')?.classList.contains('hazard')).toBe(true);
+    expect(screen.getByLabelText('Leitstellen-Einsatz').closest('.row')?.classList.contains('control-room')).toBe(true);
+  });
 });

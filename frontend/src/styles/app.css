@@ -23,15 +23,15 @@
   --radius: 8px;
   --radius-sm: 4px;
 
-  --status-0-start: #087ca8;
-  --status-0-end: #07587b;
-  --status-0-border: #2ea3e0;
-  --status-1-start: #087a59;
-  --status-1-end: #07563f;
-  --status-1-border: #1cb48e;
-  --status-2-start: #087863;
-  --status-2-end: #075647;
-  --status-2-border: #1ea588;
+  --status-0-start: #c49a18;
+  --status-0-end: #80630c;
+  --status-0-border: #f0c94d;
+  --status-1-start: #167a45;
+  --status-1-end: #0b512f;
+  --status-1-border: #34c978;
+  --status-2-start: #087b70;
+  --status-2-end: #07554e;
+  --status-2-border: #22b9a8;
   --status-3-start: #9a5b00;
   --status-3-end: #714200;
   --status-3-border: #d6870b;
