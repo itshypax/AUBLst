@@ -11,8 +11,8 @@ export function userFacingError(raw: string, area: ErrorArea): UserFacingError {
   if (error.includes('session not found') || error.includes('initialize with action=sync')) {
     return area === 'state'
       ? {
-          title: 'Sitzung nicht gefunden',
-          message: 'Prüfe die Sitzungsnummer. Falls sie stimmt, starte die Sitzung einmal im Spiel.',
+          title: 'Warte auf Spielstart',
+          message: 'Der Session-Code ist gespeichert. Die Leitstelle verbindet sich automatisch, sobald das Spiel startet.',
         }
       : {
           title: 'Funk noch nicht verfügbar',

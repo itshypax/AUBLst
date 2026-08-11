@@ -32,6 +32,12 @@
         text: `${alarm.vehicle_name || alarm.game_vehicle_id}${alarm.mode ? ` · ${alarm.mode}` : ''}${alarm.player_name ? ` · ${alarm.player_name}` : ''}`,
       })),
       ...record.logs.map((log) => ({ id: `log-${log.id}`, at: log.updated_at, kind: 'Funk', text: decodeEntities(log.long_message || log.message) })),
+      ...(record.feedback ?? []).map((feedback) => ({
+        id: 'feedback-' + feedback.id,
+        at: feedback.created_at,
+        kind: 'R\u00fcckmeldung',
+        text: feedback.content,
+      })),
     ];
     if (record.event.status !== 'active') entries.push({ id: 'finished', at: record.event.updated_at ?? '', kind: 'Abschluss', text: record.event.status === 'completed' ? 'Einsatz abgeschlossen' : 'Einsatz abgebrochen' });
     return entries.sort((a, b) => new Date(a.at.replace(' ', 'T')).getTime() - new Date(b.at.replace(' ', 'T')).getTime());
@@ -106,7 +112,7 @@
             <div><dt>Quelle</dt><dd>{record.event.created_by === 'game' ? 'EM4' : 'Leitstelle'}</dd></div>
             <div><dt>Position</dt><dd>{Number(record.event.x).toFixed(0)}, {Number(record.event.y).toFixed(0)}</dd></div>
           </dl>
-          {#if record.note?.content}<section class="note"><h4>Notiz</h4><p>{record.note.content}</p></section>{/if}
+          {#if record.note?.content && !record.feedback?.length}<section class="note"><h4>Notiz</h4><p>{record.note.content}</p></section>{/if}
           <section class="history"><h4>Verlauf</h4>
             {#if timeline.length}
               <ol>{#each timeline as item (item.id)}<li><time>{when(item.at)}</time><strong>{item.kind}</strong><span>{item.text}</span></li>{/each}</ol>

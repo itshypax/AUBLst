@@ -36,12 +36,12 @@ describe('Session-Einstieg', () => {
     expect(mocks.switchSession).toHaveBeenCalledWith(app.apiBase, '758c', '1234');
   });
 
-  it('zeigt eine fehlende Sitzung ohne technischen Servertext', () => {
+  it('zeigt einen vorab erhaltenen Code als wartend an', () => {
     app.sessionToken = '758c';
     app.lastError = 'Session not found. Initialize with action=sync first.';
     render(SessionGate);
 
-    expect(screen.getByText('Sitzung nicht gefunden')).toBeTruthy();
+    expect(screen.getByText('Warte auf Spielstart')).toBeTruthy();
     expect(screen.queryByText(/action=sync/)).toBeNull();
   });
 });

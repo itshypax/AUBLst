@@ -6,13 +6,13 @@ function session_token(): string {
     return bin2hex(random_bytes(2));
 }
 
-function auth_client_key(bool $writeAccess): string {
+function auth_client_key(bool $writeAccess, ?string $token = null): string {
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'local');
-    return hash('sha256', $ip . '|' . ($writeAccess ? 'write' : 'read'));
+    return hash('sha256', $ip . '|' . ($writeAccess ? 'write' : 'read') . '|' . strtolower(trim((string)$token)));
 }
 
-function guard_auth_rate_limit(PDO $pdo, bool $writeAccess): void {
-    $key = auth_client_key($writeAccess);
+function guard_auth_rate_limit(PDO $pdo, bool $writeAccess, ?string $token): void {
+    $key = auth_client_key($writeAccess, $token);
     $stmt = $pdo->prepare('SELECT blocked_until, TIMESTAMPDIFF(SECOND, NOW(), blocked_until) AS retry_after
         FROM auth_rate_limits WHERE client_key = ?');
     $stmt->execute([$key]);
@@ -23,8 +23,8 @@ function guard_auth_rate_limit(PDO $pdo, bool $writeAccess): void {
     }
 }
 
-function record_auth_failure(PDO $pdo, bool $writeAccess): void {
-    $key = auth_client_key($writeAccess);
+function record_auth_failure(PDO $pdo, bool $writeAccess, ?string $token): void {
+    $key = auth_client_key($writeAccess, $token);
     $window = (int)AUTH_WINDOW_SECONDS;
     $block = (int)AUTH_BLOCK_SECONDS;
     $maximum = (int)AUTH_MAX_FAILURES;
@@ -45,36 +45,38 @@ function record_auth_failure(PDO $pdo, bool $writeAccess): void {
     $stmt->execute([$key, $maximum]);
 }
 
-function clear_auth_failures(PDO $pdo, bool $writeAccess): void {
+function clear_auth_failures(PDO $pdo, bool $writeAccess, ?string $token): void {
     $stmt = $pdo->prepare('DELETE FROM auth_rate_limits WHERE client_key = ?');
-    $stmt->execute([auth_client_key($writeAccess)]);
+    $stmt->execute([auth_client_key($writeAccess, $token)]);
 }
 
 function require_session(PDO $pdo, ?string $token, ?string $pin = null, bool $enforce_pin = false): array {
     if (!$token) {
         respond_json(400, ['error' => 'Missing session_token']);
     }
-    guard_auth_rate_limit($pdo, $enforce_pin);
-    if ($enforce_pin) {
-        $pinClause = REQUIRE_SESSION_PIN ? 'pin IS NOT NULL AND pin = ?' : '(pin = ? OR pin IS NULL)';
-        $stmt = $pdo->prepare("SELECT * FROM sessions WHERE token = ? AND $pinClause");
-        $stmt->execute([$token, $pin]);
-    } else {
-        $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ?');
-        $stmt->execute([$token]);
-    }
+
+    // Ein Session-Code kann bereits vor dem eigentlichen Spielstart bekannt sein.
+    // Solange der Adapter noch nicht synchronisiert hat, ist das kein Login-Fehler.
+    $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ?');
+    $stmt->execute([$token]);
     $session = $stmt->fetch();
-    if (!$session && !$enforce_pin) {
-        record_auth_failure($pdo, false);
-        respond_json(404, ['error' => 'Session not found. Initialize with action=sync first.']);
+    if (!$session) {
+        respond_json(404, ['error' => 'Session not found. Waiting for initial sync.']);
     }
-    if (!$session && $enforce_pin) {
-        record_auth_failure($pdo, true);
-        respond_json(401, ['error' => 'Unauthorized! The correct pin is required to execute this action.']);
+
+    if ($enforce_pin) {
+        $storedPin = $session['pin'];
+        $pinMatches = $storedPin === null
+            ? !REQUIRE_SESSION_PIN
+            : hash_equals((string)$storedPin, (string)$pin);
+        if (!$pinMatches) {
+            guard_auth_rate_limit($pdo, true, $token);
+            record_auth_failure($pdo, true, $token);
+            respond_json(401, ['error' => 'Unauthorized! The correct pin is required to execute this action.']);
+        }
+        clear_auth_failures($pdo, true, $token);
     }
-    // Lesezugriffe laufen im Polling alle paar Sekunden. Ein DELETE bei jeder
-    // erfolgreichen Abfrage würde daraus unnötige Datenbankschreibvorgänge machen.
-    if ($enforce_pin) clear_auth_failures($pdo, true);
+
     return $session;
 }
 

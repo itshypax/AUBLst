@@ -84,6 +84,7 @@ export interface EventRecordResponse {
   alarms: AlarmHistoryRow[];
   logs: Array<Pick<LogRow, 'id' | 'type' | 'entity_id' | 'message' | 'long_message' | 'state' | 'updated_at'> & { created_at: string }>;
   note: (Pick<EventNote, 'id' | 'content'> & { created_at: string; updated_at: string }) | null;
+  feedback: EventFeedback[];
 }
 
 export interface ClockTime {
@@ -119,6 +120,13 @@ export interface EventNote {
 export interface Assignment {
   event_id: number;
   vehicle_id: number;
+}
+
+export interface EventFeedback {
+  id: number;
+  event_id: number;
+  content: string;
+  created_at: string;
 }
 
 export interface StatisticsEvent {

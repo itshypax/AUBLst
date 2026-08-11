@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -40,11 +40,12 @@ beforeEach(() => {
     status: 'active',
     created_by: 'game',
   };
-  mocks.api.mockImplementation(async (action: string) => {
+  mocks.api.mockImplementation(async (action: string, payload?: Record<string, unknown>) => {
     if (action === 'state') return { vehicles: app.vehicles, assignments: app.assignments };
     if (action === 'events_get_vehicles') return { vehicles: [] };
-    if (action === 'events_get_note') return { notes: [{ id: 1, event_id: 101, content: 'Bewohner vermisst' }] };
-    if (action === 'events_get_logs') return { logs: [] };
+    if (action === 'events_get_feedback') return { feedback: [] };
+    if (action === 'events_get_logs') return { logs: [{ id: 7, type: 'event', entity_id: '1_HLF_1', event_id: 101, message: 'S4', long_message: '1-HLF-1 an der Einsatzstelle', state: 'active', updated_at: '2026-08-11 14:29:00' }] };
+    if (action === 'events_add_feedback') return { feedback: { id: 1, event_id: 101, content: String(payload?.content ?? ''), created_at: '2026-08-11 14:30:00' } };
     return { ok: true };
   });
 });
@@ -83,16 +84,22 @@ describe('Alarmierungsdialog', () => {
     expect(Array.from((mode as HTMLSelectElement).options, (option) => option.value)).toEqual(['Sondersignal', 'Still']);
   });
 
-  it('speichert auch eine vollständig geleerte Notiz', async () => {
+  it('fügt eine Rückmeldung zum Einsatz hinzu', async () => {
     const user = userEvent.setup();
     render(AssignModal);
-    const notes = await screen.findByPlaceholderText('Einsatznotizen …');
-    await waitFor(() => expect((notes as HTMLTextAreaElement).value).toBe('Bewohner vermisst'));
-    await user.clear(notes);
-    await user.click(screen.getByRole('button', { name: 'Schließen' }));
+    const feedback = await screen.findByPlaceholderText('Rückmeldung hinzufügen …');
+    await fireEvent.input(feedback, { target: { value: 'Bewohner vermisst' } });
+    await user.click(screen.getByRole('button', { name: 'Hinzufügen' }));
+
     await waitFor(() => {
-      expect(mocks.api).toHaveBeenCalledWith('events_set_note', { event_id: 101, content: '' });
+      expect(mocks.api).toHaveBeenCalledWith('events_add_feedback', {
+        event_id: 101,
+        content: 'Bewohner vermisst',
+      });
     });
+    expect(screen.getByText(/Bewohner vermisst/)).toBeTruthy();
+    expect(screen.queryByText(/Leitstelle/)).toBeNull();
+    expect(screen.getByText(/1-HLF-1 an der Einsatzstelle/)).toBeTruthy();
   });
 
   it('sortiert Fahrzeuge bei nahezu gleicher Distanz nach Einsatzwert', async () => {

@@ -66,6 +66,27 @@ function migration_definitions(): array {
                 $pdo->exec('ALTER TABLE mods ADD COLUMN routing_graph LONGTEXT NULL AFTER meters_per_world_unit');
             }
         },
+        '2026081101_event_feedback' => static function (PDO $pdo): void {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS event_feedback (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                session_id INT NOT NULL,
+                event_id INT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_event_feedback (session_id, event_id, created_at, id),
+                CONSTRAINT fk_event_feedback_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                CONSTRAINT fk_event_feedback_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+
+            $pdo->exec("INSERT INTO event_feedback (session_id, event_id, content, created_at)
+                SELECT n.session_id, n.event_id, n.content, n.created_at
+                FROM notes n
+                WHERE n.content <> ''
+                  AND NOT EXISTS (
+                    SELECT 1 FROM event_feedback f
+                    WHERE f.session_id = n.session_id AND f.event_id = n.event_id
+                  )");
+        },
     ];
 }
 

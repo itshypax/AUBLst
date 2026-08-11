@@ -20,6 +20,7 @@ let stateFailures = 0;
 let logFailures = 0;
 let stateTimer = 0;
 let logTimer = 0;
+let connectionTimer = 0;
 let stateController: AbortController | null = null;
 let logController: AbortController | null = null;
 let generation = 0;
@@ -59,10 +60,30 @@ function scheduleLogs(delay = nextDelay(LOG_INTERVAL, logFailures)): void {
   }, delay);
 }
 
+function sessionIsWaiting(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLocaleLowerCase('en-US') : '';
+  return message.includes('session not found') || message.includes('waiting for initial sync');
+}
+
+function scheduleConnectionRetry(): void {
+  const scheduledGeneration = generation;
+  clearTimeout(connectionTimer);
+  connectionTimer = window.setTimeout(() => {
+    if (scheduledGeneration !== generation || !app.sessionToken || app.stateHealthy) return;
+    void connectCurrentSession();
+  }, document.hidden ? HIDDEN_INTERVAL : STATE_INTERVAL);
+}
+
 function restartLoops(runImmediately: boolean): void {
   clearTimeout(stateTimer);
   clearTimeout(logTimer);
+  clearTimeout(connectionTimer);
   if (!app.sessionToken) return;
+  if (!app.stateHealthy) {
+    if (runImmediately) void connectCurrentSession();
+    else scheduleConnectionRetry();
+    return;
+  }
   if (runImmediately) {
     void refreshState().finally(() => scheduleState());
     void pollLogs().finally(() => scheduleLogs());
@@ -74,6 +95,7 @@ function restartLoops(runImmediately: boolean): void {
 
 async function connectCurrentSession(): Promise<void> {
   if (!app.sessionToken) return;
+  clearTimeout(connectionTimer);
   const requestGeneration = generation;
   try {
     await api('session_validate', {}, { requireFresh: false });
@@ -83,6 +105,7 @@ async function connectCurrentSession(): Promise<void> {
     app.stateHealthy = false;
     app.logsHealthy = false;
     app.lastError = (error as Error).message;
+    if (sessionIsWaiting(error)) scheduleConnectionRetry();
     return;
   }
   if (requestGeneration !== generation) return;
@@ -101,6 +124,7 @@ export async function switchSession(apiBase: string, token: string, pin: string)
   logController?.abort();
   clearTimeout(stateTimer);
   clearTimeout(logTimer);
+  clearTimeout(connectionTimer);
   app.sessionChanging = true;
   resetSessionData();
   resetCursors();

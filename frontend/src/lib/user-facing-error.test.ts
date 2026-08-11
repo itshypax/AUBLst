@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { userFacingError } from './user-facing-error';
 
 describe('userFacingError', () => {
-  it('übersetzt eine fehlende Sitzung passend zum betroffenen Bereich', () => {
-    const raw = 'Session not found. Initialize with action=sync first.';
+  it('zeigt einen vorab bekannten Session-Code als wartend an', () => {
+    const raw = 'Session not found. Waiting for initial sync.';
 
     expect(userFacingError(raw, 'state')).toEqual({
-      title: 'Sitzung nicht gefunden',
-      message: 'Prüfe die Sitzungsnummer. Falls sie stimmt, starte die Sitzung einmal im Spiel.',
+      title: 'Warte auf Spielstart',
+      message: 'Der Session-Code ist gespeichert. Die Leitstelle verbindet sich automatisch, sobald das Spiel startet.',
     });
     expect(userFacingError(raw, 'logs').title).toBe('Funk noch nicht verfügbar');
   });

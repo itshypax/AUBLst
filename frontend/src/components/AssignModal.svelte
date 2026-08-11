@@ -8,7 +8,7 @@
   import { createRouteCalculator, formatDistance, type RouteDistance } from '../lib/routing';
   import { app, canWrite, showNotice } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
-  import type { AssignedVehicle, EventNote, LogRow, StateResponse, Vehicle } from '../lib/types';
+  import type { AssignedVehicle, EventFeedback, LogRow, StateResponse, Vehicle } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
 
   const initialEvent = app.assignEvent!;
@@ -26,15 +26,46 @@
   let sortByDistance = $state(true);
   let selected = $state<number[]>([]);
   let playerId = $state('');
-  let notes = $state('');
-  let notesLoaded = $state(false);
-  let initialNotes = $state('');
   let assigned = $state<AssignedVehicle[] | null>(null);
   let eventLogs = $state<LogRow[]>([]);
+  let feedbackRows = $state<EventFeedback[]>([]);
+  let feedbackText = $state('');
+  let feedbackBusy = $state(false);
   let errorMsg = $state('');
   let busy = $state(false);
   let returning = $state<Set<number>>(new Set());
   let preflightUnavailable = $state<Set<number>>(new Set());
+
+  interface TimelineEntry {
+    id: string;
+    at: string;
+    kind: 'log' | 'note';
+    source: string;
+    text: string;
+  }
+
+  const timeline = $derived.by(() => {
+    const entries: TimelineEntry[] = [];
+    for (const row of eventLogs) {
+      entries.push({
+        id: 'speech-' + row.id,
+        at: row.created_at || row.updated_at,
+        kind: 'log',
+        source: row.entity_id || '',
+        text: decodeEntities(row.long_message || row.message),
+      });
+    }
+    for (const row of feedbackRows) {
+      entries.push({
+        id: 'note-' + row.id,
+        at: row.created_at,
+        kind: 'note',
+        source: '',
+        text: row.content,
+      });
+    }
+    return entries.sort((left, right) => left.at.localeCompare(right.at) || left.id.localeCompare(right.id));
+  });
 
   const available = $derived(
     vehicles.filter((v) => {
@@ -180,7 +211,7 @@
 
   onMount(() => {
     void load();
-    const timer = setInterval(() => void loadLogs(), 5000);
+    const timer = setInterval(() => void loadTimeline(), 5000);
     return () => clearInterval(timer);
   });
 
@@ -188,23 +219,44 @@
     try {
       const res = await api<{ vehicles: AssignedVehicle[] }>('events_get_vehicles', { event_id: eventId });
       assigned = res.vehicles;
-      const noteRes = await api<{ notes: EventNote[] }>('events_get_note', { event_id: eventId });
-      notes = noteRes.notes.map((n) => n.content).join('\n');
-      initialNotes = notes;
-      notesLoaded = true;
-      await loadLogs();
+      await loadTimeline();
     } catch (err) {
       errorMsg = (err as Error).message;
     }
   }
 
-  async function loadLogs(): Promise<void> {
+  async function loadTimeline(): Promise<void> {
     try {
-      const res = await api<{ logs: LogRow[] }>('events_get_logs', { event_id: eventId });
-      eventLogs = res.logs ?? [];
+      const [logsResponse, feedbackResponse] = await Promise.all([
+        api<{ logs: LogRow[] }>('events_get_logs', { event_id: eventId }),
+        api<{ feedback: EventFeedback[] }>('events_get_feedback', { event_id: eventId }),
+      ]);
+      eventLogs = logsResponse.logs ?? [];
+      feedbackRows = feedbackResponse.feedback ?? [];
     } catch {
-      // Verlauf ist nicht kritisch
+      // Rückmeldungen werden beim nächsten Abgleich erneut geladen.
     }
+  }
+
+  async function addFeedback(): Promise<void> {
+    const content = feedbackText.trim();
+    if (!content || feedbackBusy) return;
+    feedbackBusy = true;
+    try {
+      const response = await api<{ feedback: EventFeedback }>('events_add_feedback', { event_id: eventId, content });
+      feedbackRows = [...feedbackRows, response.feedback];
+      feedbackText = '';
+    } catch (err) {
+      errorMsg = (err as Error).message;
+    } finally {
+      feedbackBusy = false;
+    }
+  }
+
+  function onFeedbackKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Enter' || (!event.ctrlKey && !event.metaKey)) return;
+    event.preventDefault();
+    void addFeedback();
   }
 
   function toggle(v: Vehicle): void {
@@ -216,20 +268,9 @@
     return v ? v.name || v.type || v.game_vehicle_id : `#${id}`;
   }
 
-  async function saveNotes(): Promise<void> {
-    if (!notesLoaded || notes === initialNotes) return;
-    await api('events_set_note', { event_id: eventId, content: notes });
-    initialNotes = notes;
-  }
-
-  async function close(): Promise<void> {
+  function close(): void {
     if (busy) return;
-    try {
-      await saveNotes();
-      app.assignEvent = null;
-    } catch (err) {
-      errorMsg = `Notizen nicht gespeichert: ${(err as Error).message}`;
-    }
+    app.assignEvent = null;
   }
 
   async function submit(): Promise<void> {
@@ -259,7 +300,6 @@
       for (const id of selected) {
         if (modes[id]) chosenModes[id] = modes[id];
       }
-      await saveNotes();
       await api('events_assign', {
         event_id: eventId,
         vehicle_ids: selected,
@@ -326,21 +366,29 @@
 
     <div class="body">
       <aside class="notes">
-        <span class="block-label">Notizen</span>
-        <textarea bind:value={notes} placeholder="Einsatznotizen …" disabled={busy}></textarea>
-        <span class="block-label">Verlauf</span>
+        <span class="block-label">Rückmeldungen</span>
         <div class="event-log">
-          {#each [...eventLogs].reverse() as row (row.id)}
-            <div class="log-row" class:log-done={row.state === 'inactive'}>
-              <span class="log-time" data-tooltip={row.updated_at}>{row.updated_at?.slice(11, 16)}</span>
+          {#each timeline as entry (entry.id)}
+            <div class="log-row {entry.kind}">
+              <span class="log-time" data-tooltip={entry.at}>{entry.at.slice(11, 16)}</span>
               <span class="log-text">
-                {#if row.entity_id}<b>{row.entity_id}</b> · {/if}{decodeEntities(row.long_message)}
+                {#if entry.source}<b>{entry.source}</b> · {/if}{entry.text}
               </span>
             </div>
           {:else}
-            <span class="log-empty">Noch keine Meldungen zu diesem Einsatz</span>
+            <span class="log-empty">Noch keine Rückmeldungen zu diesem Einsatz</span>
           {/each}
         </div>
+        <textarea
+          bind:value={feedbackText}
+          onkeydown={onFeedbackKeydown}
+          placeholder="Rückmeldung hinzufügen …"
+          rows="3"
+          disabled={feedbackBusy}
+        ></textarea>
+        <button class="feedback-submit" disabled={!feedbackText.trim() || feedbackBusy || !canWrite()} onclick={() => void addFeedback()}>
+          {feedbackBusy ? 'Wird hinzugefügt …' : 'Hinzufügen'}
+        </button>
       </aside>
 
       <div class="main">
@@ -564,15 +612,19 @@
   }
 
   .notes textarea {
-    flex: 1 1 auto;
-    min-height: 130px;
-    resize: none;
+    flex: 0 0 auto;
+    min-height: 64px;
+    max-height: 96px;
+    resize: vertical;
+  }
+
+  .feedback-submit {
+    justify-content: center;
   }
 
   .event-log {
     flex: 1 1 auto;
     min-height: 90px;
-    max-height: 220px;
     overflow: auto;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -587,10 +639,12 @@
     display: flex;
     gap: 6px;
     align-items: baseline;
+    padding-left: 5px;
+    border-left: 2px solid var(--selection);
   }
 
-  .log-row.log-done {
-    opacity: 0.5;
+  .log-row.note {
+    border-left-color: var(--warn);
   }
 
   .log-time {
@@ -811,8 +865,8 @@
   @media (max-width: 820px) {
     .modal { width: 96vw; max-height: 94vh; }
     .body { grid-template-columns: 1fr; gap: 12px; }
-    .notes { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 130px; column-gap: 10px; }
-    .notes textarea, .event-log { min-height: 110px; max-height: 130px; }
+    .notes { max-height: 280px; }
+    .event-log { min-height: 110px; }
     .groups { max-height: 42vh; }
   }
 

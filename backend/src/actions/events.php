@@ -264,7 +264,8 @@ function action_events_archive(PDO $pdo): void {
     $stmt = $pdo->prepare('SELECT e.*,
         (SELECT COUNT(*) FROM alarm_history h WHERE h.session_id = e.session_id AND h.event_id = e.id) AS dispatch_count,
         (SELECT COUNT(*) FROM activity_logs l WHERE l.session_id = e.session_id AND l.event_id = e.id) AS log_count,
-        EXISTS(SELECT 1 FROM notes n WHERE n.session_id = e.session_id AND n.event_id = e.id AND n.content <> \'\') AS has_note
+        (EXISTS(SELECT 1 FROM notes n WHERE n.session_id = e.session_id AND n.event_id = e.id AND n.content <> \'\')
+          OR EXISTS(SELECT 1 FROM event_feedback f WHERE f.session_id = e.session_id AND f.event_id = e.id)) AS has_note
         FROM events e WHERE e.session_id = ? ORDER BY e.created_at DESC, e.id DESC LIMIT 500');
     $stmt->execute([$sid]);
     respond_json(200, ['events' => $stmt->fetchAll()]);
@@ -298,5 +299,49 @@ function action_event_record(PDO $pdo): void {
     $stmt->execute([$sid, $event_id]);
     $note = $stmt->fetch() ?: null;
 
-    respond_json(200, ['event' => $event, 'alarms' => $alarms, 'logs' => $logs, 'note' => $note]);
+    $stmt = $pdo->prepare('SELECT id, event_id, content, created_at FROM event_feedback
+        WHERE session_id = ? AND event_id = ? ORDER BY created_at ASC, id ASC');
+    $stmt->execute([$sid, $event_id]);
+    $feedback = $stmt->fetchAll();
+
+    respond_json(200, ['event' => $event, 'alarms' => $alarms, 'logs' => $logs, 'note' => $note, 'feedback' => $feedback]);
+}
+
+function action_events_get_feedback(PDO $pdo): void {
+    $data = get_json_input();
+    $session = require_session($pdo, $data['session_token'] ?? null);
+    $sid = $session['id'];
+    $event_id = (int)($data['event_id'] ?? 0);
+    if (!$event_id) respond_json(400, ['error' => 'Missing event_id']);
+
+    $stmt = $pdo->prepare('SELECT id, event_id, content, created_at
+        FROM event_feedback
+        WHERE session_id = ? AND event_id = ?
+        ORDER BY created_at ASC, id ASC');
+    $stmt->execute([$sid, $event_id]);
+    respond_json(200, ['feedback' => $stmt->fetchAll()]);
+}
+
+function action_events_add_feedback(PDO $pdo): void {
+    $data = get_json_input();
+    $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
+    $sid = $session['id'];
+    $event_id = (int)($data['event_id'] ?? 0);
+    $content = trim((string)($data['content'] ?? ''));
+
+    if (!$event_id) respond_json(400, ['error' => 'Missing event_id']);
+    if ($content === '') respond_json(400, ['error' => 'Die Rueckmeldung ist leer.']);
+    if (strlen($content) > 4000) respond_json(400, ['error' => 'Die Rueckmeldung ist zu lang.']);
+
+    $stmt = $pdo->prepare('SELECT id FROM events WHERE session_id = ? AND id = ?');
+    $stmt->execute([$sid, $event_id]);
+    if (!$stmt->fetchColumn()) respond_json(404, ['error' => 'Event not found']);
+
+    $stmt = $pdo->prepare('INSERT INTO event_feedback (session_id, event_id, content) VALUES (?, ?, ?)');
+    $stmt->execute([$sid, $event_id, $content]);
+    $id = (int)$pdo->lastInsertId();
+
+    $stmt = $pdo->prepare('SELECT id, event_id, content, created_at FROM event_feedback WHERE session_id = ? AND id = ?');
+    $stmt->execute([$sid, $id]);
+    respond_json(200, ['ok' => true, 'feedback' => $stmt->fetch()]);
 }
