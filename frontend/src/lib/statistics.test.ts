@@ -22,6 +22,15 @@ describe('Session-Statistik', () => {
         { event_id: 2, game_vehicle_id: '1_HLF_1', vehicle_name: '1-HLF-1', mode: 'Sondersignal', created_at: '2026-08-09 13:05:00' },
         { event_id: 3, game_vehicle_id: '72_RTW_1', vehicle_name: '72-RTW-1', mode: null, created_at: '2026-08-09 14:05:00' },
       ],
+      status_history: [
+        { game_vehicle_id: '1_HLF_1', vehicle_name: '1-HLF-1', status: 2, created_at: '2026-08-09 12:00:00' },
+        { game_vehicle_id: '1_HLF_1', vehicle_name: '1-HLF-1', status: 3, created_at: '2026-08-09 12:05:00' },
+        { game_vehicle_id: '1_HLF_1', vehicle_name: '1-HLF-1', status: 5, created_at: '2026-08-09 12:15:00' },
+        { game_vehicle_id: '1_HLF_1', vehicle_name: '1-HLF-1', status: 4, created_at: '2026-08-09 12:20:00' },
+        { game_vehicle_id: '1_HLF_1', vehicle_name: '1-HLF-1', status: 1, created_at: '2026-08-09 13:00:00' },
+        { game_vehicle_id: '1_HLF_1', vehicle_name: '1-HLF-1', status: 6, created_at: '2026-08-09 14:00:00' },
+        { game_vehicle_id: '1_HLF_1', vehicle_name: '1-HLF-1', status: 2, created_at: '2026-08-09 14:30:00' },
+      ],
       log_count: 17,
     };
 
@@ -42,7 +51,7 @@ describe('Session-Statistik', () => {
     expect(model.vehicles[0]).toMatchObject({ label: '1-HLF-1', value: 2 });
     expect(model.timeline.reduce((sum, item) => sum + item.value, 0)).toBe(5);
     expect(model.peakCount).toBeGreaterThan(0);
-    expect(model.vehicleUtilization[0]).toMatchObject({ label: '1-HLF-1', value: 96 });
+    expect(model.vehicleUtilization[0]).toMatchObject({ label: '1-HLF-1', value: 23, unavailable: 13 });
     expect(formatStatisticDuration(model.averageEventDurationMs)).toBe('45 Min.');
   });
 
@@ -55,6 +64,7 @@ describe('Session-Statistik', () => {
         { id: 3, name: 'Person gestürzt', status: 'active', created_by: 'game', created_at: '2026-08-09 20:43:00', updated_at: '2026-08-09 20:43:00' },
       ],
       dispatches: [],
+      status_history: [],
       log_count: 0,
     };
 

@@ -41,8 +41,16 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Kopfzeile', () => {
+  it('fasst Einsatzakte und Statistik in einem Einstieg zusammen', () => {
+    render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
+
+    expect(screen.getByRole('button', { name: 'Sitzungsübersicht öffnen' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Einsatzakte öffnen' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Session-Statistik öffnen' })).toBeNull();
+  });
+
   it('zeigt alle aktiven Lagehinweise', () => {
-    render(Topbar, { props: { onResetLayout: vi.fn() } });
+    render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
 
     expect(screen.getByText('Rettungsmittelknappheit')).toBeTruthy();
     expect(screen.getByText('Alarmstufe')).toBeTruthy();
@@ -52,7 +60,7 @@ describe('Kopfzeile', () => {
   });
 
   it('färbt die Lagehinweise nach ihrer Art', () => {
-    render(Topbar, { props: { onResetLayout: vi.fn() } });
+    render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
 
     expect(screen.getByText('Rettungsmittelknappheit').classList.contains('shortage')).toBe(true);
     expect(screen.getByText('Alarmstufe').classList.contains('alarm-level')).toBe(true);

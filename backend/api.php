@@ -44,6 +44,7 @@ const ACTIONS = [
     'events_create'          => 'action_events_create',
     'events_finish'          => 'action_events_finish',
     'events_assign'          => 'action_events_assign',
+    'events_reassign'        => 'action_events_reassign',
     'events_get_vehicles'    => 'action_events_get_vehicles',
     'events_get_logs'        => 'action_events_get_logs',
     'events_unassign'        => 'action_events_unassign',

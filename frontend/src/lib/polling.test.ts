@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { app, resetSessionData } from './state.svelte';
 import type { LogRow } from './types';
 
-const mocks = vi.hoisted(() => ({ apiGet: vi.fn(), playAlarm: vi.fn(), playPhone: vi.fn(), playSpeechRequest: vi.fn() }));
+const mocks = vi.hoisted(() => ({ apiGet: vi.fn(), playPhone: vi.fn(), playSoundCue: vi.fn(), playSoundCues: vi.fn() }));
 
 vi.mock('./api', () => ({ apiGet: mocks.apiGet, fetchMapImage: vi.fn() }));
 vi.mock('./sounds', () => ({
-  playAlarm: mocks.playAlarm,
   playPhone: mocks.playPhone,
-  playSpeechRequest: mocks.playSpeechRequest,
+  playSoundCue: mocks.playSoundCue,
+  playSoundCues: mocks.playSoundCues,
 }));
 
 function row(id: number): LogRow {
@@ -26,9 +26,9 @@ function row(id: number): LogRow {
 
 beforeEach(() => {
   mocks.apiGet.mockReset();
-  mocks.playAlarm.mockReset();
   mocks.playPhone.mockReset();
-  mocks.playSpeechRequest.mockReset();
+  mocks.playSoundCue.mockReset();
+  mocks.playSoundCues.mockReset();
   resetSessionData();
   app.sessionToken = 'demo';
 });
@@ -40,7 +40,7 @@ describe('Funk-Polling', () => {
     await switchSession('../backend/api.php', 'demo', '');
 
     await pollLogs();
-    expect(mocks.playAlarm).not.toHaveBeenCalled();
+    expect(mocks.playSoundCues).not.toHaveBeenCalled();
     await pollLogs();
 
     expect(mocks.apiGet).toHaveBeenLastCalledWith(
@@ -48,7 +48,7 @@ describe('Funk-Polling', () => {
       { since: '2026-08-09 14:35:00', since_id: 10 },
       expect.any(Object)
     );
-    expect(mocks.playAlarm).toHaveBeenCalledTimes(1);
+    expect(mocks.playSoundCues).toHaveBeenCalledWith(['radio-message']);
     expect(app.logs.map((item) => item.id)).toEqual([10, 11]);
   });
 
@@ -66,7 +66,6 @@ describe('Funk-Polling', () => {
     await pollLogs();
     await pollLogs();
 
-    expect(mocks.playSpeechRequest).toHaveBeenCalledTimes(1);
-    expect(mocks.playAlarm).not.toHaveBeenCalled();
+    expect(mocks.playSoundCues).toHaveBeenCalledWith(['speech-request']);
   });
 });

@@ -4,6 +4,7 @@ const WRITE_ACTIONS = new Set([
   'events_create',
   'events_finish',
   'events_assign',
+  'events_reassign',
   'events_unassign',
   'events_set_note',
   'vehicles_assign_player',

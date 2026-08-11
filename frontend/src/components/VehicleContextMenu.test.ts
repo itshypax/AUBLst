@@ -1,13 +1,19 @@
 import { cleanup, render, screen } from '@testing-library/svelte';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app, resetSessionData } from '../lib/state.svelte';
 import VehicleContextMenu from './VehicleContextMenu.svelte';
 
-vi.mock('../lib/api', () => ({ api: vi.fn() }));
-vi.mock('../lib/polling', () => ({ refreshState: vi.fn() }));
+const mocks = vi.hoisted(() => ({ api: vi.fn(), refreshState: vi.fn() }));
+
+vi.mock('../lib/api', () => ({ api: mocks.api }));
+vi.mock('../lib/polling', () => ({ refreshState: mocks.refreshState }));
 
 beforeEach(() => {
+  mocks.api.mockReset();
+  mocks.refreshState.mockReset();
   resetSessionData();
+  app.sessionToken = 'demo';
   app.stateHealthy = true;
   app.connected = true;
   app.lastSuccessfulSync = Date.now();
@@ -33,6 +39,22 @@ describe('Fahrzeugmenü', () => {
 
     expect(screen.queryByText('Status setzen')).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /Status \d setzen/ })).toBeNull();
+  });
+
+  it('ordnet ein Fahrzeug lokal einem anderen Einsatz zu', async () => {
+    const user = userEvent.setup();
+    app.events = [
+      { id: 1000, game_event_id: '10', name: 'Wohnungsbrand', x: 0, y: 0, status: 'active', created_by: 'game' },
+      { id: 1001, game_event_id: '11', name: 'Verkehrsunfall', x: 0, y: 0, status: 'active', created_by: 'game' },
+    ];
+    app.assignments = [{ event_id: 1000, vehicle_id: 1 }];
+    mocks.api.mockResolvedValue({ ok: true });
+    render(VehicleContextMenu);
+
+    await user.click(screen.getByRole('menuitem', { name: 'Anderem Einsatz zuordnen' }));
+    await user.click(screen.getByRole('menuitem', { name: /Verkehrsunfall/ }));
+
+    expect(mocks.api).toHaveBeenCalledWith('events_reassign', { vehicle_id: 1, event_id: 1001 });
   });
 
   it.each([4, 5, 7])('bietet einem RTW in Status %i die Klinikzuweisung an', (status) => {

@@ -87,6 +87,26 @@ function migration_definitions(): array {
                     WHERE f.session_id = n.session_id AND f.event_id = n.event_id
                   )");
         },
+        '2026081102_vehicle_status_history' => static function (PDO $pdo): void {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS vehicle_status_history (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                session_id INT NOT NULL,
+                vehicle_id INT NOT NULL,
+                game_vehicle_id VARCHAR(255) NOT NULL,
+                vehicle_name VARCHAR(255) NULL,
+                status TINYINT UNSIGNED NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_vehicle_status_session (session_id, created_at, id),
+                INDEX idx_vehicle_status_vehicle (session_id, vehicle_id, created_at, id),
+                CONSTRAINT fk_vehicle_status_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                CONSTRAINT fk_vehicle_status_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+
+            $pdo->exec("INSERT INTO vehicle_status_history
+                (session_id, vehicle_id, game_vehicle_id, vehicle_name, status, created_at)
+                SELECT session_id, id, game_vehicle_id, name, status, CURRENT_TIMESTAMP
+                FROM vehicles WHERE status BETWEEN 0 AND 9");
+        },
     ];
 }
 

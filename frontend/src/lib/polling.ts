@@ -1,8 +1,8 @@
 import { api, apiGet, fetchMapImage } from './api';
 import { advanceLogCursor, INITIAL_LOG_CURSOR, mergeLogRows } from './log-stream';
-import { isSpeechRequest } from './speech-requests';
+import { soundCuesForLogs } from './sound-events';
 import { app, persistSettings, resetSessionData } from './state.svelte';
-import { playAlarm, playPhone, playSpeechRequest } from './sounds';
+import { playPhone, playSoundCue, playSoundCues } from './sounds';
 import type { LogRow, StateResponse } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 
@@ -196,6 +196,7 @@ export async function refreshState(): Promise<void> {
     if (eventsInitialized) {
       const fresh = app.events.some((event) => !lastEventIds.has(event.id) && event.created_by === 'game');
       if (fresh) void playPhone();
+      if ([...lastEventIds].some((id) => !ids.has(id))) void playSoundCue('incident-completed');
     }
     eventsInitialized = true;
     lastEventIds = ids;
@@ -242,8 +243,7 @@ export async function pollLogs(): Promise<void> {
     logFailures = 0;
     if (logsInitialized && incomingIds.length) {
       app.lastLogBatch = incomingIds;
-      if (incomingRows.some(isSpeechRequest)) void playSpeechRequest();
-      else void playAlarm();
+      void playSoundCues(soundCuesForLogs(incomingRows));
     } else {
       app.lastLogBatch = [];
     }

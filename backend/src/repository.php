@@ -55,6 +55,23 @@ function upsert_vehicle(PDO $pdo, $session_id, array $veh) {
 
     $current = get_vehicle_by_game_id($pdo, $session_id, $veh['game_vehicle_id']);
 
+    if ($current && array_key_exists('status', $veh) && valid_vehicle_status($veh['status'])) {
+        $status = (int)$veh['status'];
+        $previous_status = $saved !== false && isset($saved['status']) ? (int)$saved['status'] : null;
+        if ($previous_status === null || $previous_status !== $status) {
+            $stmt = $pdo->prepare('INSERT INTO vehicle_status_history
+                (session_id, vehicle_id, game_vehicle_id, vehicle_name, status)
+                VALUES (?, ?, ?, ?, ?)');
+            $stmt->execute([
+                $session_id,
+                $current['id'],
+                $current['game_vehicle_id'],
+                $current['name'],
+                $status,
+            ]);
+        }
+    }
+
     if (isset($veh['status']) && $current) {
         $status = (int)$veh['status'];
         if ($status === 8) {

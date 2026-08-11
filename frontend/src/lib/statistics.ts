@@ -13,6 +13,10 @@ export interface TimelineValue {
   value: number;
 }
 
+export interface VehicleUtilizationValue extends StatisticValue {
+  unavailable: number;
+}
+
 export interface SessionStatisticsModel {
   token: string;
   createdAt: Date;
@@ -30,7 +34,7 @@ export interface SessionStatisticsModel {
   sources: StatisticValue[];
   timeline: TimelineValue[];
   vehicles: StatisticValue[];
-  vehicleUtilization: StatisticValue[];
+  vehicleUtilization: VehicleUtilizationValue[];
 }
 
 const CATEGORY_META: Record<EventCategory, { label: string; color: string }> = {
@@ -100,32 +104,50 @@ export function buildSessionStatistics(data: SessionStatisticsResponse): Session
     .filter((duration) => duration >= 0);
   const timeline = timelineFor(data, createdAt, generatedAt);
   const peak = timeline.reduce((best, item) => item.value > best.value ? item : best, timeline[0] ?? { label: '–', value: 0 });
-  const eventById = new Map(data.events.map((event) => [event.id, event]));
-  const intervalsByVehicle = new Map<string, { label: string; intervals: Array<[number, number]> }>();
-  for (const dispatch of data.dispatches) {
-    if (dispatch.event_id == null) continue;
-    const event = eventById.get(Number(dispatch.event_id));
-    if (!event) continue;
-    const start = parseDate(dispatch.created_at).getTime();
-    const end = event.status === 'active' ? generatedAt.getTime() : parseDate(event.updated_at).getTime();
-    if (end <= start) continue;
-    const key = dispatch.game_vehicle_id || dispatch.vehicle_name;
-    const entry = intervalsByVehicle.get(key) ?? { label: dispatch.vehicle_name || key || 'Unbekannt', intervals: [] };
-    entry.intervals.push([start, end]);
-    intervalsByVehicle.set(key, entry);
-  }
   const sessionDuration = Math.max(1, generatedAt.getTime() - createdAt.getTime());
-  const vehicleUtilization = [...intervalsByVehicle.entries()].map(([key, entry]) => {
-    const sorted = entry.intervals.sort((a, b) => a[0] - b[0]);
-    let total = 0;
-    let current = sorted[0];
-    for (const interval of sorted.slice(1)) {
-      if (interval[0] <= current[1]) current[1] = Math.max(current[1], interval[1]);
-      else { total += current[1] - current[0]; current = interval; }
+  const statusByVehicle = new Map<string, { label: string; entries: Array<{ status: number; time: number }> }>();
+  for (const row of data.status_history ?? []) {
+    const key = row.game_vehicle_id || row.vehicle_name || 'Unbekannt';
+    const entry = statusByVehicle.get(key) ?? { label: row.vehicle_name || key, entries: [] };
+    if (row.vehicle_name) entry.label = row.vehicle_name;
+    entry.entries.push({ status: Number(row.status), time: parseDate(row.created_at).getTime() });
+    statusByVehicle.set(key, entry);
+  }
+
+  const vehicleUtilization = [...statusByVehicle.entries()].flatMap(([key, entry]) => {
+    let effectiveStatus: number | null = null;
+    let intervalStart: number | null = null;
+    let busyMs = 0;
+    let unavailableMs = 0;
+
+    const finishInterval = (end: number): void => {
+      if (effectiveStatus === null || intervalStart === null || end <= intervalStart) return;
+      const duration = end - intervalStart;
+      if ([3, 4, 7, 8].includes(effectiveStatus)) busyMs += duration;
+      else if (effectiveStatus === 6) unavailableMs += duration;
+    };
+
+    for (const statusEntry of entry.entries.sort((a, b) => a.time - b.time)) {
+      if (![1, 2, 3, 4, 6, 7, 8].includes(statusEntry.status)) continue;
+      if (statusEntry.time > generatedAt.getTime()) break;
+      const time = Math.max(createdAt.getTime(), statusEntry.time);
+      finishInterval(time);
+      effectiveStatus = statusEntry.status;
+      intervalStart = time;
     }
-    if (current) total += current[1] - current[0];
-    return { key, label: entry.label, value: Math.min(100, Math.round(total / sessionDuration * 100)), color: '#2aa6b7' };
-  }).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, 'de', { numeric: true })).slice(0, 8);
+    finishInterval(generatedAt.getTime());
+
+    if (busyMs === 0 && unavailableMs === 0) return [];
+    const busyPercent = Math.min(100, Math.round(busyMs / sessionDuration * 100));
+    const unavailablePercent = Math.min(100 - busyPercent, Math.round(unavailableMs / sessionDuration * 100));
+    return [{
+      key,
+      label: entry.label,
+      value: busyPercent,
+      unavailable: unavailablePercent,
+      color: '#2aa6b7',
+    }];
+  }).sort((a, b) => b.value - a.value || b.unavailable - a.unavailable || a.label.localeCompare(b.label, 'de', { numeric: true })).slice(0, 8);
 
   return {
     token: data.session.token,
@@ -218,6 +240,34 @@ function drawHorizontalBars(
   });
 }
 
+function drawVehicleUtilizationBars(
+  ctx: CanvasRenderingContext2D,
+  values: VehicleUtilizationValue[],
+  x: number,
+  y: number,
+  width: number,
+  rowHeight: number,
+): void {
+  values.forEach((item, index) => {
+    const rowY = y + index * rowHeight;
+    const trackX = x + 190;
+    const trackWidth = width - 275;
+    ctx.fillStyle = '#b9bcc2';
+    ctx.font = '18px system-ui, sans-serif';
+    ctx.fillText(item.label, x, rowY + 17);
+    ctx.fillStyle = '#27292d';
+    ctx.fillRect(trackX, rowY, trackWidth, 20);
+    ctx.fillStyle = item.color;
+    ctx.fillRect(trackX, rowY, trackWidth * (item.value / 100), 20);
+    ctx.fillStyle = '#697281';
+    ctx.fillRect(trackX + trackWidth * (item.value / 100), rowY, trackWidth * (item.unavailable / 100), 20);
+    ctx.fillStyle = '#e9eaec';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${item.value}% / ${item.unavailable}%`, x + width, rowY + 17);
+    ctx.textAlign = 'left';
+  });
+}
+
 function drawTimeline(ctx: CanvasRenderingContext2D, values: TimelineValue[], x: number, y: number, width: number, height: number): void {
   const max = Math.max(1, ...values.map((item) => item.value));
   const gap = 10;
@@ -294,7 +344,10 @@ export async function exportSessionStatisticsPng(model: SessionStatisticsModel):
   drawTimeline(ctx, model.timeline, 830, 450, 678, 230);
 
   drawSection(ctx, 64, 738, 710, 330, 'Fahrzeugauslastung in Prozent');
-  drawHorizontalBars(ctx, model.vehicleUtilization.slice(0, 6), 88, 800, 660, 42);
+  ctx.fillStyle = '#9a9da4';
+  ctx.font = '15px system-ui, sans-serif';
+  ctx.fillText('Im Einsatz / nicht verfügbar', 88, 785);
+  drawVehicleUtilizationBars(ctx, model.vehicleUtilization.slice(0, 6), 88, 810, 660, 42);
   drawSection(ctx, 802, 738, 734, 330, 'Session');
   drawHorizontalBars(ctx, model.statuses, 830, 800, 650, 46);
   drawHorizontalBars(ctx, model.sources, 830, 950, 650, 46);
