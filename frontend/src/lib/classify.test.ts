@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Vehicle } from './types';
-import { eventCategory, isHospitalTransportUnit, sortVehiclesByAlarmPriority } from './classify';
+import { alarmGroups, eventCategory, hasLoeschzug, isHospitalTransportUnit, sortVehiclesByAlarmPriority } from './classify';
 
 function vehicle(id: number, type: string): Vehicle {
   return {
@@ -57,6 +57,14 @@ describe('Fahrzeuggruppierung', () => {
       'NEF',
       'RTW',
     ]);
+  });
+
+  it('bietet für Feuerwehr extern keinen Löschzug an', () => {
+    const externalHlf = { ...vehicle(20, 'HLF'), game_vehicle_id: '11_HLF_1' };
+    const externalGroup = alarmGroups([externalHlf]).find((group) => group.key === 'fw-extern');
+
+    expect(externalGroup?.label).toBe('Feuerwehr extern');
+    expect(externalGroup && hasLoeschzug(externalGroup)).toBe(false);
   });
 });
 

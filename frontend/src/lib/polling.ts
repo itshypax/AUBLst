@@ -4,6 +4,7 @@ import { isSpeechRequest } from './speech-requests';
 import { app, persistSettings, resetSessionData } from './state.svelte';
 import { playAlarm, playPhone, playSpeechRequest } from './sounds';
 import type { LogRow, StateResponse } from './types';
+import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 
 const STATE_INTERVAL = 3_000;
 const LOG_INTERVAL = 2_000;
@@ -145,14 +146,21 @@ export async function refreshState(): Promise<void> {
       app.modId = newMod;
       if (newMod) {
         try {
-          app.mapImageUrl = await fetchMapImage(controller.signal);
+          const [mapImageUrl, routing] = await Promise.all([
+            fetchMapImage(controller.signal),
+            apiGet<RoutingConfig>('routing_get', {}, { signal: controller.signal, requireFresh: false }),
+          ]);
+          app.mapImageUrl = mapImageUrl;
+          app.routing = routing;
         } catch (error) {
           if (controller.signal.aborted) return;
           app.mapImageUrl = '';
-          app.lastError = `Kartenbild: ${(error as Error).message}`;
+          app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
+          app.lastError = `Kartendaten: ${(error as Error).message}`;
         }
       } else {
         app.mapImageUrl = '';
+        app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
       }
       if (requestGeneration !== generation) {
         if (app.mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(app.mapImageUrl);

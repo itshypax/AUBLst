@@ -42,9 +42,9 @@ describe('Klinikzuweisung', () => {
   it('zeigt alle Entfernungen und hebt die nächste Klinik hervor', () => {
     render(HospitalAssignmentModal);
 
-    const nearest = screen.getByText('500 m');
+    const nearest = screen.getByText('500 m · Luftlinie (Fallback)');
     expect(nearest.classList.contains('nearest')).toBe(true);
-    expect(screen.getByText('1,0 km').classList.contains('nearest')).toBe(false);
+    expect(screen.getByText('1,0 km · Luftlinie (Fallback)').classList.contains('nearest')).toBe(false);
   });
 
   it('kann eine bestehende Zuweisung nachträglich aufheben', async () => {

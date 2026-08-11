@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { ArrowUpDown, Layers, Search, Send, Siren, Undo2, X } from 'lucide-svelte';
+  import { ArrowUpDown, Play, Search, Send, Siren, Undo2, X } from 'lucide-svelte';
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
   import { alarmGroups, hasLoeschzug, hasMapPosition, isHiddenUnit, loeschzugFor, vehicleAlarmPriority, type StationGroup } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
+  import { createRouteCalculator, formatDistance, type RouteDistance } from '../lib/routing';
   import { app, canWrite, showNotice } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import type { AssignedVehicle, EventNote, LogRow, StateResponse, Vehicle } from '../lib/types';
@@ -19,6 +20,7 @@
   const ev = $derived(app.events.find((event) => event.id === eventId) ?? app.assignEvent ?? initialEvent);
   const isControlRoomEvent = $derived(ev.created_by === 'frontend');
   const isAvailableInGame = $derived(!isControlRoomEvent || (ev.game_event_id !== null && String(ev.game_event_id).trim() !== ''));
+  const routeToEvent = $derived(createRouteCalculator(ev, app.routing));
 
   let search = $state('');
   let sortByDistance = $state(true);
@@ -68,15 +70,15 @@
     }
   }
 
-  // Spielwelt-Einheiten sind keine Meter; der Teiler bringt die Anzeige
-  // auf plausible Distanzen
-  const DISTANCE_SCALE = 10;
   const NEAR_DISTANCE_METERS = 100;
 
-  function distanceMeters(v: Vehicle): number | null {
+  function distanceFor(v: Vehicle): RouteDistance | null {
     if (!hasMapPosition(v)) return null;
-    const distance = Math.hypot(Number(v.x) - Number(ev.x), Number(v.y) - Number(ev.y)) / DISTANCE_SCALE;
-    return Number.isFinite(distance) ? distance : null;
+    return routeToEvent(v, v);
+  }
+
+  function distanceMeters(v: Vehicle): number | null {
+    return distanceFor(v)?.meters ?? null;
   }
 
   function unitSuffix(v: Vehicle): string {
@@ -121,12 +123,26 @@
     return [...result, ...withoutPosition];
   }
 
-  const groups = $derived(
-    alarmGroups(available.filter(matchesSearch)).map((group) => ({
+  function nearestGroupDistance(group: StationGroup): number {
+    let nearest = Number.POSITIVE_INFINITY;
+    for (const vehicle of group.vehicles) {
+      const distance = distanceMeters(vehicle);
+      if (distance !== null && distance < nearest) nearest = distance;
+    }
+    return nearest;
+  }
+
+  const groups = $derived.by(() => {
+    const grouped = alarmGroups(available.filter(matchesSearch)).map((group, standardOrder) => ({
       ...group,
+      standardOrder,
       vehicles: sortAlarmVehicles(group.vehicles),
-    }))
-  );
+    }));
+    if (sortByDistance) {
+      grouped.sort((a, b) => nearestGroupDistance(a) - nearestGroupDistance(b) || a.standardOrder - b.standardOrder);
+    }
+    return grouped;
+  });
 
   // Zuletzt alarmierter Modus pro Fahrzeug (z. B. WLF mit AB-Ruest,
   // GW-W mit Taucher) bleibt über Sitzungen hinweg vorausgewählt
@@ -158,10 +174,7 @@
   let modes = $state<Record<number, string>>(initialModes());
 
   function distanceText(v: Vehicle): string {
-    const d = distanceMeters(v);
-    if (d === null) return '';
-    if (d < 1000) return `${Math.round(d)} m`;
-    return `${(d / 1000).toFixed(1).replace('.', ',')} km`;
+    return formatDistance(distanceFor(v));
   }
 
 
@@ -413,7 +426,7 @@
               <span class="station-label">{g.label}</span>
               {#if hasLoeschzug(g)}
                 <button class="zug" data-tooltip="Löschzug dieser Wache auswählen" disabled={busy} onclick={() => selectLoeschzug(g)}>
-                  <Layers size={12} />
+                  <Play size={12} />
                   Löschzug
                 </button>
               {/if}

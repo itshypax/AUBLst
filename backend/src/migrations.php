@@ -58,7 +58,22 @@ function migration_definitions(): array {
                 INDEX idx_auth_rate_limit_cleanup (updated_at)
             ) ENGINE=InnoDB");
         },
+        '2026081002_mod_routing' => static function (PDO $pdo): void {
+            if (!database_column_exists($pdo, 'mods', 'meters_per_world_unit')) {
+                $pdo->exec('ALTER TABLE mods ADD COLUMN meters_per_world_unit DOUBLE NOT NULL DEFAULT 0.1 AFTER mime_type');
+            }
+            if (!database_column_exists($pdo, 'mods', 'routing_graph')) {
+                $pdo->exec('ALTER TABLE mods ADD COLUMN routing_graph LONGTEXT NULL AFTER meters_per_world_unit');
+            }
+        },
     ];
+}
+
+function database_column_exists(PDO $pdo, string $table, string $column): bool {
+    $stmt = $pdo->prepare("SELECT 1 FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1");
+    $stmt->execute([$table, $column]);
+    return (bool)$stmt->fetchColumn();
 }
 
 function database_index_exists(PDO $pdo, string $table, string $index): bool {

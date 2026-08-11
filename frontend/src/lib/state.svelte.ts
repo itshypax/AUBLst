@@ -1,4 +1,5 @@
 import type { Assignment, ClockTime, EventItem, Hospital, HospitalReservation, LogRow, MapBounds, Player, Vehicle } from './types';
+import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 
 export const app = $state({
   apiBase: '../backend/api.php',
@@ -22,6 +23,7 @@ export const app = $state({
   clock: null as ClockTime | null,
   modId: null as string | null,
   mapImageUrl: '',
+  routing: cloneRoutingConfig(DEFAULT_ROUTING_CONFIG) as RoutingConfig,
   logs: [] as LogRow[],
   lastLogBatch: [] as number[],
   highlightedEventId: null as number | null,
@@ -160,6 +162,7 @@ export function resetSessionData(): void {
   app.clock = null;
   app.modId = null;
   app.mapImageUrl = '';
+  app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
   app.logs = [];
   app.lastLogBatch = [];
   app.highlightedEventId = null;

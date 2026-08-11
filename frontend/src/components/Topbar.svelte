@@ -95,6 +95,14 @@
     return [...seen.values()];
   });
 
+  function gameStateKind(row: LogRow): 'shortage' | 'alarm-level' | 'doctor-alarm' | 'default' {
+    const text = `${row.message} ${decodeEntities(row.long_message)}`.toLocaleLowerCase('de-DE');
+    if (text.includes('notarztalarm')) return 'doctor-alarm';
+    if (text.includes('rettungsmittelknappheit')) return 'shortage';
+    if (text.includes('alarmstufe')) return 'alarm-level';
+    return 'default';
+  }
+
   const stateIssue = $derived(app.lastError ? userFacingError(app.lastError, 'state') : null);
   const logIssue = $derived(app.logError ? userFacingError(app.logError, 'logs') : null);
 
@@ -127,13 +135,10 @@
   </div>
 
   <div class="game-states">
-    {#each gameStates.slice(0, 2) as row (row.message)}
-      <span class="game-state">{decodeEntities(row.long_message)}</span>
+    {#each gameStates as row (row.message)}
+      <span class="game-state {gameStateKind(row)}">{decodeEntities(row.long_message)}</span>
     {/each}
-    {#if gameStates.length > 2}<span class="state-count">+{gameStates.length - 2}</span>{/if}
   </div>
-
-  <div class="spacer"></div>
 
   <div class="connection {connection.kind}" data-tooltip={connection.title} aria-live="polite">
     {#if connection.kind === 'ok'}<Wifi size={14} />{:else}<WifiOff size={14} />{/if}
@@ -233,10 +238,10 @@
   .build-version { color: var(--text-dim); font-size: 10px; }
   .clock { display: flex; align-items: center; gap: 6px; padding: 4px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); font-variant-numeric: tabular-nums; font-weight: 600; }
   .clock :global(svg) { color: var(--text-dim); }
-  .game-states { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
-  .game-state { font-size: 12px; padding: 3px 8px; border-radius: var(--radius-sm); border: 1px solid var(--status-3-border); background: rgba(240, 160, 60, 0.12); color: #ffd9a8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
-  .state-count { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
-  .spacer { flex: 1; }
+  .game-states { display: flex; flex: 1 1 320px; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+  .game-state { font-size: 12px; padding: 3px 8px; border-radius: var(--radius-sm); border: 1px solid var(--status-3-border); background: rgba(240, 160, 60, 0.12); color: #ffd9a8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(360px, 100%); }
+  .game-state.alarm-level { border-color: var(--status-4-border); background: rgba(232, 82, 74, 0.14); color: var(--danger-text); }
+  .game-state.doctor-alarm { border-color: var(--status-8-border); background: rgba(103, 65, 165, 0.18); color: #d2bcff; }
   .connection { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); white-space: nowrap; }
   .connection.ok { color: var(--good-text); }
   .connection.warn { color: var(--warn-text); }
@@ -271,11 +276,14 @@
   .speech-count { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border: 2px solid var(--bg-raised); border-radius: 8px; background: var(--danger); color: #fff; font-size: 10px; line-height: 12px; text-align: center; }
   @media (max-width: 1100px) {
     .connection span { display: none; }
-    .game-state { max-width: 160px; }
+    .topbar { flex-wrap: wrap; }
+    .game-states { order: 10; flex-basis: 100%; }
+    .game-state { max-width: min(280px, 100%); }
   }
   @media (max-width: 760px) {
-    .brand-name, .build-version, summary span, .game-states { display: none; }
+    .brand-name, .build-version, summary span { display: none; }
     .topbar { gap: 8px; }
+    .game-states { display: flex; }
     .connection span { display: inline; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
   }
 </style>

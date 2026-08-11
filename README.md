@@ -148,6 +148,52 @@ Fokussieren auf der Karte, für Klinikzuweisungen und zum Einrücken. Der
 FMS-Status kommt ausschließlich aus EM4 und lässt sich in der Leitstelle
 nicht manuell überschreiben.
 
+### Maßstab und Straßennetz
+
+Ohne Kartenkalibrierung verwenden Entfernungen den EM4-Maßstab von `0,1 m` je
+Spielkoordinate. Eine Routing-Datei kann stattdessen Texturbreite, Texturhöhe
+und Pixel pro Meter enthalten. Das Backend rechnet diese Werte auf die von EM4
+gelieferten Kartengrenzen um.
+
+Für AUBMP sind `8192 × 8192 px` und `10,5 px/m` voreingestellt. Das entspricht
+rund `780,2 × 780,2 m` beziehungsweise `0,609 km²`.
+Landfahrzeuge fahren auf dem hinterlegten Netz. RTH, ITH, Christoph-Einheiten
+und Boote verwenden immer die Luftlinie. Ohne passendes Netz, bei mehr als
+300 Metern Abstand zur nächsten Straße oder zwischen getrennten Teilnetzen
+zeigt die Leitstelle ausdrücklich `Luftlinie (Fallback)` an.
+
+Der Straßeneditor läuft lokal ohne Sitzung und ohne PHP-Backend. Er ist nur in
+der Entwicklungsumgebung über `localhost` oder `127.0.0.1` erreichbar; Zugriffe
+über eine LAN-Adresse und Produktions-Builds enthalten keinen Editor. Nach
+`npm run dev` wird die gewünschte Karte über ihre `mod_id` geöffnet:
+
+```text
+http://localhost:5173/?routing_editor=1&mod_id=AUBMP
+```
+
+Der Dev-Server lädt `backend/maps/AUBMP.png` und schreibt beim Speichern
+`backend/maps/AUBMP.routing.json`. Der Editor zeigt auf Wunsch ein 50-Meter-
+Raster. Ein Klick zeichnet, Ziehen auf freier Fläche verschiebt die Karte und
+ein Punkt lässt sich per Drag versetzen. Straßenkreuzungen werden automatisch
+verbunden. Brücken dürfen Straßen kreuzen und rasten nur an ihren Endpunkten
+auf dem Straßennetz ein.
+
+`Netz prüfen` sucht getrennte Teilnetze, Straßenkreuzungen ohne Knoten,
+doppelte Abschnitte und Punkte außerhalb der Karte. Ausfahrten von Wachen und
+Kliniken werden als kurze Straßenäste bis zum jeweiligen Fahrzeugstandort
+eingezeichnet. Bei mehreren Hallen können mehrere Äste angelegt werden; das
+Fahrzeug wird automatisch dem nächstgelegenen Ast zugeordnet.
+
+Mit `Verbindung` wird nur der angeklickte Straßen- oder Brückenabschnitt
+gelöscht. `Punkt` entfernt einen Knoten samt angeschlossenen Abschnitten. Die
+Routenvorschau gehört ausschließlich zum Testmodus des lokalen Editors; im
+aktiven Spielbetrieb werden keine Routen eingezeichnet.
+
+Die Routing-Datei wird zusammen mit dem Kartenbild veröffentlicht. Bei einer
+normalen Sitzung bildet das Backend die normalisierten Kartenpunkte auf die von
+EM4 gelieferten Kartengrenzen ab. Der Graph ist in der Leitstelle unsichtbar und
+wird dort nur für die Entfernungsberechnung geladen.
+
 ## Entwicklung
 
 ```bash

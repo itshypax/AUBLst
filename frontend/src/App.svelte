@@ -10,6 +10,7 @@
   import LogPanel from './components/LogPanel.svelte';
   import IncidentRecordsModal from './components/IncidentRecordsModal.svelte';
   import MapPanel from './components/MapPanel.svelte';
+  import RoutingEditorPage from './components/RoutingEditorPage.svelte';
   import SessionGate from './components/SessionGate.svelte';
   import SpeechRequestsQueue from './components/SpeechRequestsQueue.svelte';
   import StatisticsModal from './components/StatisticsModal.svelte';
@@ -21,9 +22,16 @@
   import { startPolling } from './lib/polling';
   import { app, initSettings } from './lib/state.svelte';
 
-  initSettings();
-  void loadGroupOverrides();
-  startPolling();
+  const pageParams = new URLSearchParams(location.search);
+  const localHostname = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '::1';
+  const routingEditorRequested = import.meta.env.DEV && localHostname && pageParams.get('routing_editor') === '1';
+  const routingEditorModId = pageParams.get('mod_id')?.trim() ?? '';
+
+  if (!routingEditorRequested) {
+    initSettings();
+    void loadGroupOverrides();
+    startPolling();
+  }
 
   const DEFAULT_LAYOUT = { col: 0.58, left: 0.72, right: 0.55 };
 
@@ -102,7 +110,10 @@
 
 <svelte:window onpointermove={onMove} onpointerup={endDrag} />
 
-<Topbar onResetLayout={resetLayout} />
+{#if routingEditorRequested}
+  <RoutingEditorPage modId={routingEditorModId} />
+{:else}
+  <Topbar onResetLayout={resetLayout} />
 
 {#if showSessionGate}
   <SessionGate />
@@ -214,6 +225,11 @@
 
 {#if app.speechQueueOpen && app.lastSuccessfulSync !== null}
   <SpeechRequestsQueue />
+{/if}
+{/if}
+
+{#if routingEditorRequested && app.confirmDialog}
+  <ConfirmDialog />
 {/if}
 
 {#if app.notice}

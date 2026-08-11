@@ -140,6 +140,23 @@ describe('Alarmierungsdialog', () => {
     expect(names).toEqual(['RTW', 'KDOW']);
   });
 
+  it('sortiert Wachen nach ihrem nächsten verfügbaren Fahrzeug', async () => {
+    const user = userEvent.setup();
+    app.vehicles = [
+      { ...vehicle, id: 1, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', modes: null, x: 2110, y: -110 },
+      { ...vehicle, id: 2, game_vehicle_id: '2_HLF_1', name: '2-HLF-1', modes: null, x: 110, y: -110 },
+    ];
+
+    render(AssignModal);
+    await screen.findByText('Wache 1');
+
+    const labels = () => Array.from(document.querySelectorAll<HTMLElement>('.groups .station-label'), (node) => node.textContent);
+    expect(labels()).toEqual(['Wache 2', 'Wache 1']);
+
+    await user.click(screen.getByRole('button', { name: 'Entfernung' }));
+    expect(labels()).toEqual(['Wache 1', 'Wache 2']);
+  });
+
   it('schaltet per Klick von Entfernung auf die feste Fahrzeugfolge um', async () => {
     const user = userEvent.setup();
     app.vehicles = [

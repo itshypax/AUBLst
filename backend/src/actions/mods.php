@@ -62,3 +62,163 @@ function action_map_image(PDO $pdo): void {
     echo $row['map_image'];
     exit;
 }
+
+function empty_routing_config(float $meters_per_world_unit = 0.1): array {
+    return [
+        'coordinate_space' => 'world',
+        'meters_per_world_unit' => $meters_per_world_unit,
+        'grid_size_m' => 50.0,
+        'nodes' => [],
+        'edges' => [],
+    ];
+}
+
+function optional_positive_number(array $data, string $key, float $minimum, float $maximum): ?float {
+    if (!isset($data[$key]) || $data[$key] === '') return null;
+    $value = (float)$data[$key];
+    if (!is_finite($value) || $value < $minimum || $value > $maximum) {
+        throw new InvalidArgumentException("Der Wert $key liegt außerhalb des erlaubten Bereichs.");
+    }
+    return $value;
+}
+
+function normalize_routing_config(array $data): array {
+    $scale = (float)($data['meters_per_world_unit'] ?? 0.1);
+    if (!is_finite($scale) || $scale < 0.001 || $scale > 10) {
+        throw new InvalidArgumentException('Der Kartenmaßstab muss zwischen 0,001 und 10 Metern pro Spielkoordinate liegen.');
+    }
+
+    $input_nodes = $data['nodes'] ?? [];
+    $input_edges = $data['edges'] ?? [];
+    if (!is_array($input_nodes) || !is_array($input_edges)) {
+        throw new InvalidArgumentException('Das Straßennetz hat ein ungültiges Format.');
+    }
+    if (count($input_nodes) > 10000 || count($input_edges) > 20000) {
+        throw new InvalidArgumentException('Das Straßennetz ist zu groß.');
+    }
+
+    $nodes = [];
+    $node_ids = [];
+    foreach ($input_nodes as $node) {
+        if (!is_array($node)) continue;
+        $id = (string)($node['id'] ?? '');
+        $x = isset($node['x']) ? (float)$node['x'] : NAN;
+        $y = isset($node['y']) ? (float)$node['y'] : NAN;
+        if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id) || isset($node_ids[$id]) || !is_finite($x) || !is_finite($y)) continue;
+        $node_ids[$id] = true;
+        $nodes[] = ['id' => $id, 'x' => $x, 'y' => $y];
+    }
+
+    $edges = [];
+    $edge_ids = [];
+    foreach ($input_edges as $edge) {
+        if (!is_array($edge)) continue;
+        $id = (string)($edge['id'] ?? '');
+        $from = (string)($edge['from'] ?? '');
+        $to = (string)($edge['to'] ?? '');
+        $kind = ($edge['kind'] ?? 'road') === 'bridge' ? 'bridge' : 'road';
+        if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id) || isset($edge_ids[$id])) continue;
+        if ($from === $to || !isset($node_ids[$from]) || !isset($node_ids[$to])) continue;
+        $edge_ids[$id] = true;
+        $edges[] = ['id' => $id, 'from' => $from, 'to' => $to, 'kind' => $kind];
+    }
+
+    $coordinate_space = ($data['coordinate_space'] ?? 'world') === 'normalized' ? 'normalized' : 'world';
+    $map_width_px = optional_positive_number($data, 'map_width_px', 1, 100000);
+    $map_height_px = optional_positive_number($data, 'map_height_px', 1, 100000);
+    $pixels_per_meter = optional_positive_number($data, 'pixels_per_meter', 0.01, 10000);
+    $grid_size_m = optional_positive_number($data, 'grid_size_m', 1, 1000) ?? 50.0;
+    $meters_per_world_unit_x = optional_positive_number($data, 'meters_per_world_unit_x', 0.000001, 10000);
+    $meters_per_world_unit_y = optional_positive_number($data, 'meters_per_world_unit_y', 0.000001, 10000);
+    return [
+        'coordinate_space' => $coordinate_space,
+        'meters_per_world_unit' => $scale,
+        'meters_per_world_unit_x' => $meters_per_world_unit_x,
+        'meters_per_world_unit_y' => $meters_per_world_unit_y,
+        'map_width_px' => $map_width_px,
+        'map_height_px' => $map_height_px,
+        'pixels_per_meter' => $pixels_per_meter,
+        'grid_size_m' => $grid_size_m,
+        'nodes' => $nodes,
+        'edges' => $edges,
+    ];
+}
+
+function routing_file_for_mod(string $mod_id): ?string {
+    if (!preg_match('/^[A-Za-z0-9_.-]{1,255}$/', $mod_id)) return null;
+    $file = __DIR__ . '/../../maps/' . $mod_id . '.routing.json';
+    return is_file($file) ? $file : null;
+}
+
+function routing_for_session(array $config, array $session): array {
+    if (($config['coordinate_space'] ?? 'world') !== 'normalized') return $config;
+    $min_x = (float)$session['min_x'];
+    $min_y = (float)$session['min_y'];
+    $range_x = (float)$session['max_x'] - $min_x;
+    $range_y = (float)$session['max_y'] - $min_y;
+    $pixels_per_meter = (float)($config['pixels_per_meter'] ?? 0);
+    $map_width_px = (float)($config['map_width_px'] ?? 0);
+    $map_height_px = (float)($config['map_height_px'] ?? 0);
+    if ($pixels_per_meter > 0 && $map_width_px > 0 && abs($range_x) > 0) {
+        $config['meters_per_world_unit_x'] = ($map_width_px / $pixels_per_meter) / abs($range_x);
+    }
+    if ($pixels_per_meter > 0 && $map_height_px > 0 && abs($range_y) > 0) {
+        $config['meters_per_world_unit_y'] = ($map_height_px / $pixels_per_meter) / abs($range_y);
+    }
+    if (isset($config['meters_per_world_unit_x'])) {
+        $config['meters_per_world_unit'] = (float)$config['meters_per_world_unit_x'];
+    }
+    foreach ($config['nodes'] as &$node) {
+        $node['x'] = $min_x + (float)$node['x'] * $range_x;
+        $node['y'] = -($min_y + (-(float)$node['y']) * $range_y);
+    }
+    unset($node);
+    $config['coordinate_space'] = 'world';
+    return $config;
+}
+
+function action_routing_get(PDO $pdo): void {
+    $session = require_session($pdo, request_value('session_token'));
+    if (!$session['mod_id']) respond_json(200, empty_routing_config());
+
+    $routing_file = routing_file_for_mod((string)$session['mod_id']);
+    if ($routing_file) {
+        $saved = json_decode((string)file_get_contents($routing_file), true);
+        if (!is_array($saved)) respond_json(500, ['error' => 'Die Routing-Datei ist ungültig.']);
+        respond_json(200, routing_for_session(normalize_routing_config($saved), $session));
+    }
+
+    $stmt = $pdo->prepare('SELECT meters_per_world_unit, routing_graph FROM mods WHERE mod_id = ?');
+    $stmt->execute([$session['mod_id']]);
+    $row = $stmt->fetch();
+    if (!$row) respond_json(200, empty_routing_config());
+
+    $graph = $row['routing_graph'] ? json_decode((string)$row['routing_graph'], true) : [];
+    if (!is_array($graph)) $graph = [];
+    $graph['meters_per_world_unit'] = (float)($row['meters_per_world_unit'] ?? 0.1);
+    respond_json(200, routing_for_session(normalize_routing_config($graph), $session));
+}
+
+function action_routing_put(PDO $pdo): void {
+    $data = get_json_input();
+    $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
+    if (!$session['mod_id']) respond_json(400, ['error' => 'Die Sitzung hat keine Karte.']);
+
+    try {
+        $config = normalize_routing_config($data);
+    } catch (InvalidArgumentException $error) {
+        respond_json(400, ['error' => $error->getMessage()]);
+    }
+    $graph = json_encode([
+        'coordinate_space' => $config['coordinate_space'],
+        'map_width_px' => $config['map_width_px'],
+        'map_height_px' => $config['map_height_px'],
+        'pixels_per_meter' => $config['pixels_per_meter'],
+        'grid_size_m' => $config['grid_size_m'],
+        'nodes' => $config['nodes'],
+        'edges' => $config['edges'],
+    ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    $stmt = $pdo->prepare('UPDATE mods SET meters_per_world_unit = ?, routing_graph = ?, updated_at = CURRENT_TIMESTAMP WHERE mod_id = ?');
+    $stmt->execute([$config['meters_per_world_unit'], $graph, $session['mod_id']]);
+    respond_json(200, ['ok' => true] + $config);
+}

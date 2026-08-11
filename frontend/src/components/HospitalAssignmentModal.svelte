@@ -4,26 +4,28 @@
   import { focusTrap } from '../lib/focus';
   import { reservationAffectsCapacity } from '../lib/hospital-reservations';
   import { refreshState } from '../lib/polling';
+  import { createRouteCalculator, formatDistance, type RouteDistance } from '../lib/routing';
   import { app, canWrite, showNotice } from '../lib/state.svelte';
   import type { Hospital as HospitalRow } from '../lib/types';
 
   const vehicleId = app.hospitalAssignmentVehicleId!;
   const vehicle = $derived(app.vehicles.find((item) => item.id === vehicleId));
+  const routeFromVehicle = $derived(vehicle ? createRouteCalculator(vehicle, app.routing) : null);
   const current = $derived(app.hospitalReservations.find((item) => item.vehicle_id === vehicleId && item.status === 'reserved'));
   let busy = $state(false);
   let errorMsg = $state('');
 
-  function distanceMeters(hospital: HospitalRow): number | null {
+  function distanceFor(hospital: HospitalRow): RouteDistance | null {
     if (!vehicle) return null;
-    const distance = Math.hypot(Number(hospital.x) - Number(vehicle.x), Number(hospital.y) - Number(vehicle.y)) / 10;
-    return Number.isFinite(distance) ? distance : null;
+    return routeFromVehicle?.(hospital, vehicle) ?? null;
+  }
+
+  function distanceMeters(hospital: HospitalRow): number | null {
+    return distanceFor(hospital)?.meters ?? null;
   }
 
   function distanceText(hospital: HospitalRow): string {
-    const distance = distanceMeters(hospital);
-    if (distance === null) return 'Entfernung unbekannt';
-    if (distance < 1000) return `${Math.round(distance)} m`;
-    return `${(distance / 1000).toFixed(1).replace('.', ',')} km`;
+    return formatDistance(distanceFor(hospital)) || 'Entfernung unbekannt';
   }
 
   const nearestHospitalId = $derived.by(() => {

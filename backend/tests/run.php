@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/domain.php';
 require_once __DIR__ . '/../src/http.php';
 require_once __DIR__ . '/../src/migrations.php';
+require_once __DIR__ . '/../src/actions/mods.php';
 
 $tests = [];
 
@@ -70,6 +71,47 @@ test_case('Migrationen haben eine feste Reihenfolge', static function (): void {
     sort($sorted, SORT_STRING);
     expect_same($sorted, $versions);
     expect_same(count($versions), count(array_unique($versions)));
+});
+
+test_case('Straßennetz verwirft ungültige Kanten', static function (): void {
+    $routing = normalize_routing_config([
+        'meters_per_world_unit' => 0.1,
+        'nodes' => [
+            ['id' => 'a', 'x' => 10, 'y' => -20],
+            ['id' => 'b', 'x' => 30, 'y' => -40],
+        ],
+        'edges' => [
+            ['id' => 'valid', 'from' => 'a', 'to' => 'b', 'kind' => 'bridge'],
+            ['id' => 'missing', 'from' => 'a', 'to' => 'c', 'kind' => 'road'],
+        ],
+    ]);
+    expect_same(2, count($routing['nodes']));
+    expect_same(1, count($routing['edges']));
+    expect_same('bridge', $routing['edges'][0]['kind']);
+});
+
+test_case('Normalisierte Straßenpunkte werden auf Sitzungskoordinaten abgebildet', static function (): void {
+    $routing = routing_for_session(normalize_routing_config([
+        'coordinate_space' => 'normalized',
+        'meters_per_world_unit' => 0.1,
+        'map_width_px' => 8192,
+        'map_height_px' => 8192,
+        'pixels_per_meter' => 10.5,
+        'grid_size_m' => 50,
+        'nodes' => [['id' => 'mitte', 'x' => 0.5, 'y' => -0.25]],
+        'edges' => [],
+    ]), [
+        'min_x' => -100,
+        'max_x' => 300,
+        'min_y' => 0,
+        'max_y' => 400,
+    ]);
+    expect_same('world', $routing['coordinate_space']);
+    expect_same(100.0, $routing['nodes'][0]['x']);
+    expect_same(-100.0, $routing['nodes'][0]['y']);
+    $expected_scale = (8192 / 10.5) / 400;
+    expect_true(abs($routing['meters_per_world_unit_x'] - $expected_scale) < 0.000001);
+    expect_true(abs($routing['meters_per_world_unit_y'] - $expected_scale) < 0.000001);
 });
 
 $failed = 0;

@@ -225,6 +225,7 @@ let ZUEGE: Record<string, string[][]> = {};
 const DEFAULT_ZUG_TYPES: string[][] = [['HLF', 'LF'], ['DLK', 'DL'], ['ELW'], ['TLF']];
 
 export function loeschzugFor(group: StationGroup, isSelectable: (v: Vehicle) => boolean): Vehicle[] {
+  if (group.key === 'fw-extern') return [];
   const picks: Vehicle[] = [];
   const taken = new Set<number>();
 
@@ -255,6 +256,7 @@ export function loeschzugFor(group: StationGroup, isSelectable: (v: Vehicle) => 
 }
 
 export function hasLoeschzug(group: StationGroup): boolean {
+  if (group.key === 'fw-extern') return false;
   if (ZUEGE[group.key]?.length) return true;
   return group.vehicles.some((v) => DEFAULT_ZUG_TYPES.some((types) => types.includes(typeToken(v))));
 }

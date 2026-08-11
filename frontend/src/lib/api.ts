@@ -12,6 +12,7 @@ const WRITE_ACTIONS = new Set([
   'log_viewed',
   'hospital_reservation_set',
   'hospital_reservation_clear',
+  'routing_put',
 ]);
 
 interface RequestOptions {
