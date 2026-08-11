@@ -368,8 +368,10 @@
   .row-action { justify-self: end; }
   .row-action { opacity: 0.25; }
   .row:hover .row-action, .row:focus-within .row-action { opacity: 1; }
-  .dispatch-action { opacity: .72; }
-  .dispatch-action.selected { opacity: 1; }
+  .dispatch-action,
+  .dispatch-action.selected { color: var(--text-dim); opacity: .72; }
+  .dispatch-action:hover,
+  .dispatch-action.selected:hover { color: var(--text); opacity: 1; }
   .hospital-action { color: var(--accent); }
   .hospital-action.intensive { color: var(--danger-text); }
 
