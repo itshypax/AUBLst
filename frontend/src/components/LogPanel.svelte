@@ -1,11 +1,10 @@
 <script lang="ts">
-  import { Check, FolderOpen, Hospital, Radio } from 'lucide-svelte';
-  import { isHospitalTransportUnit } from '../lib/classify';
+  import { Check, FolderOpen, Radio } from 'lucide-svelte';
   import { dismissLog } from '../lib/polling';
-  import { isSpeechRequest, speechRequestVehicle as findSpeechRequestVehicle } from '../lib/speech-requests';
+  import { isSpeechRequest } from '../lib/speech-requests';
   import { app, canWrite, eventById, openAssign, setHighlightedEvent } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
-  import type { LogRow, Vehicle } from '../lib/types';
+  import type { LogRow } from '../lib/types';
 
   const rows = $derived([...app.logs].reverse());
   let dismissing = $state<Set<number>>(new Set());
@@ -16,14 +15,8 @@
 
   function openEvent(row: LogRow): void {
     if (row.event_id == null) return;
-    const ev = eventById(Number(row.event_id));
-    if (ev) openAssign(ev);
-  }
-
-  function speechRequestVehicle(row: LogRow): Vehicle | undefined {
-    if (row.state === 'inactive' || !isSpeechRequest(row)) return undefined;
-    const vehicle = findSpeechRequestVehicle(row, app.vehicles);
-    return vehicle && isHospitalTransportUnit(vehicle) ? vehicle : undefined;
+    const event = eventById(Number(row.event_id));
+    if (event) openAssign(event);
   }
 
   async function dismiss(id: number): Promise<void> {
@@ -48,7 +41,7 @@
   </div>
   <div class="panel-body log" role="list" aria-live="polite">
     {#each rows as row (row.id)}
-      {@const speechVehicle = speechRequestVehicle(row)}
+      {@const speechRequest = isSpeechRequest(row)}
       <div
         class="row"
         class:fresh={app.lastLogBatch.includes(row.id)}
@@ -64,20 +57,13 @@
         <span class="message">{decodeEntities(row.long_message)}</span>
         {#if row.state === 'inactive'}
           <span class="done-mark" data-tooltip="Abgearbeitet" aria-label="Abgearbeitet"><Check size={13} /></span>
-        {:else}
-          {#if speechVehicle}
-            <button class="ghost hospital-action" data-tooltip={`Klinik für ${speechVehicle.name || speechVehicle.game_vehicle_id} zuweisen`} aria-label={`Klinik für ${speechVehicle.name || speechVehicle.game_vehicle_id} zuweisen`} disabled={!canWrite()} onclick={() => (app.hospitalAssignmentVehicleId = speechVehicle.id)}>
-              <Hospital size={13} />
-            </button>
-          {/if}
-          {#if row.event_id != null}
-            <button class="ghost" data-tooltip="Einsatz öffnen" aria-label="Einsatz öffnen" onclick={() => openEvent(row)}>
-              <FolderOpen size={13} />
-            </button>
-            <button class="ghost" data-tooltip="Abarbeiten" aria-label="Meldung abarbeiten" disabled={dismissing.has(row.id) || !canWrite()} onclick={() => void dismiss(row.id)}>
-              <Check size={13} />
-            </button>
-          {/if}
+        {:else if !speechRequest && row.event_id != null}
+          <button class="ghost" data-tooltip="Einsatz öffnen" aria-label="Einsatz öffnen" onclick={() => openEvent(row)}>
+            <FolderOpen size={13} />
+          </button>
+          <button class="ghost" data-tooltip="Abarbeiten" aria-label="Meldung abarbeiten" disabled={dismissing.has(row.id) || !canWrite()} onclick={() => void dismiss(row.id)}>
+            <Check size={13} />
+          </button>
         {/if}
       </div>
     {/each}
@@ -150,7 +136,4 @@
     opacity: 1;
   }
 
-  .row button.hospital-action {
-    color: var(--accent);
-  }
 </style>

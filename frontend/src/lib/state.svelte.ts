@@ -1,5 +1,12 @@
 import type { Assignment, ClockTime, EventItem, Hospital, HospitalReservation, LogRow, MapBounds, Player, Vehicle } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
+import {
+  closeEventAcrossWindows,
+  dispatchSelectionAcrossWindows,
+  focusVehicleAcrossWindows,
+  highlightAcrossWindows,
+  openEventAcrossWindows,
+} from './ui-sync';
 
 export const app = $state({
   apiBase: '../backend/api.php',
@@ -29,6 +36,8 @@ export const app = $state({
   highlightedEventId: null as number | null,
   highlightedVehicleId: null as number | null,
   assignEvent: null as EventItem | null,
+  currentEventHostedRemotely: false,
+  dispatchVehicleIds: [] as number[],
   createEventPos: null as { x: number; y: number } | null,
   contextMenu: null as { x: number; y: number; vehicleId: number } | null,
   focusPoint: null as { x: number; y: number; seq: number } | null,
@@ -65,9 +74,19 @@ export function answerConfirm(ok: boolean): void {
 
 let focusSeq = 0;
 
-export function focusVehicle(v: Vehicle): void {
+function focusVehicleLocally(v: Vehicle): void {
   app.focusPoint = { x: v.x, y: v.y, seq: ++focusSeq };
   app.highlightedVehicleId = v.id;
+}
+
+export function focusVehicle(v: Vehicle): void {
+  setHighlightedVehicle(v.id);
+  if (focusVehicleAcrossWindows(v.id)) focusVehicleLocally(v);
+}
+
+export function focusVehicleFromSync(vehicleId: number): void {
+  const vehicle = app.vehicles.find((item) => item.id === vehicleId);
+  if (vehicle) focusVehicleLocally(vehicle);
 }
 
 export function assignedEventForVehicle(vehicleId: number): EventItem | undefined {
@@ -167,12 +186,15 @@ export function resetSessionData(): void {
   app.highlightedEventId = null;
   app.highlightedVehicleId = null;
   app.assignEvent = null;
+  app.currentEventHostedRemotely = false;
+  app.dispatchVehicleIds = [];
   app.createEventPos = null;
   app.contextMenu = null;
   app.actionsOpen = false;
   app.sessionOverviewOpen = false;
   app.speechQueueOpen = false;
   app.hospitalAssignmentVehicleId = null;
+  pendingSyncedEvent = null;
 }
 
 export function dataIsStale(now = Date.now()): boolean {
@@ -185,14 +207,85 @@ export function canWrite(): boolean {
 
 export function setHighlightedEvent(id: number | null): void {
   app.highlightedEventId = id;
+  highlightAcrossWindows('event', id);
 }
 
 export function setHighlightedVehicle(id: number | null): void {
   app.highlightedVehicleId = id;
+  highlightAcrossWindows('vehicle', id);
 }
 
 export function openAssign(ev: EventItem): void {
+  const placement = openEventAcrossWindows(ev.id);
+  setCurrentEvent(ev, placement.hostAvailable && !placement.hostedHere);
+}
+
+function setCurrentEvent(ev: EventItem, hostedRemotely: boolean): void {
+  if (app.assignEvent?.id !== ev.id) app.dispatchVehicleIds = [];
   app.assignEvent = ev;
+  app.currentEventHostedRemotely = hostedRemotely;
+}
+
+export function toggleDispatchVehicle(vehicleId: number): void {
+  setDispatchVehicleIds(app.dispatchVehicleIds.includes(vehicleId)
+    ? app.dispatchVehicleIds.filter((id) => id !== vehicleId)
+    : [...app.dispatchVehicleIds, vehicleId]);
+}
+
+export function setDispatchVehicleIds(vehicleIds: number[]): void {
+  app.dispatchVehicleIds = [...vehicleIds];
+  if (app.assignEvent) dispatchSelectionAcrossWindows(app.assignEvent.id, app.dispatchVehicleIds);
+}
+
+export function clearCurrentEvent(): void {
+  clearCurrentEventLocally();
+  closeEventAcrossWindows();
+}
+
+function clearCurrentEventLocally(): void {
+  app.assignEvent = null;
+  app.currentEventHostedRemotely = false;
+  app.dispatchVehicleIds = [];
+}
+
+let pendingSyncedEvent: { eventId: number; hostedHere: boolean; vehicleIds: number[] } | null = null;
+
+export function openEventFromSync(eventId: number, hostedHere: boolean, vehicleIds: number[] = []): void {
+  const ev = eventById(eventId);
+  if (!ev) {
+    pendingSyncedEvent = { eventId, hostedHere, vehicleIds: [...vehicleIds] };
+    return;
+  }
+  pendingSyncedEvent = null;
+  setCurrentEvent(ev, !hostedHere);
+  app.dispatchVehicleIds = [...vehicleIds];
+}
+
+export function reconcileSyncedEvent(): void {
+  if (!pendingSyncedEvent) return;
+  const pending = pendingSyncedEvent;
+  const ev = eventById(pending.eventId);
+  if (!ev) return;
+  pendingSyncedEvent = null;
+  setCurrentEvent(ev, !pending.hostedHere);
+  app.dispatchVehicleIds = [...pending.vehicleIds];
+}
+
+export function closeEventFromSync(): void {
+  pendingSyncedEvent = null;
+  clearCurrentEventLocally();
+}
+
+export function setHighlightFromSync(entity: 'event' | 'vehicle', id: number | null): void {
+  if (entity === 'event') app.highlightedEventId = id;
+  else app.highlightedVehicleId = id;
+}
+
+export function setDispatchSelectionFromSync(eventId: number, vehicleIds: number[]): void {
+  if (app.assignEvent?.id !== eventId) return;
+  if (vehicleIds.length === app.dispatchVehicleIds.length
+    && vehicleIds.every((id, index) => id === app.dispatchVehicleIds[index])) return;
+  app.dispatchVehicleIds = [...vehicleIds];
 }
 
 export function eventById(id: number): EventItem | undefined {

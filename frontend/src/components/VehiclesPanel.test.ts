@@ -21,6 +21,14 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Klinikziele in der Fahrzeugübersicht', () => {
+  it('bietet Fahrzeugaktionen nicht mehr über einen Drei-Punkte-Knopf an', async () => {
+    const user = userEvent.setup();
+    render(VehiclesPanel);
+    await user.click(screen.getByRole('tab', { name: /Rettungsdienst/ }));
+
+    expect(screen.queryByRole('button', { name: /Aktionen für/ })).toBeNull();
+  });
+
   it('zeigt Normaltransporte blau ohne Zusatz und Intensivtransporte rot', async () => {
     const user = userEvent.setup();
     render(VehiclesPanel);

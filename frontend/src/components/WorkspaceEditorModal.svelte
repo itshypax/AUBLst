@@ -25,6 +25,7 @@
     map: 'Karte',
     vehicles: 'Fahrzeuge',
     events: 'Einsätze',
+    current_event: 'Aktueller Einsatz',
     logs: 'Funk',
     hospitals: 'Krankenhäuser',
   };

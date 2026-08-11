@@ -6,7 +6,7 @@
   import { canvasToWorld, imageDrawRect, toScreen, worldToCanvas, type MapView, type Point } from '../lib/mapview';
   import { cloneRoutingConfig, formatDistance, nearestRoadSnap, parseRoutingConfig, roadRoutePreview, validateRoutingNetwork, type RoadEdge, type RoadKind, type RoadNode, type RoadRoutePreview, type RoadSnap, type RoutingConfig, type RoutingNetworkReport } from '../lib/routing';
   import { app, askConfirm, assignedEventForVehicle, canWrite, openAssign, openVehicleMenu, setHighlightedEvent, setHighlightedVehicle, showNotice } from '../lib/state.svelte';
-  import { statusDisplay } from '../lib/status';
+  import { statusCode, statusDisplay } from '../lib/status';
   import { vehicleIconName } from '../lib/vehicleIcons';
   import type { EventItem, Vehicle } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
@@ -141,7 +141,8 @@
   }
 
   function statusColor(status: number | string): string {
-    return cssVar(`--status-${status}-start`, cssVar('--good', '#2ec98e'));
+    const code = statusCode(status);
+    return cssVar(`--status-${code ?? status}-start`, cssVar('--good', '#2ec98e'));
   }
 
   function eventColor(category: EventMarkerKind): string {

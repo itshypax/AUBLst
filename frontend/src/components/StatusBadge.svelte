@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { statusDisplay } from '../lib/status';
+  import { statusCode, statusDisplay } from '../lib/status';
 
   let { value, status, title }: { value: number | string; status?: number | string; title?: string } = $props();
 
   const cls = $derived.by(() => {
-    const n = Number(status ?? value);
-    return Number.isFinite(n) ? `status-${n}` : 'status-unknown';
+    const code = statusCode(status ?? value);
+    return code === null ? 'status-unknown' : `status-${code}`;
   });
 
   const display = $derived(statusDisplay(value));
@@ -21,7 +21,7 @@
     8: 'Am Transportziel',
     9: 'Sonderstatus',
   };
-  const accessibleTitle = $derived(title ?? labels[Number(status ?? value)] ?? `Status ${value}`);
+  const accessibleTitle = $derived(title ?? labels[statusCode(status ?? value) ?? -1] ?? `Status ${value}`);
 </script>
 
 <span class="status-badge {cls}" data-tooltip={accessibleTitle} aria-label={accessibleTitle}>{display}</span>

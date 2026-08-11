@@ -47,6 +47,20 @@ export function isHiddenUnit(v: Vehicle): boolean {
   return HIDDEN_IDS.has(idOf(v));
 }
 
+export function vehicleDisplayName(v: Vehicle): string {
+  const id = idOf(v);
+  const name = v.name?.trim();
+  if (id === 'BSW' && (!name || ['BSW', 'BESTATTER'].includes(name.toUpperCase()))) {
+    return 'Bestattungswagen';
+  }
+  return name || v.game_vehicle_id;
+}
+
+export function vehicleTypeLabel(v: Vehicle): string {
+  const type = v.type?.trim() ?? '';
+  return /[A-ZÄÖÜ]/i.test(type) ? type : '';
+}
+
 export function mainTab(v: Vehicle): MainTab {
   if (RESCUE_TYPES.has(typeToken(v)) || RESCUE_STATIONS.has(station(v))) {
     return 'rescue';
@@ -66,7 +80,7 @@ export interface StationGroup {
 }
 
 function sortByName(list: Vehicle[]): Vehicle[] {
-  const key = (v: Vehicle) => v.name || v.type || v.game_vehicle_id || String(v.id);
+  const key = (v: Vehicle) => vehicleDisplayName(v) || String(v.id);
   return list.sort((a, b) => key(a).localeCompare(key(b), 'de', { numeric: true }));
 }
 
@@ -87,7 +101,7 @@ export function vehicleAlarmPriority(v: Vehicle): number {
 }
 
 export function sortVehiclesByAlarmPriority(list: Vehicle[]): Vehicle[] {
-  const key = (v: Vehicle) => v.name || v.type || v.game_vehicle_id || String(v.id);
+  const key = (v: Vehicle) => vehicleDisplayName(v) || String(v.id);
   return list.sort((a, b) => {
     const priority = vehicleAlarmPriority(a) - vehicleAlarmPriority(b);
     return priority || key(a).localeCompare(key(b), 'de', { numeric: true });
