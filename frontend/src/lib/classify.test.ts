@@ -23,6 +23,7 @@ describe('Fahrzeuggruppierung', () => {
 
   it('blendet numerische Typklassen aus', () => {
     expect(vehicleTypeLabel({ ...vehicle(1, 'RTW'), type: '24' })).toBe('');
+    expect(vehicleTypeLabel({ ...vehicle(2, 'RTW'), type: 'None' })).toBe('');
     expect(vehicleTypeLabel({ ...vehicle(2, 'RTW'), type: 'RTW' })).toBe('RTW');
   });
 

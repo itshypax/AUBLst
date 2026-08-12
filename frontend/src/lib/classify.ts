@@ -58,6 +58,7 @@ export function vehicleDisplayName(v: Vehicle): string {
 
 export function vehicleTypeLabel(v: Vehicle): string {
   const type = v.type?.trim() ?? '';
+  if (['none', 'null', 'undefined', 'n/a'].includes(type.toLocaleLowerCase('de'))) return '';
   return /[A-ZÄÖÜ]/i.test(type) ? type : '';
 }
 

@@ -61,6 +61,25 @@ describe('Aktueller Einsatz', () => {
     expect(screen.getAllByText(/^\d+-HLF-1$/)).toHaveLength(12);
   });
 
+  it('zeigt Entfernungen, aber weder Aktionsobjekte noch Status für versteckte Einheiten', async () => {
+    app.assignments = [];
+    app.vehicles = [
+      { id: 1, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', type: '200', modes: null, x: 0, y: 0, status: 2, assigned_player_id: null },
+      { id: 2, game_vehicle_id: 'JA', name: 'Jaeger', type: 'None', modes: null, x: -1000000, y: -1000000, status: 2, assigned_player_id: null },
+      { id: 3, game_vehicle_id: 'FS_LST_1', name: 'AuenPort', type: 'None', modes: 'Schiffsverkehr sperren', x: -1000000, y: -1000000, status: 2, assigned_player_id: null },
+      { id: 4, game_vehicle_id: 'FS_LST_2', name: 'SWA Bahn', type: 'None', modes: 'Tramverkehr einstellen', x: -1000000, y: -1000000, status: 2, assigned_player_id: null },
+    ];
+    render(CurrentEventPanel);
+
+    await fireEvent.focus(screen.getByPlaceholderText('Fahrzeug suchen …'));
+
+    expect(screen.getByText('22 m')).toBeTruthy();
+    expect(screen.queryByText('AuenPort')).toBeNull();
+    expect(screen.queryByText('SWA Bahn')).toBeNull();
+    expect(screen.queryByText('None')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Jaeger' }).querySelector('.status-badge')).toBeNull();
+  });
+
   it('zeigt Sprechwünsche im Verlauf ohne eigene Aktion', () => {
     render(CurrentEventPanel);
 

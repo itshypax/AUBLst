@@ -1,8 +1,9 @@
 <script lang="ts">
   import { BellRing, ChevronDown, Clock3, MessageSquarePlus, Search, Trash2, Undo2 } from 'lucide-svelte';
   import { api } from '../lib/api';
-  import { isHiddenUnit, vehicleDisplayName, vehicleTypeLabel } from '../lib/classify';
+  import { hasMapPosition, isActionUnit, isHiddenUnit, vehicleDisplayName } from '../lib/classify';
   import { refreshState } from '../lib/polling';
+  import { createRouteCalculator, formatDistance } from '../lib/routing';
   import { buildSpeechRequestEntries } from '../lib/speech-requests';
   import { app, canWrite, setDispatchVehicleIds, showNotice, toggleDispatchVehicle } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
@@ -29,7 +30,7 @@
     .filter((vehicle) => !assignedIds.has(vehicle.id)));
   const availableVehicles = $derived(app.vehicles.filter((vehicle) => {
     const status = Number(vehicle.status);
-    return !assignedIds.has(vehicle.id) && !app.dispatchVehicleIds.includes(vehicle.id) && (isHiddenUnit(vehicle) || status === 1 || status === 2);
+    return !isActionUnit(vehicle) && !assignedIds.has(vehicle.id) && !app.dispatchVehicleIds.includes(vehicle.id) && (isHiddenUnit(vehicle) || status === 1 || status === 2);
   }));
   const matchingVehicles = $derived.by(() => {
     const terms = vehicleSearch.trim().toLocaleLowerCase('de').split(/\s+/).filter(Boolean);
@@ -42,6 +43,7 @@
     return rows;
   });
   const isAvailableInGame = $derived(!currentEvent || currentEvent.created_by !== 'frontend' || (currentEvent.game_event_id !== null && String(currentEvent.game_event_id).trim() !== ''));
+  const routeToEvent = $derived(currentEvent ? createRouteCalculator(currentEvent, app.routing) : null);
   const speechRequests = $derived(buildSpeechRequestEntries(app.logs, app.vehicles, app.events, app.assignments).filter((entry) => entry.event?.id === currentEventId));
   const speechLogIds = $derived(new Set(speechRequests.flatMap((entry) => entry.rows.map((row) => row.id))));
 
@@ -98,6 +100,11 @@
 
   function displayName(vehicle: Vehicle): string {
     return vehicleDisplayName(vehicle);
+  }
+
+  function distanceText(vehicle: Vehicle): string {
+    if (!routeToEvent || !hasMapPosition(vehicle)) return '';
+    return formatDistance(routeToEvent(vehicle, vehicle), false);
   }
 
   function eventTime(): string {
@@ -241,11 +248,11 @@
         {#if showResults}
           <div class="vehicle-results">
             {#each matchingVehicles as vehicle (vehicle.id)}
-              {@const typeLabel = vehicleTypeLabel(vehicle)}
+              {@const distance = distanceText(vehicle)}
               <button onclick={() => stageVehicle(vehicle)}>
-                <StatusBadge value={vehicle.status} />
+                {#if !isHiddenUnit(vehicle)}<StatusBadge value={vehicle.status} />{/if}
                 <span>{displayName(vehicle)}</span>
-                {#if typeLabel}<small>{typeLabel}</small>{/if}
+                {#if distance}<small class="distance">{distance}</small>{/if}
               </button>
             {:else}
               <span class="no-result">Kein verfügbares Fahrzeug gefunden</span>
@@ -344,7 +351,7 @@
   .vehicle-results button { width: 100%; justify-content: flex-start; border: 0; background: transparent; text-align: left; }
   .vehicle-results button:hover { background: var(--accent-soft); }
   .vehicle-results button span:not(.status-badge) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .vehicle-results small { margin-left: auto; color: var(--text-dim); }
+  .vehicle-results .distance { margin-left: auto; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .no-result { display: block; padding: 8px; color: var(--text-dim); font-size: 12px; }
   .toolbar-hint { flex: 0 0 auto; color: var(--text-dim); font-size: 11px; }
   .toolbar-hint strong { color: var(--text); }
