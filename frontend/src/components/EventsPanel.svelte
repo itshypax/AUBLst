@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Axe, Biohazard, CircleCheck, Cross, Flame, RadioTower, Search, TriangleAlert, Waves } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { Axe, Biohazard, CircleCheck, Cross, Flame, RadioTower, Search, TriangleAlert, Waves } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
   import { eventCategory, type EventCategory } from '../lib/classify';
   import { refreshState } from '../lib/polling';
@@ -77,11 +78,11 @@
 
 <section class="panel">
   <div class="panel-header">
-    <span class="icon"><TriangleAlert size={14} /></span>
+    <span class="icon"><FaIcon icon={TriangleAlert} size={14} /></span>
     <h2>Einsätze</h2>
     <span class="spacer"></span>
     <label class="event-search">
-      <Search size={13} />
+      <FaIcon icon={Search} size={13} />
       <span class="sr-only">Einsätze filtern</span>
       <input type="text" bind:value={query} placeholder="Filtern" />
     </label>
@@ -96,7 +97,7 @@
       {@const isAvailableInGame = !isControlRoomEvent || (ev.game_event_id !== null && String(ev.game_event_id).trim() !== '')}
       <div class="row {cat}" role="group" class:control-room={isControlRoomEvent} class:highlighted={app.highlightedEventId === ev.id} class:open={app.assignEvent?.id === ev.id} onmouseenter={() => setHighlightedEvent(ev.id)} onmouseleave={() => setHighlightedEvent(null)}>
         <button class="event-open" onclick={() => openAssign(ev)}>
-          <span class="cat {cat}" class:control-room={isControlRoomEvent} data-tooltip={iconTitle} aria-label={iconTitle}><Icon size={16} /></span>
+          <span class="cat {cat}" class:control-room={isControlRoomEvent} data-tooltip={iconTitle} aria-label={iconTitle}><FaIcon icon={Icon} size={16} /></span>
           <span class="info">
             <span class="name">{ev.name || 'Einsatz'}</span>
             <span class="meta">
@@ -108,7 +109,7 @@
         </button>
         {#if isControlRoomEvent}
           <button class="ghost finish" data-tooltip="Einsatz abschließen" aria-label="Einsatz abschließen" disabled={finishing.has(ev.id) || !canWrite()} onclick={(e) => void finish(ev, e)}>
-            <CircleCheck size={15} />
+            <FaIcon icon={CircleCheck} size={15} />
           </button>
         {/if}
       </div>

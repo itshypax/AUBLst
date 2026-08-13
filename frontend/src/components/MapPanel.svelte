@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Check, Construction, Crosshair, Eraser, Grid3X3, Map as MapIcon, Route, Save, ShieldCheck, Trash2, Undo2, Unlink, Upload, X } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { Check, Construction, Crosshair, Eraser, Grid3X3, Map as MapIcon, Route, Save, ShieldCheck, Trash2, Undo2, Unlink, Upload, X } from '../lib/fontawesome-icons';
   import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { eventCategory, station, type EventCategory } from '../lib/classify';
@@ -1285,7 +1286,7 @@
 
 <section class="panel map-panel">
   <div class="panel-header">
-    <span class="icon"><MapIcon size={14} /></span>
+    <span class="icon"><FaIcon icon={MapIcon} size={14} /></span>
     <h2>{standaloneModId ? `Straßeneditor · ${standaloneModId}` : 'Karte'}</h2>
     <span class="spacer"></span>
     <span class="hint">{standaloneModId ? 'Die Linien sind nur im Editor sichtbar' : 'Scrollen: Zoom · Verschieben-Schalter: Pfeiltasten'}</span>
@@ -1329,14 +1330,14 @@
         <div class="route-editor-head">
           <strong>Straßennetz</strong>
           <span>{editorGraph.edges.length} Abschnitte</span>
-          <button class="ghost" data-tooltip="Editor schließen" aria-label="Editor schließen" onclick={() => void closeEditor()}><X size={14} /></button>
+          <button class="ghost" data-tooltip="Editor schließen" aria-label="Editor schließen" onclick={() => void closeEditor()}><FaIcon icon={X} size={14} /></button>
         </div>
         <div class="route-tools" role="toolbar" aria-label="Zeichenwerkzeuge">
-          <button class:active={editorMode === 'road'} aria-pressed={editorMode === 'road'} onclick={() => setEditorMode('road')}><Route size={14} /> Straße</button>
-          <button class:active={editorMode === 'bridge'} aria-pressed={editorMode === 'bridge'} onclick={() => setEditorMode('bridge')}><Construction size={14} /> Brücke</button>
-          <button class:active={editorMode === 'unlink'} aria-pressed={editorMode === 'unlink'} onclick={() => setEditorMode('unlink')}><Unlink size={14} /> Verbindung</button>
-          <button class:active={editorMode === 'erase'} aria-pressed={editorMode === 'erase'} onclick={() => setEditorMode('erase')}><Eraser size={14} /> Punkt</button>
-          {#if standaloneModId}<button class:active={editorMode === 'test'} aria-pressed={editorMode === 'test'} onclick={() => setEditorMode('test')}><Crosshair size={14} /> Test</button>{/if}
+          <button class:active={editorMode === 'road'} aria-pressed={editorMode === 'road'} onclick={() => setEditorMode('road')}><FaIcon icon={Route} size={14} /> Straße</button>
+          <button class:active={editorMode === 'bridge'} aria-pressed={editorMode === 'bridge'} onclick={() => setEditorMode('bridge')}><FaIcon icon={Construction} size={14} /> Brücke</button>
+          <button class:active={editorMode === 'unlink'} aria-pressed={editorMode === 'unlink'} onclick={() => setEditorMode('unlink')}><FaIcon icon={Unlink} size={14} /> Verbindung</button>
+          <button class:active={editorMode === 'erase'} aria-pressed={editorMode === 'erase'} onclick={() => setEditorMode('erase')}><FaIcon icon={Eraser} size={14} /> Punkt</button>
+          {#if standaloneModId}<button class:active={editorMode === 'test'} aria-pressed={editorMode === 'test'} onclick={() => setEditorMode('test')}><FaIcon icon={Crosshair} size={14} /> Test</button>{/if}
         </div>
         {#if editorMode === 'test'}
           <p>Klicke zuerst den Start und danach das Ziel. Weiß gestrichelt ist der Anschluss zur nächsten Straße, Orange ist die berechnete Route.</p>
@@ -1346,7 +1347,7 @@
                 <strong>{formatDistance(routeTestPreview)}</strong>
                 <span>Anschluss Start {Math.round(routeTestPreview.startSnap.connectorMeters)} m · Ziel {Math.round(routeTestPreview.endSnap.connectorMeters)} m</span>
               </div>
-              <button class="ghost" aria-label="Routentest zurücksetzen" data-tooltip="Routentest zurücksetzen" onclick={resetRouteTest}><X size={14} /></button>
+              <button class="ghost" aria-label="Routentest zurücksetzen" data-tooltip="Routentest zurücksetzen" onclick={resetRouteTest}><FaIcon icon={X} size={14} /></button>
             </div>
           {:else if routeTestStart}
             <div class="route-test-result">
@@ -1354,7 +1355,7 @@
                 <strong>Start gesetzt</strong>
                 <span>{routeTestStartSnap ? `Nächster Straßenpunkt: ${Math.round(routeTestStartSnap.connectorMeters)} m` : 'Das Straßennetz ist leer.'}</span>
               </div>
-              <button class="ghost" aria-label="Routentest zurücksetzen" data-tooltip="Routentest zurücksetzen" onclick={resetRouteTest}><X size={14} /></button>
+              <button class="ghost" aria-label="Routentest zurücksetzen" data-tooltip="Routentest zurücksetzen" onclick={resetRouteTest}><FaIcon icon={X} size={14} /></button>
             </div>
           {/if}
         {:else if editorMode === 'unlink'}
@@ -1376,7 +1377,7 @@
             <div class="grid-setting">
               <input id="grid-size-m" type="number" min="1" max="1000" step="5" value={editorGraph.grid_size_m ?? 50} oninput={(event) => updateEditorMetric('grid_size_m', event.currentTarget.value)} />
               <span>m</span>
-              <label class="grid-toggle"><input type="checkbox" bind:checked={showEditorGrid} onchange={scheduleRender} /> <Grid3X3 size={13} /> anzeigen</label>
+              <label class="grid-toggle"><input type="checkbox" bind:checked={showEditorGrid} onchange={scheduleRender} /> <FaIcon icon={Grid3X3} size={13} /> anzeigen</label>
             </div>
             {#if editorMapMetric}
               <span class="metric-summary">
@@ -1401,7 +1402,7 @@
             {#each networkReport.issues.slice(0, 8) as issue (`${issue.code}-${issue.message}`)}
               <button class="network-issue {issue.severity}" disabled={!issue.point} onclick={() => focusNetworkIssue(issue.point)}>
                 <span>{issue.message}</span>
-                {#if issue.point}<Crosshair size={12} />{/if}
+                {#if issue.point}<FaIcon icon={Crosshair} size={12} />{/if}
               </button>
             {/each}
             {#if networkReport.issues.length > 8}<span class="network-more">+{networkReport.issues.length - 8} weitere Befunde</span>{/if}
@@ -1409,12 +1410,12 @@
         {/if}
         <div class="route-actions">
           <input class="routing-file-input" bind:this={importInput} type="file" accept=".json,application/json" onchange={(event) => void importEditorFile(event)} />
-          <button disabled={!editorHistory.length} data-tooltip="Rückgängig" aria-label="Letzte Änderung rückgängig" onclick={undoEditor}><Undo2 size={14} /></button>
-          <button disabled={!editorActiveNodeId} onclick={finishEditorLine}><Check size={14} /> Linie beenden</button>
-          <button class="danger-text" disabled={!editorGraph.edges.length} data-tooltip="Alles löschen" aria-label="Gesamtes Straßennetz löschen" onclick={() => void clearEditor()}><Trash2 size={14} /></button>
-          <button onclick={runNetworkCheck}><ShieldCheck size={14} /> Netz prüfen</button>
-          <button onclick={() => importInput?.click()}><Upload size={14} /> JSON laden</button>
-          <button class="save-route" disabled={!editorDirty || editorSaving || (!standaloneModId && !canWrite())} onclick={() => void saveEditor()}><Save size={14} /> {editorSaving ? 'Speichert …' : 'Speichern'}</button>
+          <button disabled={!editorHistory.length} data-tooltip="Rückgängig" aria-label="Letzte Änderung rückgängig" onclick={undoEditor}><FaIcon icon={Undo2} size={14} /></button>
+          <button disabled={!editorActiveNodeId} onclick={finishEditorLine}><FaIcon icon={Check} size={14} /> Linie beenden</button>
+          <button class="danger-text" disabled={!editorGraph.edges.length} data-tooltip="Alles löschen" aria-label="Gesamtes Straßennetz löschen" onclick={() => void clearEditor()}><FaIcon icon={Trash2} size={14} /></button>
+          <button onclick={runNetworkCheck}><FaIcon icon={ShieldCheck} size={14} /> Netz prüfen</button>
+          <button onclick={() => importInput?.click()}><FaIcon icon={Upload} size={14} /> JSON laden</button>
+          <button class="save-route" disabled={!editorDirty || editorSaving || (!standaloneModId && !canWrite())} onclick={() => void saveEditor()}><FaIcon icon={Save} size={14} /> {editorSaving ? 'Speichert …' : 'Speichern'}</button>
         </div>
       </div>
     {/if}

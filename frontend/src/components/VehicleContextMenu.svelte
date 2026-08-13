@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Crosshair, Hospital, Route, Undo2 } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { Crosshair, Hospital, Route, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
   import { isHospitalTransportUnit } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
@@ -104,18 +105,18 @@
       </span>
     </div>
     <button class="item" role="menuitem" onclick={focus}>
-      <Crosshair size={14} />
+      <FaIcon icon={Crosshair} size={14} />
       Auf Karte zentrieren
     </button>
     {#if canManageHospital}
       <button class="item" role="menuitem" disabled={!canWrite()} onclick={assignHospital}>
-        <Hospital size={14} />
+        <FaIcon icon={Hospital} size={14} />
         {hospitalReservation ? 'Klinikzuweisung ändern' : 'Klinik zuweisen'}
       </button>
     {/if}
     {#if Number(vehicle.status) >= 3 && Number(vehicle.status) <= 4}
       <button class="item" role="menuitem" aria-expanded={choosingEvent} disabled={!canWrite() || !reassignableEvents.length} onclick={() => (choosingEvent = !choosingEvent)}>
-        <Route size={14} />
+        <FaIcon icon={Route} size={14} />
         {currentEvent ? 'Anderem Einsatz zuordnen' : 'Einsatz zuordnen'}
       </button>
       {#if choosingEvent}
@@ -129,7 +130,7 @@
         </div>
       {/if}
       <button class="item" role="menuitem" disabled={!canWrite()} onclick={() => void sendHome()}>
-        <Undo2 size={14} />
+        <FaIcon icon={Undo2} size={14} />
         Einrücken lassen
       </button>
     {/if}

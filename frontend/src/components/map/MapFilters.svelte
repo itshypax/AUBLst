@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { X } from 'lucide-svelte';
+  import FaIcon from '../FaIcon.svelte';
+  import { X } from '../../lib/fontawesome-icons';
   import type { EventCategory } from '../../lib/classify';
   import { dismissible } from '../../lib/dismissible-details';
   import StatusBadge from '../StatusBadge.svelte';
@@ -67,7 +68,7 @@
     ignore: (target) => target instanceof Element && Boolean(target.closest('[data-map-filters-trigger]')),
   }}
 >
-  <div class="filter-head"><strong>Kartenfilter</strong><button class="ghost" data-tooltip="Schließen" aria-label="Kartenfilter schließen" onclick={onClose}><X size={14} /></button></div>
+  <div class="filter-head"><strong>Kartenfilter</strong><button class="ghost" data-tooltip="Schließen" aria-label="Kartenfilter schließen" onclick={onClose}><FaIcon icon={X} size={14} /></button></div>
   <div class="filter-section two">
     <label><input type="checkbox" checked={showVehicles} onchange={(event) => onShowVehiclesChange(event.currentTarget.checked)} /> Fahrzeuge</label>
     <label><input type="checkbox" checked={showEvents} onchange={(event) => onShowEventsChange(event.currentTarget.checked)} /> Einsätze</label>

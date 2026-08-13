@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ChartNoAxesCombined, Download, RefreshCw, X } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { ChartNoAxesCombined, Download, RefreshCw, X } from '../lib/fontawesome-icons';
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
   import { focusTrap } from '../lib/focus';
@@ -59,7 +60,7 @@
 <div class="backdrop" class:embedded role="presentation" onclick={(event) => !embedded && event.target === event.currentTarget && close()} onkeydown={(event) => !embedded && onKeydown(event)} use:focusTrap={{ initial: '[data-autofocus]', disabled: embedded }} tabindex="-1">
   <div class="modal" role={embedded ? 'region' : 'dialog'} aria-modal={embedded ? undefined : 'true'} aria-labelledby={embedded ? undefined : 'statistics-title'} aria-label={embedded ? 'Statistik' : undefined}>
     {#if !embedded}<header>
-      <span class="header-icon"><ChartNoAxesCombined size={18} /></span>
+      <span class="header-icon"><FaIcon icon={ChartNoAxesCombined} size={18} /></span>
       <div>
         <h2 id="statistics-title">Session-Statistik</h2>
         {#if model}
@@ -68,15 +69,15 @@
           <span>Auswertung der aktuellen Sitzung</span>
         {/if}
       </div>
-      <button class="ghost close" data-autofocus data-tooltip="Schließen" aria-label="Schließen" disabled={exporting} onclick={close}><X size={18} /></button>
+      <button class="ghost close" data-autofocus data-tooltip="Schließen" aria-label="Schließen" disabled={exporting} onclick={close}><FaIcon icon={X} size={18} /></button>
     </header>{/if}
 
     <div class="content">
       {#if loading}
-        <div class="state"><span class="loading-icon"><RefreshCw size={20} /></span> Statistik wird geladen …</div>
+        <div class="state"><span class="loading-icon"><FaIcon icon={RefreshCw} size={20} /></span> Statistik wird geladen …</div>
       {:else if error && !model}
         <div class="state error" role="alert">{error}</div>
-        <button class="retry" onclick={() => void load()}><RefreshCw size={14} /> Erneut laden</button>
+        <button class="retry" onclick={() => void load()}><FaIcon icon={RefreshCw} size={14} /> Erneut laden</button>
       {:else if model}
         <div class="metrics">
           <div><span>Einsätze</span><strong>{model.eventCount}</strong></div>
@@ -183,7 +184,7 @@
     <footer>
       {#if error && model}<span class="export-error" role="alert">{error}</span>{/if}
       <span class="export-note">Der PNG-Export enthält die vollständige Übersicht.</span>
-      <button disabled={!model || loading || exporting} onclick={() => void exportPng()}><Download size={15} /> {exporting ? 'PNG wird erstellt …' : 'Als PNG exportieren'}</button>
+      <button disabled={!model || loading || exporting} onclick={() => void exportPng()}><FaIcon icon={Download} size={15} /> {exporting ? 'PNG wird erstellt …' : 'Als PNG exportieren'}</button>
     </footer>
   </div>
 </div>

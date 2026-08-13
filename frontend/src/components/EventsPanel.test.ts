@@ -59,8 +59,8 @@ describe('Einsatzübersicht', () => {
     const { container } = render(EventsPanel);
 
     const controlRoomIcon = screen.getByLabelText('Leitstellen-Einsatz');
-    expect(controlRoomIcon.querySelector('.lucide-radio-tower')).not.toBeNull();
-    expect(container.querySelectorAll('.lucide-radio-tower')).toHaveLength(1);
+    expect(controlRoomIcon.querySelector('svg')).not.toBeNull();
+    expect(container.querySelectorAll('[aria-label="Leitstellen-Einsatz"] svg')).toHaveLength(1);
     expect(screen.getByText(/wird ans Spiel übertragen/)).toBeTruthy();
   });
 
@@ -68,14 +68,14 @@ describe('Einsatzübersicht', () => {
     render(EventsPanel);
 
     const waterIcon = screen.getByLabelText('Wassereinsatz');
-    expect(waterIcon.querySelector('.lucide-waves')).not.toBeNull();
+    expect(waterIcon.querySelector('svg')).not.toBeNull();
   });
 
   it('kennzeichnet Gefahrgutlagen mit dem Gefahrstoffsymbol', () => {
     render(EventsPanel);
 
     const hazardIcon = screen.getByLabelText('Gefahrguteinsatz');
-    expect(hazardIcon.querySelector('.lucide-biohazard')).not.toBeNull();
+    expect(hazardIcon.querySelector('svg')).not.toBeNull();
   });
 
   it('färbt den linken Balken passend zur Einsatzart', () => {

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Check, FolderOpen, Radio } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { Check, FolderOpen, Radio } from '../lib/fontawesome-icons';
   import { dismissLog } from '../lib/polling';
   import { isSpeechRequest } from '../lib/speech-requests';
   import { app, canWrite, eventById, openAssign, setHighlightedEvent } from '../lib/state.svelte';
@@ -36,7 +37,7 @@
 
 <section class="panel">
   <div class="panel-header">
-    <span class="icon"><Radio size={14} /></span>
+    <span class="icon"><FaIcon icon={Radio} size={14} /></span>
     <h2>Funkmeldungen</h2>
   </div>
   <div class="panel-body log" role="list" aria-live="polite">
@@ -56,13 +57,13 @@
         {/if}
         <span class="message">{decodeEntities(row.long_message)}</span>
         {#if row.state === 'inactive'}
-          <span class="done-mark" data-tooltip="Abgearbeitet" aria-label="Abgearbeitet"><Check size={13} /></span>
+          <span class="done-mark" data-tooltip="Abgearbeitet" aria-label="Abgearbeitet"><FaIcon icon={Check} size={13} /></span>
         {:else if !speechRequest && row.event_id != null}
           <button class="ghost" data-tooltip="Einsatz öffnen" aria-label="Einsatz öffnen" onclick={() => openEvent(row)}>
-            <FolderOpen size={13} />
+            <FaIcon icon={FolderOpen} size={13} />
           </button>
           <button class="ghost" data-tooltip="Abarbeiten" aria-label="Meldung abarbeiten" disabled={dismissing.has(row.id) || !canWrite()} onclick={() => void dismiss(row.id)}>
-            <Check size={13} />
+            <FaIcon icon={Check} size={13} />
           </button>
         {/if}
       </div>

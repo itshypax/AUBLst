@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { RefreshCw, TriangleAlert } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { RefreshCw, TriangleAlert } from '../lib/fontawesome-icons';
   import { refreshState } from '../lib/polling';
   import { app } from '../lib/state.svelte';
 
@@ -21,10 +22,10 @@
 </script>
 
 <div class="connection-lost" role="alert">
-  <TriangleAlert size={15} aria-hidden="true" />
+  <FaIcon icon={TriangleAlert} size={15} aria-hidden="true" />
   <div><strong>Verbindung unterbrochen</strong><span>Letzter erfolgreicher Abgleich vor {age} {age === 1 ? 'Sekunde' : 'Sekunden'}.</span></div>
   <button disabled={refreshing} onclick={() => void retry()}>
-    <span class:spinning={refreshing}><RefreshCw size={14} /></span>
+    <span class:spinning={refreshing}><FaIcon icon={RefreshCw} size={14} /></span>
     {refreshing ? 'Verbindung wird geprüft …' : 'Erneut versuchen'}
   </button>
 </div>

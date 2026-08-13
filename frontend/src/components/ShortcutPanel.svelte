@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { CornerDownLeft, Keyboard, Search, X } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { CornerDownLeft, Keyboard, Search, X } from '../lib/fontawesome-icons';
   import { focusTrap } from '../lib/focus';
   import { SHORTCUTS, type ShortcutAction, type ShortcutDefinition } from '../lib/keyboard-shortcuts';
   import { app } from '../lib/state.svelte';
@@ -52,13 +53,13 @@
 <div class="backdrop" role="presentation" onclick={(event) => event.target === event.currentTarget && close()} onkeydown={onKeydown} use:focusTrap={{ initial: '[data-autofocus]' }} tabindex="-1">
   <div class="command-panel" role="dialog" aria-modal="true" aria-labelledby="shortcut-title">
     <header>
-      <Keyboard size={17} aria-hidden="true" />
+      <FaIcon icon={Keyboard} size={17} aria-hidden="true" />
       <h2 id="shortcut-title">Befehl oder Tastaturkürzel</h2>
-      <button class="ghost" aria-label="Übersicht schließen" data-tooltip="Schließen" onclick={close}><X size={17} /></button>
+      <button class="ghost" aria-label="Übersicht schließen" data-tooltip="Schließen" onclick={close}><FaIcon icon={X} size={17} /></button>
     </header>
 
     <label class="command-search">
-      <Search size={17} aria-hidden="true" />
+      <FaIcon icon={Search} size={17} aria-hidden="true" />
       <span class="sr-only">Befehl suchen</span>
       <input
         data-autofocus
@@ -69,7 +70,7 @@
         aria-controls="shortcut-results"
         aria-activedescendant={filtered[activeIndex] ? `shortcut-command-${activeIndex}` : undefined}
       />
-      {#if query}<button class="ghost clear" aria-label="Suche leeren" onclick={() => (query = '')}><X size={14} /></button>{/if}
+      {#if query}<button class="ghost clear" aria-label="Suche leeren" onclick={() => (query = '')}><FaIcon icon={X} size={14} /></button>{/if}
     </label>
 
     <div id="shortcut-results" class="command-results" aria-live="polite">
@@ -104,7 +105,7 @@
 
     <footer>
       <span><kbd>↑</kbd><kbd>↓</kbd> auswählen</span>
-      <span><CornerDownLeft size={12} /> ausführen</span>
+      <span><FaIcon icon={CornerDownLeft} size={12} /> ausführen</span>
       <span><kbd>Esc</kbd> schließen</span>
     </footer>
   </div>

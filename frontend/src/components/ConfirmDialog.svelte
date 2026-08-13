@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { CircleAlert } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { CircleAlert } from '../lib/fontawesome-icons';
   import { focusTrap } from '../lib/focus';
   import { answerConfirm, app } from '../lib/state.svelte';
 
@@ -10,7 +11,7 @@
 
 <div class="backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && answerConfirm(false)} onkeydown={onKeydown} use:focusTrap={{ initial: '[data-autofocus]' }} tabindex="-1">
   <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-message">
-    <span class="icon"><CircleAlert size={20} /></span>
+    <span class="icon"><FaIcon icon={CircleAlert} size={20} /></span>
     <p id="confirm-message">{app.confirmDialog?.message}</p>
     <div class="buttons">
       <button data-autofocus onclick={() => answerConfirm(false)}>Abbrechen</button>

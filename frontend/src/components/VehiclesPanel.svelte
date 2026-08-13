@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Check, Hospital, Play, Plus, Search, TrafficCone, TriangleAlert, Truck, Undo2 } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { Check, Hospital, Play, Plus, Search, TrafficCone, TriangleAlert, Truck, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
   import { actionUnits, hasLoeschzug, isHiddenUnit, isHospitalTransportUnit, loeschzugFor, stationColumns, stationGroups, tabLabel, vehicleTypeLabel, type MainTab, type StationGroup } from '../lib/classify';
   import { refreshState } from '../lib/polling';
@@ -154,11 +155,11 @@
 
 <section class="panel">
   <div class="panel-header">
-    <span class="icon"><Truck size={14} /></span>
+    <span class="icon"><FaIcon icon={Truck} size={14} /></span>
     <h2>Fahrzeuge</h2>
     <span class="spacer"></span>
     <label class="vehicle-search">
-      <Search size={13} />
+      <FaIcon icon={Search} size={13} />
       <span class="sr-only">Fahrzeuge filtern</span>
       <input bind:this={searchInput} type="text" bind:value={query} placeholder="Filtern" />
       <kbd aria-label="Tastaturkürzel F">F</kbd>
@@ -195,7 +196,7 @@
     </div>
     {#if actions.length}
       <button class="actions-btn" data-tooltip="Sperrungen und Freigaben auslösen" onclick={() => (app.actionsOpen = true)}>
-        <TrafficCone size={14} />
+        <FaIcon icon={TrafficCone} size={14} />
         Aktionen
       </button>
     {/if}
@@ -218,7 +219,7 @@
                     aria-label={`Zugalarm ${g.label} für Einsatz ${app.assignEvent.id} vormerken`}
                     onclick={() => stageZugalarm(g.key)}
                   >
-                    <Play size={11} />
+                    <FaIcon icon={Play} size={11} />
                     Zugalarm
                   </button>
                 {/if}
@@ -254,17 +255,17 @@
                         {/if}
                       </span>
                       {#if warnIds.has(v.id)}
-                        <span class="warn" data-tooltip="Nicht eingerückt" aria-label="Nicht eingerückt"><TriangleAlert size={13} /></span>
+                        <span class="warn" data-tooltip="Nicht eingerückt" aria-label="Nicht eingerückt"><FaIcon icon={TriangleAlert} size={13} /></span>
                       {/if}
                     </button>
                     {#if isHospitalTransportUnit(v) && ([4, 5, 7].includes(Number(v.status)) || reservation)}
                       <button class="ghost row-action hospital-action" class:intensive={reservation?.bed_type === 'icu'} data-tooltip={reservation ? 'Klinikzuweisung ändern' : 'Klinik zuweisen'} aria-label={`${displayName(v)} ${reservation ? 'Klinikzuweisung ändern' : 'eine Klinik zuweisen'}`} disabled={!canWrite()} onclick={(e) => { e.stopPropagation(); app.hospitalAssignmentVehicleId = v.id; }}>
-                        <Hospital size={14} />
+                        <FaIcon icon={Hospital} size={14} />
                       </button>
                     {/if}
                     {#if Number(v.status) === 3}
                       <button class="ghost row-action" data-tooltip="Einrücken lassen" aria-label={`${displayName(v)} einrücken lassen`} disabled={returning.has(v.id) || !canWrite()} onclick={(e) => { e.stopPropagation(); void sendHome(v); }}>
-                        <Undo2 size={14} />
+                        <FaIcon icon={Undo2} size={14} />
                       </button>
                     {/if}
                     {#if app.assignEvent && (canStage(v) || app.dispatchVehicleIds.includes(v.id))}
@@ -275,7 +276,7 @@
                         aria-label={`${displayName(v)} ${app.dispatchVehicleIds.includes(v.id) ? 'aus der Vormerkung entfernen' : `für Einsatz ${app.assignEvent.id} vormerken`}`}
                         onclick={(e) => { e.stopPropagation(); toggleDispatchVehicle(v.id); }}
                       >
-                        {#if app.dispatchVehicleIds.includes(v.id)}<Check size={15} />{:else}<Plus size={15} />{/if}
+                        {#if app.dispatchVehicleIds.includes(v.id)}<FaIcon icon={Check} size={15} />{:else}<FaIcon icon={Plus} size={15} />{/if}
                       </button>
                     {/if}
                   </div>

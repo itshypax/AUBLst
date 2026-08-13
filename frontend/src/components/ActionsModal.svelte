@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Check, TrafficCone, X } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { Check, TrafficCone, X } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
   import { actionUnits } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
@@ -40,9 +41,9 @@
 <div class="backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && close()} onkeydown={onKeydown} use:focusTrap={{ initial: '[data-autofocus]' }} tabindex="-1">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="actions-title">
     <header>
-      <span class="icon"><TrafficCone size={16} /></span>
+      <span class="icon"><FaIcon icon={TrafficCone} size={16} /></span>
       <h3 id="actions-title">Aktionen</h3>
-      <button class="ghost" data-tooltip="Schließen" aria-label="Schließen" data-autofocus onclick={close}><X size={18} /></button>
+      <button class="ghost" data-tooltip="Schließen" aria-label="Schließen" data-autofocus onclick={close}><FaIcon icon={X} size={18} /></button>
     </header>
     <div class="body">
       {#each actions as a (a.id)}
@@ -50,7 +51,7 @@
           <div class="card-head">
             <span class="card-name">{a.name || a.game_vehicle_id}</span>
             {#if sent[a.id]}
-              <span class="sent"><Check size={13} /> {sent[a.id]}</span>
+              <span class="sent"><FaIcon icon={Check} size={13} /> {sent[a.id]}</span>
             {/if}
           </div>
           <div class="modes">

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { BellRing, ChevronDown, Clock3, MessageSquarePlus, MessageSquareText, Radio, RadioTower, Search, Trash2, Undo2 } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { BellRing, ChevronDown, Clock3, MessageSquarePlus, MessageSquareText, Radio, RadioTower, Search, Trash2, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
   import { hasMapPosition, isActionUnit, isHiddenUnit, vehicleDisplayName } from '../lib/classify';
   import { refreshState } from '../lib/polling';
@@ -226,7 +227,7 @@
 
 <section class="panel current-event">
   <div class="panel-header">
-    <span class="icon"><BellRing size={14} /></span>
+    <span class="icon"><FaIcon icon={BellRing} size={14} /></span>
     <h2>Aktueller Einsatz</h2>
     <span class="spacer"></span>
   </div>
@@ -238,9 +239,9 @@
         <strong>{currentEvent.name || 'Einsatz'}</strong>
         <span>Position {currentEvent.x.toFixed(1)}, {currentEvent.y.toFixed(1)}</span>
       </div>
-      {#if eventTime()}<span class="event-time"><Clock3 size={12} />{eventTime()}</span>{/if}
+      {#if eventTime()}<span class="event-time"><FaIcon icon={Clock3} size={12} />{eventTime()}</span>{/if}
       <button class="primary alarm" disabled={!stagedVehicles.length || busy || !canWrite() || !isAvailableInGame} onclick={() => void alarm()}>
-        <BellRing size={14} />
+        <FaIcon icon={BellRing} size={14} />
         {busy ? 'Alarmiert …' : `Alarmieren${stagedVehicles.length ? ` (${stagedVehicles.length})` : ''}`}
       </button>
     </div>
@@ -248,7 +249,7 @@
     <div class="dispatch-toolbar">
       <div bind:this={vehicleCombobox} class="vehicle-combobox" onfocusout={onComboboxFocusout}>
         <label>
-          <Search size={14} />
+          <FaIcon icon={Search} size={14} />
           <span class="sr-only">Fahrzeug suchen und vormerken</span>
           <input
             type="text"
@@ -261,7 +262,7 @@
               if (event.key === 'Enter' && matchingVehicles[0]) stageVehicle(matchingVehicles[0]);
             }}
           />
-          <ChevronDown size={14} />
+          <FaIcon icon={ChevronDown} size={14} />
         </label>
         {#if showResults}
           <div class="vehicle-results" aria-label="Verfügbare Fahrzeuge">
@@ -294,7 +295,7 @@
               <StatusBadge value={vehicle.status} />
               <span class="vehicle-name">{displayName(vehicle)}</span>
               {#if Number(vehicle.status) === 3}
-                <button class="ghost row-action" data-tooltip="Einrücken lassen" aria-label={`${displayName(vehicle)} einrücken lassen`} disabled={returning.has(vehicle.id) || !canWrite()} onclick={() => void sendHome(vehicle)}><Undo2 size={14} /></button>
+                <button class="ghost row-action" data-tooltip="Einrücken lassen" aria-label={`${displayName(vehicle)} einrücken lassen`} disabled={returning.has(vehicle.id) || !canWrite()} onclick={() => void sendHome(vehicle)}><FaIcon icon={Undo2} size={14} /></button>
               {:else}<span></span>{/if}
             </div>
           {/each}
@@ -309,7 +310,7 @@
                   </select>
                 {/if}
               </div>
-              <button class="ghost row-action" data-tooltip="Vormerkung entfernen" aria-label={`${displayName(vehicle)} entfernen`} onclick={() => unstageVehicle(vehicle.id)}><Trash2 size={14} /></button>
+              <button class="ghost row-action" data-tooltip="Vormerkung entfernen" aria-label={`${displayName(vehicle)} entfernen`} onclick={() => unstageVehicle(vehicle.id)}><FaIcon icon={Trash2} size={14} /></button>
             </div>
           {/each}
           {#if !assignedVehicles.length && !stagedVehicles.length}
@@ -324,7 +325,7 @@
           {#each timeline as entry (entry.id)}
             {@const TimelineIcon = entry.kind === 'speech' ? RadioTower : entry.kind === 'radio' ? Radio : MessageSquareText}
             <div class="timeline-row {entry.kind}">
-              <span class="timeline-icon"><TimelineIcon size={12} aria-hidden="true" /></span>
+              <span class="timeline-icon"><FaIcon icon={TimelineIcon} size={12} aria-hidden="true" /></span>
               <div class="timeline-content">
                 <div><strong>{entry.source}</strong><time>{entry.at.slice(11, 16)}</time></div>
                 <span>{entry.text}</span>
@@ -341,7 +342,7 @@
               void addFeedback();
             }
           }}></textarea>
-          <button data-tooltip="Rückmeldung hinzufügen" aria-label="Rückmeldung hinzufügen" disabled={!feedbackText.trim() || feedbackBusy || !canWrite()} onclick={() => void addFeedback()}><MessageSquarePlus size={14} /></button>
+          <button data-tooltip="Rückmeldung hinzufügen" aria-label="Rückmeldung hinzufügen" disabled={!feedbackText.trim() || feedbackBusy || !canWrite()} onclick={() => void addFeedback()}><FaIcon icon={MessageSquarePlus} size={14} /></button>
         </div>
       </aside>
     </div>

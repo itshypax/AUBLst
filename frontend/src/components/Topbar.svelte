@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Play, RadioTower, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Play, RadioTower, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
   import { pollLogs, refreshState, switchSession } from '../lib/polling';
   import { dismissibleDetails } from '../lib/dismissible-details';
   import { configureSounds, testSound } from '../lib/sounds';
@@ -125,7 +126,7 @@
   </div>
 
   <div class="clock" data-tooltip="Spielzeit">
-    <Clock size={14} />
+    <FaIcon icon={Clock} size={14} />
     <span>{clockText}</span>
   </div>
 
@@ -136,7 +137,7 @@
   </div>
 
   <div class="connection {connection.kind}" data-tooltip={connection.title} aria-live="polite">
-    {#if connection.kind === 'ok'}<Wifi size={14} />{:else}<WifiOff size={14} />{/if}
+    {#if connection.kind === 'ok'}<FaIcon icon={Wifi} size={14} />{:else}<FaIcon icon={WifiOff} size={14} />{/if}
     <span>{connection.text}</span>
   </div>
 
@@ -149,26 +150,26 @@
       aria-expanded={app.speechQueueOpen}
       onclick={() => (app.speechQueueOpen = !app.speechQueueOpen)}
     >
-      <RadioTower size={16} />
+      <FaIcon icon={RadioTower} size={16} />
       {#if speechRequestCount}<span class="speech-count">{speechRequestCount}</span>{/if}
     </button>
   {/if}
 
   <button class="ghost icon-button" data-tooltip={`Arbeitsansicht: ${workspaceName}`} aria-label={`Arbeitsansicht ${workspaceName} bearbeiten`} onclick={onOpenWorkspaceEditor}>
-    <LayoutGrid size={16} />
+    <FaIcon icon={LayoutGrid} size={16} />
   </button>
 
   <button class="ghost icon-button" data-tooltip="Einsatzakte und Statistik" aria-label="Sitzungsübersicht öffnen" disabled={app.lastSuccessfulSync === null || applying} onclick={() => (app.sessionOverviewOpen = true)}>
-    <ClipboardList size={16} />
+    <FaIcon icon={ClipboardList} size={16} />
   </button>
 
   <button class="ghost icon-button" data-tooltip="Tastaturkürzel (F1)" aria-label="Tastaturkürzel öffnen" onclick={onOpenShortcuts}>
-    <Keyboard size={16} />
+    <FaIcon icon={Keyboard} size={16} />
   </button>
 
   <details class="settings" bind:this={details} use:dismissibleDetails>
     <summary data-tooltip="Verbindung und Ton einstellen">
-      <Settings size={16} />
+      <FaIcon icon={Settings} size={16} />
       <span>{app.sessionToken ? `Sitzung ${app.sessionToken}` : 'Sitzung einrichten'}</span>
     </summary>
       <div class="settings-popover">
@@ -179,32 +180,32 @@
           <input type="text" bind:value={tokenInput} onkeydown={onKey} placeholder="a1b2" spellcheck="false" />
         </label>
         <label>
-          <span><KeyRound size={13} /> PIN</span>
+          <span><FaIcon icon={KeyRound} size={13} /> PIN</span>
           <input type="password" bind:value={pinInput} onkeydown={onKey} placeholder="optional" autocomplete="off" />
         </label>
       </div>
       <button class="apply" disabled={applying} onclick={() => void apply()}>{applying ? 'Wird verbunden …' : 'Verbinden'}</button>
       <button class="ghost reload-data" disabled={app.lastSuccessfulSync === null || applying} onclick={() => { void refreshState(); void pollLogs(); }}>
-        <RefreshCw size={15} /> Daten neu laden
+        <FaIcon icon={RefreshCw} size={15} /> Daten neu laden
       </button>
 
       <div class="settings-title sound-title">Ton</div>
       <div class="sound-row">
         <button class="ghost sound-toggle" aria-pressed={app.soundEnabled} onclick={() => { app.soundEnabled = !app.soundEnabled; void updateSound(); }}>
-          {#if app.soundEnabled}<Volume2 size={16} /> Ton an{:else}<VolumeX size={16} /> Ton aus{/if}
+          {#if app.soundEnabled}<FaIcon icon={Volume2} size={16} /> Ton an{:else}<FaIcon icon={VolumeX} size={16} /> Ton aus{/if}
         </button>
         <label class="volume">
           <span class="sr-only">Lautstärke</span>
           <input type="range" min="0" max="1" step="0.05" bind:value={app.soundVolume} oninput={() => void updateSound()} />
         </label>
-        <button class="ghost icon-button" data-tooltip="Alarmton testen" aria-label="Alarmton testen" onclick={() => void runSoundTest()}><Play size={15} /></button>
+        <button class="ghost icon-button" data-tooltip="Alarmton testen" aria-label="Alarmton testen" onclick={() => void runSoundTest()}><FaIcon icon={Play} size={15} /></button>
       </div>
       {#if soundMessage}<div class="feedback" aria-live="polite">{soundMessage}</div>{/if}
       {#if stateIssue || logIssue}
         <div class="connection-issues" aria-live="polite">
           {#if stateIssue}
             <div class="connection-alert" role="alert">
-              <CircleAlert size={16} />
+              <FaIcon icon={CircleAlert} size={16} />
               <div>
                 <strong>{stateIssue.title}</strong>
                 <span>{stateIssue.message}</span>
@@ -213,7 +214,7 @@
           {/if}
           {#if logIssue}
             <div class="connection-alert warning" role="alert">
-              <CircleAlert size={16} />
+              <FaIcon icon={CircleAlert} size={16} />
               <div>
                 <strong>{logIssue.title}</strong>
                 <span>{logIssue.message}</span>

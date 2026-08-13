@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { CircleAlert, FlaskConical, KeyRound, LoaderCircle, RadioTower, ServerCog } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { CircleAlert, FlaskConical, KeyRound, LoaderCircle, RadioTower, ServerCog } from '../lib/fontawesome-icons';
   import { createDemoSession } from '../lib/demo-session';
   import { dismissibleDetails } from '../lib/dismissible-details';
   import { switchSession } from '../lib/polling';
@@ -66,7 +67,7 @@
 <main class="session-start">
   <div class="session-dialog" role="dialog" aria-labelledby="session-title" aria-describedby="session-description">
     <div class="dialog-title" id="session-title">
-      <RadioTower size={17} />
+      <FaIcon icon={RadioTower} size={17} />
       Mit der Leitstelle verbinden
     </div>
     <div class="dialog-body">
@@ -76,18 +77,18 @@
         <input bind:this={tokenInput} class="token" type="text" bind:value={token} maxlength="10" spellcheck="false" autocomplete="off" onkeydown={onKeydown} />
       </label>
       <label>
-        <span><KeyRound size={13} /> PIN, falls eingerichtet</span>
+        <span><FaIcon icon={KeyRound} size={13} /> PIN, falls eingerichtet</span>
         <input type="password" bind:value={pin} autocomplete="off" onkeydown={onKeydown} />
       </label>
       <button class="connect" disabled={connecting} onclick={() => void connect()}>
-        {#if activeAction === 'connect'}<span class="spinner"><LoaderCircle size={15} /></span> Verbindung wird geprüft{:else}Verbinden{/if}
+        {#if activeAction === 'connect'}<span class="spinner"><FaIcon icon={LoaderCircle} size={15} /></span> Verbindung wird geprüft{:else}Verbinden{/if}
       </button>
       <button class="demo" disabled={connecting} onclick={() => void openDemo()}>
-        {#if activeAction === 'demo'}<span class="spinner"><LoaderCircle size={15} /></span> Demo wird angelegt{:else}<FlaskConical size={15} /> Demo-Sitzung anlegen{/if}
+        {#if activeAction === 'demo'}<span class="spinner"><FaIcon icon={LoaderCircle} size={15} /></span> Demo wird angelegt{:else}<FaIcon icon={FlaskConical} size={15} /> Demo-Sitzung anlegen{/if}
       </button>
 
       <details class="server-settings" use:dismissibleDetails>
-        <summary><ServerCog size={14} /> Serveradresse</summary>
+        <summary><FaIcon icon={ServerCog} size={14} /> Serveradresse</summary>
         <label>
           <span>Adresse der Leitstellen-API</span>
           <input type="text" bind:value={apiBase} spellcheck="false" autocomplete="url" />
@@ -95,10 +96,10 @@
       </details>
 
       {#if localError}
-        <div class="connection-alert" role="alert"><CircleAlert size={16} /><span>{localError}</span></div>
+        <div class="connection-alert" role="alert"><FaIcon icon={CircleAlert} size={16} /><span>{localError}</span></div>
       {:else if issue}
         <div class="connection-alert" role="alert">
-          <CircleAlert size={16} />
+          <FaIcon icon={CircleAlert} size={16} />
           <div><strong>{issue.title}</strong><span>{issue.message}</span></div>
         </div>
       {:else if connecting}

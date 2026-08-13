@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { MapPin, X } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { MapPin, X } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
@@ -53,9 +54,9 @@
 <div class="backdrop" onclick={onBackdropClick} onkeydown={onKeydown} role="presentation" use:focusTrap={{ initial: '[data-autofocus]' }} tabindex="-1">
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="create-event-title">
     <header>
-      <span class="icon"><MapPin size={15} /></span>
+      <span class="icon"><FaIcon icon={MapPin} size={15} /></span>
       <h3 id="create-event-title">Neuer Einsatz</h3>
-      <button class="ghost" data-tooltip="Abbrechen" aria-label="Abbrechen" disabled={busy} onclick={close}><X size={16} /></button>
+      <button class="ghost" data-tooltip="Abbrechen" aria-label="Abbrechen" disabled={busy} onclick={close}><FaIcon icon={X} size={16} /></button>
     </header>
     <div class="body">
       <span class="meta">Position {pos.x.toFixed(1)}, {pos.y.toFixed(1)}</span>

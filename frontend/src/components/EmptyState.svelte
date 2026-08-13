@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Inbox, SearchX } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { Inbox, SearchX } from '../lib/fontawesome-icons';
 
   let {
     title,
@@ -19,7 +20,7 @@
 </script>
 
 <div class="empty-state" class:compact role="status">
-  {#if search}<SearchX size={compact ? 18 : 22} aria-hidden="true" />{:else}<Inbox size={compact ? 18 : 22} aria-hidden="true" />{/if}
+  {#if search}<FaIcon icon={SearchX} size={compact ? 18 : 22} aria-hidden="true" />{:else}<FaIcon icon={Inbox} size={compact ? 18 : 22} aria-hidden="true" />{/if}
   <strong>{title}</strong>
   {#if description}<span>{description}</span>{/if}
   {#if actionLabel}<button onclick={onAction}>{actionLabel}</button>{/if}

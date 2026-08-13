@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ChartNoAxesCombined, ClipboardList, X } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { ChartNoAxesCombined, ClipboardList, X } from '../lib/fontawesome-icons';
   import { focusTrap } from '../lib/focus';
   import { app } from '../lib/state.svelte';
   import IncidentRecordsModal from './IncidentRecordsModal.svelte';
@@ -29,17 +30,17 @@
 <div class="backdrop" role="presentation" onclick={(event) => event.target === event.currentTarget && close()} onkeydown={(event) => event.key === 'Escape' && close()} use:focusTrap={{ initial: '[data-autofocus]' }} tabindex="-1">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="overview-title">
     <header>
-      <ClipboardList size={18} />
+      <FaIcon icon={ClipboardList} size={18} />
       <h2 id="overview-title">Sitzungsübersicht</h2>
-      <button class="ghost close" data-autofocus data-tooltip="Schließen" aria-label="Schließen" onclick={close}><X size={18} /></button>
+      <button class="ghost close" data-autofocus data-tooltip="Schließen" aria-label="Schließen" onclick={close}><FaIcon icon={X} size={18} /></button>
     </header>
 
     <div class="tabs" role="tablist" aria-label="Sitzungsübersicht">
       <button bind:this={recordsTab} class="tab" class:active={activeTab === 'records'} role="tab" aria-selected={activeTab === 'records'} aria-controls="overview-records" tabindex={activeTab === 'records' ? 0 : -1} onkeydown={onTabKeydown} onclick={() => selectTab('records')}>
-        <ClipboardList size={15} /> Einsatzakte
+        <FaIcon icon={ClipboardList} size={15} /> Einsatzakte
       </button>
       <button bind:this={statisticsTab} class="tab" class:active={activeTab === 'statistics'} role="tab" aria-selected={activeTab === 'statistics'} aria-controls="overview-statistics" tabindex={activeTab === 'statistics' ? 0 : -1} onkeydown={onTabKeydown} onclick={() => selectTab('statistics')}>
-        <ChartNoAxesCombined size={15} /> Statistik
+        <FaIcon icon={ChartNoAxesCombined} size={15} /> Statistik
       </button>
     </div>
 

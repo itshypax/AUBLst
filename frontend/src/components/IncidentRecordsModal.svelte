@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ClipboardList, FileText, RadioTower, RefreshCw, Search, X } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { ClipboardList, FileText, RadioTower, RefreshCw, Search, X } from '../lib/fontawesome-icons';
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
   import { focusTrap } from '../lib/focus';
@@ -80,24 +81,24 @@
 <div class="backdrop" class:embedded role="presentation" onclick={(event) => !embedded && event.target === event.currentTarget && close()} onkeydown={(event) => !embedded && event.key === 'Escape' && close()} use:focusTrap={{ initial: '[data-autofocus]', disabled: embedded }} tabindex="-1">
   <div class="modal" role={embedded ? 'region' : 'dialog'} aria-modal={embedded ? undefined : 'true'} aria-labelledby={embedded ? undefined : 'records-title'} aria-label={embedded ? 'Einsatzakte' : undefined}>
     {#if !embedded}<header>
-      <span class="header-icon"><ClipboardList size={18} /></span>
+      <span class="header-icon"><FaIcon icon={ClipboardList} size={18} /></span>
       <div><h2 id="records-title">Einsatzakte</h2><span>Alle Einsätze und Alarmierungen dieser Sitzung</span></div>
-      <button class="ghost" data-autofocus data-tooltip="Neu laden" aria-label="Neu laden" onclick={() => void loadArchive()}><RefreshCw size={16} /></button>
-      <button class="ghost" data-tooltip="Schließen" aria-label="Schließen" onclick={close}><X size={18} /></button>
+      <button class="ghost" data-autofocus data-tooltip="Neu laden" aria-label="Neu laden" onclick={() => void loadArchive()}><FaIcon icon={RefreshCw} size={16} /></button>
+      <button class="ghost" data-tooltip="Schließen" aria-label="Schließen" onclick={close}><FaIcon icon={X} size={18} /></button>
     </header>{/if}
 
     <div class="workspace">
       <aside>
         <div class="filters" class:embedded>
-          <label><Search size={13} /><span class="sr-only">Einsätze filtern</span><input type="text" bind:value={query} placeholder="Einsatz suchen" /></label>
+          <label><FaIcon icon={Search} size={13} /><span class="sr-only">Einsätze filtern</span><input type="text" bind:value={query} placeholder="Einsatz suchen" /></label>
           <select bind:value={status} aria-label="Bearbeitungsstand"><option value="all">Alle</option><option value="active">Laufend</option><option value="completed">Abgeschlossen</option><option value="canceled">Abgebrochen</option></select>
-          {#if embedded}<button class="ghost" data-tooltip="Akten neu laden" aria-label="Akten neu laden" onclick={() => void loadArchive()}><RefreshCw size={15} /></button>{/if}
+          {#if embedded}<button class="ghost" data-tooltip="Akten neu laden" aria-label="Akten neu laden" onclick={() => void loadArchive()}><FaIcon icon={RefreshCw} size={15} /></button>{/if}
         </div>
         <div class="record-list">
           {#if loading}<div class="empty">Akten werden geladen …</div>{/if}
           {#if !loading && filtered.length}
             <table>
-              <thead><tr><th>Einsatz</th><th>Status</th><th aria-label="Alarmierungen"><RadioTower size={11} /></th><th aria-label="Funkeinträge"><FileText size={11} /></th></tr></thead>
+              <thead><tr><th>Einsatz</th><th>Status</th><th aria-label="Alarmierungen"><FaIcon icon={RadioTower} size={11} /></th><th aria-label="Funkeinträge"><FaIcon icon={FileText} size={11} /></th></tr></thead>
               <tbody>
                 {#each filtered as event (event.id)}
                   <tr

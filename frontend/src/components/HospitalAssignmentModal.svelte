@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Bed, Check, Hospital, ShieldPlus, X } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { Bed, Check, Hospital, ShieldPlus, X } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
   import { focusTrap } from '../lib/focus';
   import { reservationAffectsCapacity } from '../lib/hospital-reservations';
@@ -92,12 +93,12 @@
 <div class="backdrop" role="presentation" onclick={(event) => event.target === event.currentTarget && close()} onkeydown={(event) => event.key === 'Escape' && close()} use:focusTrap={{ initial: '[data-autofocus]' }} tabindex="-1">
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="hospital-assignment-title">
     <header>
-      <Hospital size={16} />
+      <FaIcon icon={Hospital} size={16} />
       <div>
         <h3 id="hospital-assignment-title">{current ? 'Klinikzuweisung ändern' : 'Klinik zuweisen'}</h3>
         <span>{vehicle?.name || vehicle?.game_vehicle_id || 'Fahrzeug'}</span>
       </div>
-      <button class="ghost" data-autofocus data-tooltip="Schließen" aria-label="Schließen" disabled={busy} onclick={close}><X size={16} /></button>
+      <button class="ghost" data-autofocus data-tooltip="Schließen" aria-label="Schließen" disabled={busy} onclick={close}><FaIcon icon={X} size={16} /></button>
     </header>
 
     <div class="body">
@@ -122,7 +123,7 @@
               disabled={busy || !canWrite() || free(hospital, 'ward') < 1}
               onclick={() => void assign(hospital, 'ward')}
             >
-              {#if current?.hospital_id === hospital.id && current?.bed_type === 'ward'}<Check size={14} />{:else}<Bed size={14} />{/if}
+              {#if current?.hospital_id === hospital.id && current?.bed_type === 'ward'}<FaIcon icon={Check} size={14} />{:else}<FaIcon icon={Bed} size={14} />{/if}
               <span class="bed-label">Normal</span><span>{free(hospital, 'ward')} frei</span>
             </button>
             <button
@@ -130,7 +131,7 @@
               disabled={busy || !canWrite() || free(hospital, 'icu') < 1}
               onclick={() => void assign(hospital, 'icu')}
             >
-              {#if current?.hospital_id === hospital.id && current?.bed_type === 'icu'}<Check size={14} />{:else}<ShieldPlus size={14} />{/if}
+              {#if current?.hospital_id === hospital.id && current?.bed_type === 'icu'}<FaIcon icon={Check} size={14} />{:else}<FaIcon icon={ShieldPlus} size={14} />{/if}
               <span class="bed-label">Intensiv</span><span>{free(hospital, 'icu')} frei</span>
             </button>
           </div>

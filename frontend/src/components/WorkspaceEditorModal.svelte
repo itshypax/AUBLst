@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ArrowDown, ArrowUp, Copy, ExternalLink, LayoutGrid, Save, Trash2, X } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { ArrowDown, ArrowUp, Copy, ExternalLink, LayoutGrid, Save, Trash2, X } from '../lib/fontawesome-icons';
   import { focusTrap } from '../lib/focus';
   import { AREA_IDS, cloneWorkspace, DEFAULT_WORKSPACES, nextWorkspaceId, PANEL_IDS, type AreaId, type PanelId, type WorkspaceLayout } from '../lib/workspaces';
 
@@ -97,9 +98,9 @@
 <div class="backdrop" role="presentation" onclick={(event) => event.target === event.currentTarget && onClose()} onkeydown={onKeydown} use:focusTrap={{ initial: '[data-autofocus]' }} tabindex="-1">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="workspace-title">
     <header>
-      <LayoutGrid size={17} />
+      <FaIcon icon={LayoutGrid} size={17} />
       <h3 id="workspace-title">Arbeitsansicht bearbeiten</h3>
-      <button class="ghost icon-button" data-autofocus aria-label="Schließen" onclick={onClose}><X size={18} /></button>
+      <button class="ghost icon-button" data-autofocus aria-label="Schließen" onclick={onClose}><FaIcon icon={X} size={18} /></button>
     </header>
 
     <div class="toolbar">
@@ -111,8 +112,8 @@
           {/each}
         </select>
       </label>
-      <button class="ghost" onclick={duplicate}><Copy size={14} /> Duplizieren</button>
-      <button class="ghost" onclick={openTab}><ExternalLink size={14} /> In neuem Tab</button>
+      <button class="ghost" onclick={duplicate}><FaIcon icon={Copy} size={14} /> Duplizieren</button>
+      <button class="ghost" onclick={openTab}><FaIcon icon={ExternalLink} size={14} /> In neuem Tab</button>
     </div>
 
     <div class="body">
@@ -134,8 +135,8 @@
               <option value="hidden">Ausgeblendet</option>
             </select>
             <span class="order-actions">
-              <button class="ghost icon-button" aria-label={`${panelLabels[panel]} nach vorne`} disabled={area === 'hidden' || position === 0} onclick={() => move(panel, -1)}><ArrowUp size={14} /></button>
-              <button class="ghost icon-button" aria-label={`${panelLabels[panel]} nach hinten`} disabled={area === 'hidden' || position === lastPosition} onclick={() => move(panel, 1)}><ArrowDown size={14} /></button>
+              <button class="ghost icon-button" aria-label={`${panelLabels[panel]} nach vorne`} disabled={area === 'hidden' || position === 0} onclick={() => move(panel, -1)}><FaIcon icon={ArrowUp} size={14} /></button>
+              <button class="ghost icon-button" aria-label={`${panelLabels[panel]} nach hinten`} disabled={area === 'hidden' || position === lastPosition} onclick={() => move(panel, 1)}><FaIcon icon={ArrowDown} size={14} /></button>
             </span>
           </div>
         {/each}
@@ -156,11 +157,11 @@
 
     <footer>
       {#if activeId !== 'standard'}
-        <button class="ghost delete" onclick={() => onDelete(activeId)}><Trash2 size={14} /> Ansicht löschen</button>
+        <button class="ghost delete" onclick={() => onDelete(activeId)}><FaIcon icon={Trash2} size={14} /> Ansicht löschen</button>
       {/if}
       <span class="spacer"></span>
       <button onclick={onClose}>Abbrechen</button>
-      <button class="primary save" onclick={() => save()}><Save size={14} /> Speichern</button>
+      <button class="primary save" onclick={() => save()}><FaIcon icon={Save} size={14} /> Speichern</button>
     </footer>
   </div>
 </div>

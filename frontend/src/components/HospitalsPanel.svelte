@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Hospital as HospitalIcon, Map as MapIcon } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { Hospital as HospitalIcon, Map as MapIcon } from '../lib/fontawesome-icons';
   import { reservationAffectsCapacity } from '../lib/hospital-reservations';
   import { app } from '../lib/state.svelte';
 
@@ -58,7 +59,7 @@
 
 <section class="panel">
   <div class="panel-header">
-    <span class="icon"><HospitalIcon size={14} /></span>
+    <span class="icon"><FaIcon icon={HospitalIcon} size={14} /></span>
     <h2>Krankenhäuser</h2>
   </div>
   <div class="panel-body">
@@ -70,7 +71,7 @@
           {#if location}
             <span class="direction">{location.direction}</span>
             {#if location.onMap}
-              <span class="map-location" data-tooltip="Auf der Karte" aria-label="Auf der Karte"><MapIcon size={12} /></span>
+              <span class="map-location" data-tooltip="Auf der Karte" aria-label="Auf der Karte"><FaIcon icon={MapIcon} size={12} /></span>
             {/if}
           {/if}
         </span>

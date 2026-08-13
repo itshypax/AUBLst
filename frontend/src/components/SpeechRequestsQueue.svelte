@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Check, FolderOpen, Hospital, RadioTower, X } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { Check, FolderOpen, Hospital, RadioTower, X } from '../lib/fontawesome-icons';
   import { isHospitalTransportUnit } from '../lib/classify';
   import { dismissLog } from '../lib/polling';
   import { buildSpeechRequestEntries, type SpeechRequestEntry } from '../lib/speech-requests';
@@ -76,12 +77,12 @@
 
 <aside bind:this={panel} class="speech-queue" class:below-banner={connectionLost} aria-label="Offene Sprechwünsche" tabindex="-1">
   <div class="queue-head">
-    <RadioTower size={16} />
+    <FaIcon icon={RadioTower} size={16} />
     <div>
       <strong>Sprechwünsche</strong>
       <span>{entries.length ? `${entries.length} offen · ältester ${ageText(entries[0])}` : 'Keine offenen Sprechwünsche'}</span>
     </div>
-    <button class="ghost close" data-tooltip="Schließen" aria-label="Sprechwünsche schließen" onclick={() => (app.speechQueueOpen = false)}><X size={15} /></button>
+    <button class="ghost close" data-tooltip="Schließen" aria-label="Sprechwünsche schließen" onclick={() => (app.speechQueueOpen = false)}><FaIcon icon={X} size={15} /></button>
   </div>
 
   <div class="queue-list" aria-live="polite">
@@ -99,12 +100,12 @@
         </div>
         <div class="request-actions" aria-label={`Aktionen für ${vehicleName(entry)}`}>
           {#if entry.vehicle && isHospitalTransportUnit(entry.vehicle)}
-            <button data-tooltip="Klinik zuweisen" aria-label={`Klinik für ${vehicleName(entry)} zuweisen`} disabled={!canWrite()} onclick={() => openHospital(entry)}><Hospital size={13} /><span>Klinik</span></button>
+            <button data-tooltip="Klinik zuweisen" aria-label={`Klinik für ${vehicleName(entry)} zuweisen`} disabled={!canWrite()} onclick={() => openHospital(entry)}><FaIcon icon={Hospital} size={13} /><span>Klinik</span></button>
           {/if}
           {#if entry.event}
-            <button data-tooltip="Einsatz öffnen" aria-label={`Einsatz ${entry.event.name || entry.event.id} öffnen`} onclick={() => openEvent(entry)}><FolderOpen size={13} /><span>Einsatz</span></button>
+            <button data-tooltip="Einsatz öffnen" aria-label={`Einsatz ${entry.event.name || entry.event.id} öffnen`} onclick={() => openEvent(entry)}><FaIcon icon={FolderOpen} size={13} /><span>Einsatz</span></button>
           {/if}
-          <button class="done" data-tooltip="Sprechwunsch abarbeiten" aria-label={`Sprechwunsch von ${vehicleName(entry)} abarbeiten`} disabled={dismissing.has(entry.key) || !canWrite()} onclick={() => void dismiss(entry)}><Check size={14} /></button>
+          <button class="done" data-tooltip="Sprechwunsch abarbeiten" aria-label={`Sprechwunsch von ${vehicleName(entry)} abarbeiten`} disabled={dismissing.has(entry.key) || !canWrite()} onclick={() => void dismiss(entry)}><FaIcon icon={Check} size={14} /></button>
         </div>
       </article>
     {/each}

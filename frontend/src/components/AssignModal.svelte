@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ArrowUpDown, Play, Search, Send, Siren, Undo2, X } from 'lucide-svelte';
+  import FaIcon from './FaIcon.svelte';
+  import { ArrowUpDown, Play, Search, Send, Siren, Undo2, X } from '../lib/fontawesome-icons';
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
   import { alarmGroups, hasLoeschzug, hasMapPosition, isHiddenUnit, loeschzugFor, vehicleAlarmPriority, vehicleDisplayName, type StationGroup } from '../lib/classify';
@@ -358,12 +359,12 @@
 <div class="backdrop" onclick={onBackdropClick} onkeydown={onKeydown} role="presentation" use:focusTrap={{ initial: '[data-autofocus]' }} tabindex="-1">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="assign-title">
     <header>
-      <span class="icon"><Siren size={16} /></span>
+      <span class="icon"><FaIcon icon={Siren} size={16} /></span>
       <div class="title">
         <h3 id="assign-title">Alarmierung – {ev.name || 'Einsatz'}</h3>
         <span class="meta">Nr. {ev.id} · Position {ev.x.toFixed(1)}, {ev.y.toFixed(1)}</span>
       </div>
-      <button class="ghost" data-tooltip="Schließen" aria-label="Schließen" disabled={busy} onclick={() => void close()}><X size={18} /></button>
+      <button class="ghost" data-tooltip="Schließen" aria-label="Schließen" disabled={busy} onclick={() => void close()}><FaIcon icon={X} size={18} /></button>
     </header>
 
     <div class="body">
@@ -406,7 +407,7 @@
                   {a.name || a.game_vehicle_id}
                   {#if Number(a.status) === 3}
                     <button class="ghost" data-tooltip="Einrücken lassen" aria-label="Einrücken lassen" disabled={returning.has(a.id)} onclick={() => void sendHome(a.id)}>
-                      <Undo2 size={12} />
+                      <FaIcon icon={Undo2} size={12} />
                     </button>
                   {/if}
                 </span>
@@ -429,7 +430,7 @@
             </span>
           </label>
           <label class="search">
-            <Search size={14} />
+            <FaIcon icon={Search} size={14} />
             <input type="text" bind:value={search} placeholder="Fahrzeug suchen …" aria-label="Fahrzeug suchen" data-autofocus disabled={busy} />
           </label>
           <button
@@ -440,7 +441,7 @@
             disabled={busy}
             onclick={() => (sortByDistance = !sortByDistance)}
           >
-            <ArrowUpDown size={14} />
+            <FaIcon icon={ArrowUpDown} size={14} />
             {sortByDistance ? 'Entfernung' : 'Fahrzeugfolge'}
           </button>
         </div>
@@ -465,7 +466,7 @@
                     disabled={busy}
                     onclick={() => (selected = selected.filter((x) => x !== id))}
                   >
-                    <X size={12} />
+                    <FaIcon icon={X} size={12} />
                   </button>
                 </span>
               {/each}
@@ -479,7 +480,7 @@
               <span class="station-label">{g.label}</span>
               {#if hasLoeschzug(g)}
                 <button class="zug" data-tooltip="Zugfahrzeuge dieser Wache auswählen" disabled={busy} onclick={() => selectLoeschzug(g)}>
-                  <Play size={12} />
+                  <FaIcon icon={Play} size={12} />
                   Zugalarm
                 </button>
               {/if}
@@ -512,7 +513,7 @@
       {/if}
       <span class="hint">Strg+Enter alarmiert · Esc schließt</span>
       <button class="primary" disabled={!selected.length || busy || !canWrite() || !isAvailableInGame} onclick={() => void submit()}>
-        <Send size={14} />
+        <FaIcon icon={Send} size={14} />
         {busy ? 'Wird alarmiert …' : `Alarmieren${selected.length ? ` (${selected.length})` : ''}`}
       </button>
     </footer>
