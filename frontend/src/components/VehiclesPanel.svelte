@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { Check, Hospital, Plus, Search, TrafficCone, TriangleAlert, Truck, Undo2 } from 'lucide-svelte';
+  import { Check, Hospital, Play, Plus, Search, TrafficCone, TriangleAlert, Truck, Undo2 } from 'lucide-svelte';
   import { api } from '../lib/api';
-  import { actionUnits, isHiddenUnit, isHospitalTransportUnit, stationColumns, stationGroups, tabLabel, vehicleTypeLabel, type MainTab } from '../lib/classify';
+  import { actionUnits, hasLoeschzug, isHiddenUnit, isHospitalTransportUnit, loeschzugFor, stationColumns, stationGroups, tabLabel, vehicleTypeLabel, type MainTab, type StationGroup } from '../lib/classify';
   import { refreshState } from '../lib/polling';
-  import { app, canWrite, focusVehicle, openVehicleMenu, setHighlightedVehicle, toggleDispatchVehicle } from '../lib/state.svelte';
+  import { app, canWrite, focusVehicle, openVehicleMenu, setDispatchVehicleIds, setHighlightedVehicle, toggleDispatchVehicle } from '../lib/state.svelte';
   import type { HospitalReservation, Vehicle } from '../lib/types';
   import EmptyState from './EmptyState.svelte';
   import StatusBadge from './StatusBadge.svelte';
@@ -34,6 +34,7 @@
   const columns = $derived(stationColumns(filteredVehicles, activeTab));
   const actions = $derived(actionUnits(app.vehicles));
   const hasVehicles = $derived(columns.some((col) => col.length));
+  const fireStations = $derived(new Map(stationGroups(app.vehicles, 'fire').map((group) => [group.key, group])));
 
   // Status 4 ohne Einsatzzuordnung länger als 90 s = nicht eingerückt
   const NOT_RETURNED_MS = 90_000;
@@ -82,6 +83,18 @@
 
   function canStage(v: Vehicle): boolean {
     return isHiddenUnit(v) || Number(v.status) === 1 || Number(v.status) === 2;
+  }
+
+  function zugFor(group: StationGroup): Vehicle[] {
+    return loeschzugFor(group, canStage);
+  }
+
+  function stageZugalarm(groupKey: string): void {
+    const group = fireStations.get(groupKey);
+    if (!group) return;
+    const additions = zugFor(group).map((vehicle) => vehicle.id);
+    if (!additions.length) return;
+    setDispatchVehicleIds([...new Set([...app.dispatchVehicleIds, ...additions])]);
   }
 
   function reservationFor(v: Vehicle) {
@@ -193,9 +206,22 @@
       {#each columns as column, i (i)}
         <div class="column">
           {#each column as g (g.key)}
+            {@const zugGroup = fireStations.get(g.key)}
             <div class="group">
               <div class="group-header" class:fire={activeTab === 'fire'} class:rescue={activeTab === 'rescue'}>
                 <span>{g.label}</span>
+                {#if app.assignEvent?.status === 'active' && activeTab === 'fire' && ['1', '2', '3', '4'].includes(g.key) && zugGroup && hasLoeschzug(zugGroup)}
+                  <button
+                    class="zug-alarm"
+                    disabled={!zugFor(zugGroup).length}
+                    data-tooltip={`${g.label}: Zugfahrzeuge vormerken`}
+                    aria-label={`Zugalarm ${g.label} für Einsatz ${app.assignEvent.id} vormerken`}
+                    onclick={() => stageZugalarm(g.key)}
+                  >
+                    <Play size={11} />
+                    Zugalarm
+                  </button>
+                {/if}
                 <span class="count">{g.vehicles.length}</span>
               </div>
               <div class="vehicle-list" role="list">
@@ -336,6 +362,24 @@
 
   .group-header .count {
     margin-left: auto;
+  }
+
+  .zug-alarm {
+    gap: 4px;
+    padding: 1px 5px;
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .zug-alarm:hover:not(:disabled) {
+    border-color: var(--border-strong);
+    background: var(--bg-raised);
+    color: var(--text);
   }
 
   .group-header.fire {

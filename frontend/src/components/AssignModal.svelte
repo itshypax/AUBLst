@@ -478,9 +478,9 @@
             <div class="station-head">
               <span class="station-label">{g.label}</span>
               {#if hasLoeschzug(g)}
-                <button class="zug" data-tooltip="Löschzug dieser Wache auswählen" disabled={busy} onclick={() => selectLoeschzug(g)}>
+                <button class="zug" data-tooltip="Zugfahrzeuge dieser Wache auswählen" disabled={busy} onclick={() => selectLoeschzug(g)}>
                   <Play size={12} />
-                  Löschzug
+                  Zugalarm
                 </button>
               {/if}
             </div>
