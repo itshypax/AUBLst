@@ -61,6 +61,19 @@ describe('Aktueller Einsatz', () => {
     expect(screen.getAllByText(/^\d+-HLF-1$/)).toHaveLength(12);
   });
 
+  it('schließt die Fahrzeugauswahl bei einem Klick außerhalb', async () => {
+    app.assignments = [];
+    app.vehicles = [{ ...app.vehicles[0], status: 2 }];
+    render(CurrentEventPanel);
+
+    await fireEvent.focus(screen.getByPlaceholderText('Fahrzeug suchen …'));
+    expect(screen.getByRole('button', { name: '4-RTW-B' })).toBeTruthy();
+
+    await fireEvent.pointerDown(screen.getByRole('heading', { name: 'Aktueller Einsatz' }));
+
+    expect(screen.queryByRole('button', { name: '4-RTW-B' })).toBeNull();
+  });
+
   it('zeigt Entfernungen, aber weder Aktionsobjekte noch Status für versteckte Einheiten', async () => {
     app.assignments = [];
     app.vehicles = [

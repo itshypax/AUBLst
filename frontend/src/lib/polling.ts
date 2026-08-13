@@ -5,6 +5,17 @@ import { app, persistSettings, resetSessionData } from './state.svelte';
 import { playPhone, playSoundCue, playSoundCues } from './sounds';
 import type { LogRow, StateResponse } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
+import {
+  broadcastPollingLogs,
+  broadcastPollingSnapshot,
+  broadcastPollingState,
+  isPollingLeader,
+  requestPollingSnapshot,
+  setPollingScope,
+  startPollingSync,
+  type PollingSnapshot,
+} from './polling-sync';
+import { uiSyncScope } from './ui-sync';
 
 const STATE_INTERVAL = 3_000;
 const LOG_INTERVAL = 2_000;
@@ -25,6 +36,7 @@ let stateController: AbortController | null = null;
 let logController: AbortController | null = null;
 let generation = 0;
 let started = false;
+let lastState: StateResponse | null = null;
 
 function resetCursors(): void {
   lastEventIds = new Set();
@@ -41,6 +53,7 @@ function nextDelay(base: number, failures: number): number {
 }
 
 function scheduleState(delay = nextDelay(STATE_INTERVAL, stateFailures)): void {
+  if (!isPollingLeader()) return;
   const scheduledGeneration = generation;
   clearTimeout(stateTimer);
   stateTimer = window.setTimeout(async () => {
@@ -51,6 +64,7 @@ function scheduleState(delay = nextDelay(STATE_INTERVAL, stateFailures)): void {
 }
 
 function scheduleLogs(delay = nextDelay(LOG_INTERVAL, logFailures)): void {
+  if (!isPollingLeader()) return;
   const scheduledGeneration = generation;
   clearTimeout(logTimer);
   logTimer = window.setTimeout(async () => {
@@ -66,6 +80,7 @@ function sessionIsWaiting(error: unknown): boolean {
 }
 
 function scheduleConnectionRetry(): void {
+  if (!isPollingLeader()) return;
   const scheduledGeneration = generation;
   clearTimeout(connectionTimer);
   connectionTimer = window.setTimeout(() => {
@@ -78,7 +93,7 @@ function restartLoops(runImmediately: boolean): void {
   clearTimeout(stateTimer);
   clearTimeout(logTimer);
   clearTimeout(connectionTimer);
-  if (!app.sessionToken) return;
+  if (!app.sessionToken || !isPollingLeader()) return;
   if (!app.stateHealthy) {
     if (runImmediately) void connectCurrentSession();
     else scheduleConnectionRetry();
@@ -94,7 +109,7 @@ function restartLoops(runImmediately: boolean): void {
 }
 
 async function connectCurrentSession(): Promise<void> {
-  if (!app.sessionToken) return;
+  if (!app.sessionToken || !isPollingLeader()) return;
   clearTimeout(connectionTimer);
   const requestGeneration = generation;
   try {
@@ -132,13 +147,74 @@ export async function switchSession(apiBase: string, token: string, pin: string)
   app.sessionToken = token.trim();
   app.pin = pin.trim();
   persistSettings();
+  lastState = null;
+  setPollingScope(uiSyncScope(app.apiBase, app.sessionToken));
   try {
-    if (started && app.sessionToken) {
+    if (started && app.sessionToken && isPollingLeader()) {
       await connectCurrentSession();
+    } else if (started && app.sessionToken) {
+      requestPollingSnapshot();
     }
   } finally {
     app.sessionChanging = false;
   }
+}
+
+async function applyState(data: StateResponse, playEventSounds: boolean, receivedAt = Date.now(), signal?: AbortSignal): Promise<void> {
+  const applyGeneration = generation;
+  app.mapBounds = data.session.map_bounds;
+  app.players = data.players ?? [];
+  app.vehicles = data.vehicles ?? [];
+  app.events = data.events ?? [];
+  app.assignments = data.assignments ?? [];
+  app.hospitals = data.hospitals ?? [];
+  app.hospitalReservations = data.hospital_reservations ?? [];
+  app.clock = data.time ?? null;
+  app.connected = true;
+  app.stateHealthy = true;
+  app.lastSuccessfulSync = receivedAt;
+  app.lastError = '';
+  stateFailures = 0;
+  lastState = data;
+
+  const newMod = data.session.mod_id ?? null;
+  if (app.modId !== newMod) {
+    if (app.mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(app.mapImageUrl);
+    app.modId = newMod;
+    if (newMod) {
+      try {
+        const [mapImageUrl, routing] = await Promise.all([
+          fetchMapImage(signal),
+          apiGet<RoutingConfig>('routing_get', {}, { signal, requireFresh: false }),
+        ]);
+        if (signal?.aborted || applyGeneration !== generation) {
+          if (mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(mapImageUrl);
+          return;
+        }
+        app.mapImageUrl = mapImageUrl;
+        app.routing = routing;
+      } catch (error) {
+        if (signal?.aborted || applyGeneration !== generation) return;
+        app.mapImageUrl = '';
+        app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
+        app.lastError = `Kartendaten: ${(error as Error).message}`;
+      }
+    } else {
+      app.mapImageUrl = '';
+      app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
+    }
+  }
+
+  const ids = new Set(app.events.map((event) => event.id));
+  if (playEventSounds && eventsInitialized) {
+    const fresh = app.events.some((event) => !lastEventIds.has(event.id) && event.created_by === 'game');
+    if (fresh) void playPhone();
+    if ([...lastEventIds].some((id) => !ids.has(id))) void playSoundCue('incident-completed');
+  }
+  eventsInitialized = true;
+  lastEventIds = ids;
+
+  if (app.highlightedEventId != null && !ids.has(app.highlightedEventId)) app.highlightedEventId = null;
 }
 
 export async function refreshState(): Promise<void> {
@@ -150,64 +226,17 @@ export async function refreshState(): Promise<void> {
   try {
     const data = await apiGet<StateResponse>('state', {}, { signal: controller.signal });
     if (requestGeneration !== generation) return;
-    app.mapBounds = data.session.map_bounds;
-    app.players = data.players ?? [];
-    app.vehicles = data.vehicles ?? [];
-    app.events = data.events ?? [];
-    app.assignments = data.assignments ?? [];
-    app.hospitals = data.hospitals ?? [];
-    app.hospitalReservations = data.hospital_reservations ?? [];
-    app.clock = data.time ?? null;
-    app.connected = true;
-    app.stateHealthy = true;
-    app.lastSuccessfulSync = Date.now();
-    app.lastError = '';
-    stateFailures = 0;
-
-    const newMod = data.session.mod_id ?? null;
-    if (app.modId !== newMod) {
-      if (app.mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(app.mapImageUrl);
-      app.modId = newMod;
-      if (newMod) {
-        try {
-          const [mapImageUrl, routing] = await Promise.all([
-            fetchMapImage(controller.signal),
-            apiGet<RoutingConfig>('routing_get', {}, { signal: controller.signal, requireFresh: false }),
-          ]);
-          app.mapImageUrl = mapImageUrl;
-          app.routing = routing;
-        } catch (error) {
-          if (controller.signal.aborted) return;
-          app.mapImageUrl = '';
-          app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
-          app.lastError = `Kartendaten: ${(error as Error).message}`;
-        }
-      } else {
-        app.mapImageUrl = '';
-        app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
-      }
-      if (requestGeneration !== generation) {
-        if (app.mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(app.mapImageUrl);
-        return;
-      }
-    }
-
-    const ids = new Set(app.events.map((event) => event.id));
-    if (eventsInitialized) {
-      const fresh = app.events.some((event) => !lastEventIds.has(event.id) && event.created_by === 'game');
-      if (fresh) void playPhone();
-      if ([...lastEventIds].some((id) => !ids.has(id))) void playSoundCue('incident-completed');
-    }
-    eventsInitialized = true;
-    lastEventIds = ids;
-
-    if (app.highlightedEventId != null && !ids.has(app.highlightedEventId)) app.highlightedEventId = null;
+    const receivedAt = Date.now();
+    await applyState(data, isPollingLeader(), receivedAt, controller.signal);
+    if (requestGeneration !== generation) return;
+    broadcastPollingState(data, receivedAt);
   } catch (error) {
     if (controller.signal.aborted || requestGeneration !== generation) return;
     stateFailures += 1;
     app.connected = false;
     app.stateHealthy = false;
     app.lastError = (error as Error).message;
+    broadcastPollingSnapshot();
   } finally {
     if (stateController === controller) stateController = null;
   }
@@ -238,7 +267,8 @@ export async function pollLogs(): Promise<void> {
       if (rows.length < 100) break;
     }
     app.logsHealthy = true;
-    app.lastSuccessfulLogPoll = Date.now();
+    const receivedAt = Date.now();
+    app.lastSuccessfulLogPoll = receivedAt;
     app.logError = '';
     logFailures = 0;
     if (logsInitialized && incomingIds.length) {
@@ -248,11 +278,13 @@ export async function pollLogs(): Promise<void> {
       app.lastLogBatch = [];
     }
     logsInitialized = true;
+    broadcastPollingLogs(incomingRows, logCursor, receivedAt);
   } catch (error) {
     if (controller.signal.aborted || requestGeneration !== generation) return;
     logFailures += 1;
     app.logsHealthy = false;
     app.logError = (error as Error).message;
+    broadcastPollingSnapshot();
   } finally {
     if (logController === controller) logController = null;
   }
@@ -267,9 +299,61 @@ export async function dismissLog(id: number): Promise<void> {
 export function startPolling(): void {
   if (started) return;
   started = true;
+  startPollingSync({
+    onLeaderChange: (leader) => {
+      stateController?.abort();
+      logController?.abort();
+      clearTimeout(stateTimer);
+      clearTimeout(logTimer);
+      clearTimeout(connectionTimer);
+      if (leader) restartLoops(true);
+    },
+    onState: (state, receivedAt) => { void applyState(state, false, receivedAt); },
+    onLogs: (rows, cursor, receivedAt) => {
+      app.logs = mergeLogRows(app.logs, rows, MAX_LOG_ROWS);
+      logCursor = cursor;
+      app.logsHealthy = true;
+      app.lastSuccessfulLogPoll = receivedAt;
+      app.logError = '';
+      logsInitialized = true;
+    },
+    onSnapshot: (snapshot) => { void applyPollingSnapshot(snapshot); },
+    snapshot: pollingSnapshot,
+  });
+  setPollingScope(uiSyncScope(app.apiBase, app.sessionToken));
   document.addEventListener('visibilitychange', () => restartLoops(!document.hidden));
-  if (app.sessionToken) {
+  if (app.sessionToken && isPollingLeader()) {
     app.sessionChanging = true;
     void connectCurrentSession().finally(() => (app.sessionChanging = false));
+  } else if (app.sessionToken) {
+    requestPollingSnapshot();
   }
+}
+
+function pollingSnapshot(): PollingSnapshot {
+  return {
+    state: lastState,
+    logs: app.logs,
+    logCursor,
+    stateHealthy: app.stateHealthy,
+    logsHealthy: app.logsHealthy,
+    lastSuccessfulSync: app.lastSuccessfulSync,
+    lastSuccessfulLogPoll: app.lastSuccessfulLogPoll,
+    lastError: app.lastError,
+    logError: app.logError,
+  };
+}
+
+async function applyPollingSnapshot(snapshot: PollingSnapshot): Promise<void> {
+  if (snapshot.state) await applyState(snapshot.state, false, snapshot.lastSuccessfulSync ?? Date.now());
+  app.logs = snapshot.logs;
+  logCursor = snapshot.logCursor;
+  app.stateHealthy = snapshot.stateHealthy;
+  app.logsHealthy = snapshot.logsHealthy;
+  app.connected = snapshot.stateHealthy;
+  app.lastSuccessfulSync = snapshot.lastSuccessfulSync;
+  app.lastSuccessfulLogPoll = snapshot.lastSuccessfulLogPoll;
+  app.lastError = snapshot.lastError;
+  app.logError = snapshot.logError;
+  logsInitialized = snapshot.logs.length > 0;
 }

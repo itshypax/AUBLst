@@ -5,13 +5,26 @@
   import { refreshState } from '../lib/polling';
   import { app, canWrite, focusVehicle, openVehicleMenu, setHighlightedVehicle, toggleDispatchVehicle } from '../lib/state.svelte';
   import type { HospitalReservation, Vehicle } from '../lib/types';
+  import EmptyState from './EmptyState.svelte';
   import StatusBadge from './StatusBadge.svelte';
 
   let activeTab = $state<MainTab>('fire');
   let query = $state('');
+  let searchInput: HTMLInputElement;
+  let handledSearchFocus = 0;
   let fireTab: HTMLButtonElement;
   let rescueTab: HTMLButtonElement;
   let returning = $state<Set<number>>(new Set());
+
+  $effect(() => {
+    const sequence = app.focusVehicleSearchSeq;
+    if (!sequence || sequence === handledSearchFocus) return;
+    handledSearchFocus = sequence;
+    requestAnimationFrame(() => {
+      searchInput?.focus();
+      searchInput?.select();
+    });
+  });
 
   const filteredVehicles = $derived.by(() => {
     const term = query.trim().toLocaleLowerCase('de');
@@ -134,7 +147,8 @@
     <label class="vehicle-search">
       <Search size={13} />
       <span class="sr-only">Fahrzeuge filtern</span>
-      <input type="text" bind:value={query} placeholder="Filtern" />
+      <input bind:this={searchInput} type="text" bind:value={query} placeholder="Filtern" />
+      <kbd aria-label="Tastaturkürzel F">F</kbd>
     </label>
     <div class="tabs" role="tablist">
       <button
@@ -247,7 +261,7 @@
       {/each}
     </div>
     {#if !hasVehicles}
-      <div class="empty-hint">Keine Fahrzeuge gemeldet</div>
+      <EmptyState compact search={Boolean(query.trim())} title={query.trim() ? 'Keine passenden Fahrzeuge' : 'Keine Fahrzeuge gemeldet'} description={query.trim() ? 'Suchbegriff ändern oder anderen Bereich wählen.' : 'Gemeldete Fahrzeuge erscheinen automatisch in ihrer Wache.'} />
     {/if}
   </div>
 
@@ -261,6 +275,7 @@
 
   .vehicle-search { display: flex; align-items: center; gap: 5px; color: var(--text-dim); }
   .vehicle-search input { width: 108px; padding: 4px 7px; font-size: 12px; }
+  .vehicle-search kbd { min-width: 20px; padding: 1px 5px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-raised); color: var(--text-dim); font: 10px ui-monospace, 'Cascadia Mono', Consolas, monospace; text-align: center; }
 
   .tab {
     padding: 4px 10px;

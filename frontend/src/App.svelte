@@ -8,6 +8,7 @@
   import HospitalAssignmentModal from './components/HospitalAssignmentModal.svelte';
   import RoutingEditorPage from './components/RoutingEditorPage.svelte';
   import SessionGate from './components/SessionGate.svelte';
+  import ShortcutPanel from './components/ShortcutPanel.svelte';
   import SpeechRequestsQueue from './components/SpeechRequestsQueue.svelte';
   import SessionOverviewModal from './components/SessionOverviewModal.svelte';
   import Topbar from './components/Topbar.svelte';
@@ -16,6 +17,7 @@
   import WorkspaceArea from './components/WorkspaceArea.svelte';
   import WorkspaceEditorModal from './components/WorkspaceEditorModal.svelte';
   import { loadGroupOverrides } from './lib/classify';
+  import { shortcutActionForEvent, type ShortcutAction } from './lib/keyboard-shortcuts';
   import { startPolling } from './lib/polling';
   import {
     app,
@@ -195,14 +197,45 @@
     else rightRowRatio = value ?? clamp(rightRowRatio + direction * delta);
     persistLayout();
   }
+
+  function executeShortcutAction(action: ShortcutAction): void {
+    if (action === 'toggle-help') {
+      app.shortcutsOpen = !app.shortcutsOpen;
+      return;
+    }
+    app.shortcutsOpen = false;
+    if (action.startsWith('workspace-')) {
+      const index = Number(action.slice(-1)) - 1;
+      const workspace = workspaces[index];
+      if (workspace) selectWorkspace(workspace.id);
+      return;
+    }
+    if (app.lastSuccessfulSync === null) return;
+    if (action === 'focus-vehicle-search') app.focusVehicleSearchSeq += 1;
+    else if (action === 'fit-map') app.fitMapSeq += 1;
+    else if (action === 'toggle-speech-requests') app.speechQueueOpen = !app.speechQueueOpen;
+    else if (action === 'open-actions') app.actionsOpen = true;
+    else if (action === 'open-overview') app.sessionOverviewOpen = true;
+  }
+
+  function onGlobalKeydown(event: KeyboardEvent): void {
+    if (routingEditorRequested) return;
+    const action = shortcutActionForEvent(event);
+    if (!action) return;
+    event.preventDefault();
+    if (app.shortcutsOpen && action !== 'toggle-help') return;
+    executeShortcutAction(action);
+  }
 </script>
 
-<svelte:window onpointermove={onMove} onpointerup={endDrag} onstorage={onWorkspaceStorage} />
+<svelte:window onpointermove={onMove} onpointerup={endDrag} onstorage={onWorkspaceStorage} onkeydown={onGlobalKeydown} />
 
 {#if routingEditorRequested}
   <RoutingEditorPage modId={routingEditorModId} />
 {:else}
-  <Topbar onResetLayout={resetLayout} onOpenWorkspaceEditor={() => (workspaceEditorOpen = true)} workspaceName={activeWorkspace.name} />
+  <Topbar onResetLayout={resetLayout} onOpenWorkspaceEditor={() => (workspaceEditorOpen = true)} onOpenShortcuts={() => (app.shortcutsOpen = true)} workspaceName={activeWorkspace.name} />
+
+{#if app.shortcutsOpen}<ShortcutPanel onAction={executeShortcutAction} />{/if}
 
 {#if showSessionGate}
   <SessionGate />

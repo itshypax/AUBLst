@@ -1,12 +1,16 @@
 <script lang="ts">
-  import { CircleAlert, KeyRound, LoaderCircle, RadioTower } from 'lucide-svelte';
+  import { CircleAlert, FlaskConical, KeyRound, LoaderCircle, RadioTower, ServerCog } from 'lucide-svelte';
+  import { createDemoSession } from '../lib/demo-session';
+  import { dismissibleDetails } from '../lib/dismissible-details';
   import { switchSession } from '../lib/polling';
   import { app } from '../lib/state.svelte';
   import { userFacingError } from '../lib/user-facing-error';
 
   let token = $state(app.sessionToken);
   let pin = $state(app.pin);
+  let apiBase = $state(app.apiBase);
   let submitting = $state(false);
+  let activeAction = $state<'connect' | 'demo' | null>(null);
   let localError = $state('');
   let tokenInput: HTMLInputElement;
 
@@ -30,8 +34,28 @@
     }
     localError = '';
     submitting = true;
-    await switchSession(app.apiBase, nextToken, pin);
-    submitting = false;
+    activeAction = 'connect';
+    try {
+      await switchSession(apiBase, nextToken, pin);
+    } finally {
+      submitting = false;
+      activeAction = null;
+    }
+  }
+
+  async function openDemo(): Promise<void> {
+    localError = '';
+    submitting = true;
+    activeAction = 'demo';
+    try {
+      const demo = await createDemoSession(apiBase.trim() || app.apiBase);
+      await switchSession(apiBase, demo.token, demo.pin);
+    } catch (error) {
+      localError = (error as Error).message;
+    } finally {
+      submitting = false;
+      activeAction = null;
+    }
   }
 
   function onKeydown(event: KeyboardEvent): void {
@@ -56,8 +80,19 @@
         <input type="password" bind:value={pin} autocomplete="off" onkeydown={onKeydown} />
       </label>
       <button class="connect" disabled={connecting} onclick={() => void connect()}>
-        {#if connecting}<span class="spinner"><LoaderCircle size={15} /></span> Verbindung wird geprüft{:else}Verbinden{/if}
+        {#if activeAction === 'connect'}<span class="spinner"><LoaderCircle size={15} /></span> Verbindung wird geprüft{:else}Verbinden{/if}
       </button>
+      <button class="demo" disabled={connecting} onclick={() => void openDemo()}>
+        {#if activeAction === 'demo'}<span class="spinner"><LoaderCircle size={15} /></span> Demo wird angelegt{:else}<FlaskConical size={15} /> Demo-Sitzung anlegen{/if}
+      </button>
+
+      <details class="server-settings" use:dismissibleDetails>
+        <summary><ServerCog size={14} /> Serveradresse</summary>
+        <label>
+          <span>Adresse der Leitstellen-API</span>
+          <input type="text" bind:value={apiBase} spellcheck="false" autocomplete="url" />
+        </label>
+      </details>
 
       {#if localError}
         <div class="connection-alert" role="alert"><CircleAlert size={16} /><span>{localError}</span></div>
@@ -87,6 +122,11 @@
   input.token { letter-spacing: .14em; font: 650 16px ui-monospace, 'Cascadia Mono', Consolas, monospace; }
   .connect { height: 36px; justify-content: center; border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 650; }
   .connect:hover:not(:disabled) { border-color: #71a5ff; background: #5c98ff; }
+  .demo { height: 34px; justify-content: center; background: transparent; }
+  .server-settings { border-top: 1px solid var(--border); padding-top: 10px; }
+  .server-settings summary { display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); cursor: pointer; font-size: 12px; }
+  .server-settings[open] summary { margin-bottom: 10px; color: var(--text); }
+  .server-settings input { height: 32px; font: 12px ui-monospace, 'Cascadia Mono', Consolas, monospace; letter-spacing: 0; }
   .spinner { display: inline-flex; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .connecting { color: var(--text-dim); font-size: 12px; }

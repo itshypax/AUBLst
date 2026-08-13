@@ -5,6 +5,7 @@
   import { refreshState } from '../lib/polling';
   import { app, askConfirm, canWrite, openAssign, setHighlightedEvent, showNotice } from '../lib/state.svelte';
   import type { EventItem } from '../lib/types';
+  import EmptyState from './EmptyState.svelte';
 
   let query = $state('');
   let now = $state(Date.now());
@@ -113,7 +114,7 @@
       </div>
     {/each}
     {#if !sorted.length}
-      <div class="empty-hint">Keine laufenden Einsätze</div>
+      <EmptyState compact search={Boolean(query.trim())} title={query.trim() ? 'Keine passenden Einsätze' : 'Keine laufenden Einsätze'} description={query.trim() ? 'Suchbegriff ändern, um andere Einsätze zu sehen.' : 'Neue Einsätze erscheinen hier automatisch.'} />
     {/if}
   </div>
 </section>

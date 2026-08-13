@@ -5,6 +5,7 @@
   import { focusTrap } from '../lib/focus';
   import { decodeEntities } from '../lib/text';
   import type { EventArchiveItem, EventRecordResponse } from '../lib/types';
+  import EmptyState from './EmptyState.svelte';
 
   let { embedded = false, onClose = () => {} }: { embedded?: boolean; onClose?: () => void } = $props();
 
@@ -47,6 +48,11 @@
   function close(): void { onClose(); }
   function when(value?: string): string { return value ? new Date(value.replace(' ', 'T')).toLocaleString('de-DE') : '–'; }
   function statusLabel(value: EventArchiveItem['status']): string { return value === 'active' ? 'Laufend' : value === 'completed' ? 'Abgeschlossen' : 'Abgebrochen'; }
+  function onRecordKeydown(event: KeyboardEvent, eventId: number): void {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    void select(eventId);
+  }
 
   async function loadArchive(): Promise<void> {
     loading = true;
@@ -89,14 +95,28 @@
         </div>
         <div class="record-list">
           {#if loading}<div class="empty">Akten werden geladen …</div>{/if}
-          {#each filtered as event (event.id)}
-            <button class:selected={selectedId === event.id} onclick={() => void select(event.id)}>
-              <span class="record-title">{event.name || `Einsatz ${event.id}`}</span>
-              <span class="record-meta"><i class={event.status}></i>{statusLabel(event.status)} · {when(event.created_at)}</span>
-              <span class="record-counts"><RadioTower size={11} /> {event.dispatch_count} <FileText size={11} /> {event.log_count}</span>
-            </button>
-          {/each}
-          {#if !loading && !filtered.length}<div class="empty">Keine passenden Einsätze</div>{/if}
+          {#if !loading && filtered.length}
+            <table>
+              <thead><tr><th>Einsatz</th><th>Status</th><th aria-label="Alarmierungen"><RadioTower size={11} /></th><th aria-label="Funkeinträge"><FileText size={11} /></th></tr></thead>
+              <tbody>
+                {#each filtered as event (event.id)}
+                  <tr
+                    class:selected={selectedId === event.id}
+                    aria-selected={selectedId === event.id}
+                    tabindex="0"
+                    onclick={() => void select(event.id)}
+                    onkeydown={(keyEvent) => onRecordKeydown(keyEvent, event.id)}
+                  >
+                    <td><span class="record-title">{event.name || `Einsatz ${event.id}`}</span><small>{when(event.created_at)}</small></td>
+                    <td><span class="record-meta"><i class={event.status}></i>{statusLabel(event.status)}</span></td>
+                    <td class="number">{event.dispatch_count}</td>
+                    <td class="number">{event.log_count}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          {/if}
+          {#if !loading && !filtered.length}<EmptyState compact search={Boolean(query.trim())} title={query.trim() ? 'Keine passenden Einsätze' : 'Noch keine Einsatzakten'} description={query.trim() ? 'Suchbegriff oder Bearbeitungsstand ändern.' : 'Einsätze erscheinen hier, sobald sie aufgenommen wurden.'} />{/if}
         </div>
       </aside>
 
@@ -138,10 +158,20 @@
   .filters { display: grid; grid-template-columns: 1fr 118px; gap: 7px; padding: 10px; border-bottom: 1px solid var(--border); }
   .filters.embedded { grid-template-columns: 1fr 118px auto; }
   .filters label { display: flex; align-items: center; gap: 6px; color: var(--text-dim); } .filters input { min-width: 0; width: 100%; }
-  .record-list { min-height: 0; overflow: auto; } .record-list > button { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; text-align: left; }
-  .record-list > button:hover, .record-list > button.selected { background: var(--accent-soft); } .record-list > button.selected { box-shadow: inset 3px 0 var(--accent); }
-  .record-title { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; }
-  .record-meta, .record-counts { display: flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: 10px; } .record-counts { justify-content: flex-end; }
+  .record-list { min-height: 0; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  thead { position: sticky; top: 0; z-index: 1; background: var(--panel-header); }
+  th { height: 29px; padding: 5px 7px; border-bottom: 1px solid var(--border-strong); color: var(--text-dim); font-size: 9px; font-weight: 600; text-align: left; }
+  th:nth-child(2) { width: 82px; } th:nth-child(3), th:nth-child(4) { width: 35px; text-align: center; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover, tbody tr.selected { background: var(--accent-soft); }
+  tbody tr.selected { box-shadow: inset 3px 0 var(--accent); }
+  td { padding: 7px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: 10px; vertical-align: middle; }
+  td:first-child { padding-left: 11px; }
+  .record-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 11px; font-weight: 600; }
+  td small { display: block; margin-top: 2px; overflow: hidden; color: var(--text-dim); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  .record-meta { display: flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: 9px; }
+  .number { text-align: center; font-variant-numeric: tabular-nums; }
   i { width: 6px; height: 6px; background: var(--warn); } i.completed { background: var(--good); } i.canceled { background: var(--danger); }
   main { min-width: 0; overflow: auto; padding: 18px 20px; } .detail-empty, .empty { display: grid; min-height: 120px; place-items: center; color: var(--text-dim); font-size: 12px; }
   .error { margin-bottom: 12px; padding: 9px; border-left: 3px solid var(--danger); background: rgba(255, 82, 82, 0.08); color: var(--danger); }

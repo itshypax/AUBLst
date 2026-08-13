@@ -5,6 +5,7 @@
   import { buildSpeechRequestEntries, type SpeechRequestEntry } from '../lib/speech-requests';
   import { app, canWrite, openAssign } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
+  import EmptyState from './EmptyState.svelte';
   import StatusBadge from './StatusBadge.svelte';
 
   let now = $state(Date.now());
@@ -96,7 +97,7 @@
           <span class="message">{decodeEntities(entry.row.long_message)}</span>
           <span class="event-name">{entry.event ? `${entry.event.name || 'Einsatz'} · Einsatz ${entry.event.id}` : 'Ohne Einsatzbezug'}</span>
         </div>
-        <div class="request-actions">
+        <div class="request-actions" aria-label={`Aktionen für ${vehicleName(entry)}`}>
           {#if entry.vehicle && isHospitalTransportUnit(entry.vehicle)}
             <button data-tooltip="Klinik zuweisen" aria-label={`Klinik für ${vehicleName(entry)} zuweisen`} disabled={!canWrite()} onclick={() => openHospital(entry)}><Hospital size={13} /><span>Klinik</span></button>
           {/if}
@@ -107,10 +108,9 @@
         </div>
       </article>
     {/each}
-    {#if !entries.length}<div class="empty-hint">Alle Sprechwünsche sind abgearbeitet.</div>{/if}
+    {#if !entries.length}<EmptyState title="Keine offenen Sprechwünsche" description="Neue Sprechwünsche werden hier nach Eingangszeit sortiert angezeigt." />{/if}
   </div>
 
-  <div class="queue-footer"><span>Älteste Meldung zuerst</span><span>Erledigte Meldungen bleiben im Funkverlauf</span></div>
 </aside>
 
 <style>
@@ -123,7 +123,7 @@
   .queue-head span { color: var(--text-dim); font-size: 12px; }
   .close { margin-left: auto; }
   .queue-list { min-height: 0; overflow: auto; padding: 5px; }
-  .request { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 10px 8px; border-bottom: 1px solid var(--border); border-left: 3px solid transparent; }
+  .request { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 6px 10px; align-items: start; padding: 10px 8px; border-bottom: 1px solid var(--border); border-left: 3px solid transparent; }
   .request.old { border-left-color: var(--danger); background: rgba(232, 82, 74, .055); }
   .request.waiting { border-left-color: var(--warn); }
   .wait { color: var(--text-dim); font: 11px ui-monospace, 'Cascadia Mono', Consolas, monospace; }
@@ -133,16 +133,14 @@
   .request-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .message { margin-top: 2px; color: var(--text-dim); font-size: 12px; overflow-wrap: anywhere; }
   .event-name { margin-top: 6px; color: var(--accent-outline); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .request-actions { display: flex; gap: 3px; }
+  .request-actions { grid-column: 2; display: flex; gap: 4px; }
   .request-actions button { min-height: 27px; padding: 4px 7px; font-size: 11px; }
   .request-actions .done { color: var(--good-text); }
-  .queue-footer { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 11px; }
-  .queue-footer span:last-child { margin-left: auto; text-align: right; }
+  .request-actions .done::after { content: 'Erledigt'; font-size: 11px; }
   @media (max-width: 620px) {
     .speech-queue, .speech-queue.below-banner { left: 6px; right: 6px; width: auto; }
     .request { grid-template-columns: 44px minmax(0, 1fr); }
-    .request-actions { grid-column: 2; }
     .request-actions button span { display: none; }
-    .queue-footer span:last-child { display: none; }
+    .request-actions .done::after { content: ''; }
   }
 </style>

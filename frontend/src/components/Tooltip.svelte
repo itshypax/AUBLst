@@ -119,10 +119,15 @@
       const target = targetOf(event.target);
       if (!target || target !== focused) return;
       if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
-      focused = null;
-      keyboardFocusActive = false;
-      if (hovered) open(hovered, true);
-      else hide();
+      // Beim Schließen eines Dialogs wird focusout noch während dessen Abbau
+      // ausgelöst. Die Tooltip-Reaktion läuft deshalb im nächsten Microtask.
+      queueMicrotask(() => {
+        if (focused !== target) return;
+        focused = null;
+        keyboardFocusActive = false;
+        if (hovered) open(hovered, true);
+        else hide();
+      });
     };
     const onPointerDown = () => {
       keyboardInteraction = false;

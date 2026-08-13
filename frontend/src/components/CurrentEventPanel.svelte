@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { BellRing, ChevronDown, Clock3, MessageSquarePlus, Search, Trash2, Undo2 } from 'lucide-svelte';
+  import { BellRing, ChevronDown, Clock3, MessageSquarePlus, MessageSquareText, Radio, RadioTower, Search, Trash2, Undo2 } from 'lucide-svelte';
   import { api } from '../lib/api';
   import { hasMapPosition, isActionUnit, isHiddenUnit, vehicleDisplayName } from '../lib/classify';
   import { refreshState } from '../lib/polling';
@@ -8,10 +8,12 @@
   import { app, canWrite, setDispatchVehicleIds, showNotice, toggleDispatchVehicle } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import type { EventFeedback, StateResponse, Vehicle } from '../lib/types';
+  import EmptyState from './EmptyState.svelte';
   import StatusBadge from './StatusBadge.svelte';
 
   let vehicleSearch = $state('');
   let showResults = $state(false);
+  let vehicleCombobox = $state<HTMLDivElement>();
   let feedbackRows = $state<EventFeedback[]>([]);
   let feedbackText = $state('');
   let modes = $state<Record<number, string>>({});
@@ -86,6 +88,16 @@
   });
 
   $effect(() => {
+    function closeOnOutsidePointer(event: PointerEvent): void {
+      if (!showResults || !(event.target instanceof Node) || vehicleCombobox?.contains(event.target)) return;
+      showResults = false;
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer);
+  });
+
+  $effect(() => {
     const id = currentEventId;
     feedbackRows = [];
     feedbackText = '';
@@ -116,6 +128,12 @@
     if (!app.dispatchVehicleIds.includes(vehicle.id)) toggleDispatchVehicle(vehicle.id);
     if (vehicle.modes && !modes[vehicle.id]) modes = { ...modes, [vehicle.id]: vehicle.modes.split(',')[0] };
     vehicleSearch = '';
+    showResults = false;
+  }
+
+  function onComboboxFocusout(event: FocusEvent): void {
+    const next = event.relatedTarget;
+    if (next instanceof Node && vehicleCombobox?.contains(next)) return;
     showResults = false;
   }
 
@@ -228,7 +246,7 @@
     </div>
 
     <div class="dispatch-toolbar">
-      <div class="vehicle-combobox">
+      <div bind:this={vehicleCombobox} class="vehicle-combobox" onfocusout={onComboboxFocusout}>
         <label>
           <Search size={14} />
           <span class="sr-only">Fahrzeug suchen und vormerken</span>
@@ -246,16 +264,16 @@
           <ChevronDown size={14} />
         </label>
         {#if showResults}
-          <div class="vehicle-results">
+          <div class="vehicle-results" aria-label="Verfügbare Fahrzeuge">
             {#each matchingVehicles as vehicle (vehicle.id)}
               {@const distance = distanceText(vehicle)}
-              <button onclick={() => stageVehicle(vehicle)}>
+              <button aria-label={displayName(vehicle)} onclick={() => stageVehicle(vehicle)}>
                 {#if !isHiddenUnit(vehicle)}<StatusBadge value={vehicle.status} />{/if}
-                <span>{displayName(vehicle)}</span>
+                <span class="result-identity"><strong>{displayName(vehicle)}</strong><small>{vehicle.type && vehicle.type.toLocaleLowerCase('de') !== 'none' ? vehicle.type : vehicle.game_vehicle_id}</small></span>
                 {#if distance}<small class="distance">{distance}</small>{/if}
               </button>
             {:else}
-              <span class="no-result">Kein verfügbares Fahrzeug gefunden</span>
+              <EmptyState compact search title="Kein verfügbares Fahrzeug" description="Suchbegriff ändern oder den aktuellen Status prüfen." />
             {/each}
           </div>
         {/if}
@@ -295,7 +313,7 @@
             </div>
           {/each}
           {#if !assignedVehicles.length && !stagedVehicles.length}
-            <div class="empty-vehicles">Noch keine Fahrzeuge zugeordnet</div>
+            <EmptyState compact title="Noch keine Fahrzeuge zugeordnet" description="Oben suchen oder in der Fahrzeugübersicht vormerken." />
           {/if}
         </div>
       </div>
@@ -304,12 +322,16 @@
         <div class="feedback-head"><span>Rückmeldungen</span><span>{timeline.length}</span></div>
         <div class="timeline" aria-live="polite">
           {#each timeline as entry (entry.id)}
+            {@const TimelineIcon = entry.kind === 'speech' ? RadioTower : entry.kind === 'radio' ? Radio : MessageSquareText}
             <div class="timeline-row {entry.kind}">
-              <span class="timeline-time">{entry.at.slice(11, 16)}</span>
-              <div><strong>{entry.source}</strong><span>{entry.text}</span></div>
+              <span class="timeline-icon"><TimelineIcon size={12} aria-hidden="true" /></span>
+              <div class="timeline-content">
+                <div><strong>{entry.source}</strong><time>{entry.at.slice(11, 16)}</time></div>
+                <span>{entry.text}</span>
+              </div>
             </div>
           {:else}
-            <span class="empty-feedback">Noch keine Rückmeldungen</span>
+            <EmptyState compact title="Noch keine Rückmeldungen" description="Funkmeldungen und Leitstellennotizen erscheinen hier." />
           {/each}
         </div>
         <div class="feedback-form">
@@ -326,11 +348,7 @@
 
     {#if errorMsg}<div class="error" role="alert">{errorMsg}</div>{/if}
   {:else}
-    <div class="empty-current">
-      <BellRing size={24} />
-      <strong>Kein Einsatz geöffnet</strong>
-      <span>Einsatz links auswählen, um Fahrzeuge zu disponieren.</span>
-    </div>
+    <EmptyState title="Kein Einsatz geöffnet" description="Einsatz in der Übersicht auswählen, um Fahrzeuge zu disponieren." />
   {/if}
 </section>
 
@@ -350,9 +368,10 @@
   .vehicle-results { position: absolute; z-index: 8; top: calc(100% + 3px); left: 0; right: 0; max-height: 240px; overflow: auto; padding: 3px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--panel-header); box-shadow: var(--shadow); }
   .vehicle-results button { width: 100%; justify-content: flex-start; border: 0; background: transparent; text-align: left; }
   .vehicle-results button:hover { background: var(--accent-soft); }
-  .vehicle-results button span:not(.status-badge) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result-identity { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+  .result-identity strong, .result-identity small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result-identity small { color: var(--text-dim); font-size: 10px; }
   .vehicle-results .distance { margin-left: auto; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .no-result { display: block; padding: 8px; color: var(--text-dim); font-size: 12px; }
   .toolbar-hint { flex: 0 0 auto; color: var(--text-dim); font-size: 11px; }
   .toolbar-hint strong { color: var(--text); }
   .dispatch-state { padding: 6px 8px; border-bottom: 1px solid var(--border); color: var(--warn-text); background: rgba(240, 160, 60, .08); font-size: 11px; }
@@ -369,25 +388,24 @@
   .vehicle-name.with-mode > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .vehicle-name select { min-width: 0; max-width: 100px; padding: 2px 4px; font-size: 10px; }
   .row-action { justify-self: end; }
-  .empty-vehicles { padding: 18px 10px; color: var(--text-dim); font-size: 12px; text-align: center; }
   .feedback-pane { display: flex; flex-direction: column; border-left: 1px solid var(--border); background: rgba(255, 255, 255, .012); }
   .feedback-head { display: flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: 10px; font-weight: 600; }
   .timeline { flex: 1 1 auto; min-height: 70px; overflow: auto; }
-  .timeline-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--border); border-left: 2px solid transparent; font-size: 11px; }
+  .timeline-row { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 6px; padding: 7px 8px; border-bottom: 1px solid var(--border); border-left: 2px solid transparent; font-size: 11px; }
   .timeline-row.feedback { border-left-color: var(--warn); }
   .timeline-row.speech { border-left-color: var(--danger); background: rgba(232, 82, 74, .05); }
-  .timeline-time { color: var(--text-dim); font-variant-numeric: tabular-nums; }
-  .timeline-row div { display: flex; flex-direction: column; min-width: 0; }
-  .timeline-row div strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .timeline-row div span { color: var(--text-dim); overflow-wrap: anywhere; }
-  .empty-feedback { display: block; padding: 12px; color: var(--text-dim); font-size: 11px; text-align: center; }
+  .timeline-icon { display: inline-flex; align-items: flex-start; justify-content: center; padding-top: 2px; color: var(--text-dim); }
+  .timeline-row.feedback .timeline-icon { color: var(--warn-text); }
+  .timeline-row.speech .timeline-icon { color: var(--danger-text); }
+  .timeline-content { min-width: 0; }
+  .timeline-content > div { display: flex; align-items: baseline; gap: 6px; }
+  .timeline-content strong { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .timeline-content time { color: var(--text-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .timeline-content > span { display: block; margin-top: 2px; color: var(--text-dim); overflow-wrap: anywhere; }
   .feedback-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; padding: 6px; border-top: 1px solid var(--border); }
   .feedback-form textarea { min-height: 44px; max-height: 88px; resize: vertical; font-size: 11px; }
   .feedback-form button { align-self: stretch; padding: 5px 8px; }
   .error { padding: 6px 8px; border-top: 1px solid var(--border); color: var(--danger-text); font-size: 11px; }
-  .empty-current { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 18px; color: var(--text-dim); text-align: center; }
-  .empty-current strong { color: var(--text); }
-  .empty-current span { font-size: 12px; }
 
   @media (max-width: 760px) {
     .dispatch-content { grid-template-columns: minmax(0, 1fr); overflow: auto; }

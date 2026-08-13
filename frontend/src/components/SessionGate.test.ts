@@ -4,14 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app, resetSessionData } from '../lib/state.svelte';
 import SessionGate from './SessionGate.svelte';
 
-const mocks = vi.hoisted(() => ({ switchSession: vi.fn() }));
+const mocks = vi.hoisted(() => ({ switchSession: vi.fn(), createDemoSession: vi.fn() }));
 vi.mock('../lib/polling', () => ({ switchSession: mocks.switchSession }));
+vi.mock('../lib/demo-session', () => ({ createDemoSession: mocks.createDemoSession }));
 
 beforeEach(() => {
   resetSessionData();
   app.sessionToken = '';
   app.pin = '';
   mocks.switchSession.mockReset().mockResolvedValue(undefined);
+  mocks.createDemoSession.mockReset().mockResolvedValue({ token: 'demo', pin: '4321' });
 });
 
 afterEach(() => cleanup());
@@ -43,5 +45,15 @@ describe('Session-Einstieg', () => {
 
     expect(screen.getByText('Warte auf Spielstart')).toBeTruthy();
     expect(screen.queryByText(/action=sync/)).toBeNull();
+  });
+
+  it('legt vom Einstieg aus eine Demo-Sitzung an', async () => {
+    const user = userEvent.setup();
+    render(SessionGate);
+
+    await user.click(screen.getByRole('button', { name: 'Demo-Sitzung anlegen' }));
+
+    expect(mocks.createDemoSession).toHaveBeenCalledWith(app.apiBase);
+    expect(mocks.switchSession).toHaveBeenCalledWith(app.apiBase, 'demo', '4321');
   });
 });

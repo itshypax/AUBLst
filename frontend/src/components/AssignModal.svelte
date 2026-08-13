@@ -2,7 +2,7 @@
   import { ArrowUpDown, Play, Search, Send, Siren, Undo2, X } from 'lucide-svelte';
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
-  import { alarmGroups, hasLoeschzug, hasMapPosition, isHiddenUnit, loeschzugFor, vehicleAlarmPriority, vehicleDisplayName, vehicleTypeLabel, type StationGroup } from '../lib/classify';
+  import { alarmGroups, hasLoeschzug, hasMapPosition, isHiddenUnit, loeschzugFor, vehicleAlarmPriority, vehicleDisplayName, type StationGroup } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
   import { createRouteCalculator, formatDistance, type RouteDistance } from '../lib/routing';
@@ -10,6 +10,7 @@
   import { decodeEntities } from '../lib/text';
   import type { AssignedVehicle, EventFeedback, LogRow, StateResponse, Vehicle } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
+  import DispatchVehicleOption from './assign/DispatchVehicleOption.svelte';
 
   const initialEvent = app.assignEvent!;
   const eventId = initialEvent.id;
@@ -35,6 +36,7 @@
   let busy = $state(false);
   let returning = $state<Set<number>>(new Set());
   let preflightUnavailable = $state<Set<number>>(new Set());
+  const selectedPlayer = $derived(players.find((player) => String(player.id) === playerId));
 
   interface TimelineEntry {
     id: string;
@@ -414,14 +416,17 @@
         {/if}
 
         <div class="controls">
-          <label class="player">
-            <span>Spieler</span>
-            <select bind:value={playerId} disabled={busy}>
-              <option value="">– Kein Spieler –</option>
-              {#each players as p (p.id)}
-                <option value={String(p.id)}>{p.name || p.player_id || `Spieler #${p.id}`}</option>
-              {/each}
-            </select>
+          <label class="player-combobox">
+            <span class="control-label">Spieler</span>
+            <span class="select-wrap">
+              <span class="availability" class:assigned={Boolean(selectedPlayer)}></span>
+              <select bind:value={playerId} aria-label="Spieler" disabled={busy}>
+                <option value="">Kein Spieler</option>
+                {#each players as player (player.id)}
+                  <option value={String(player.id)}>{player.name || player.player_id || `Spieler #${player.id}`}</option>
+                {/each}
+              </select>
+            </span>
           </label>
           <label class="search">
             <Search size={14} />
@@ -481,32 +486,16 @@
             </div>
             <div class="grid">
               {#each g.vehicles as v (v.id)}
-                <div class="veh" class:checked={selected.includes(v.id)}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(v.id)}
-                      disabled={busy}
-                      onchange={() => toggle(v)}
-                    />
-                    {#if g.key !== 'hidden'}
-                      <StatusBadge value={v.status} />
-                    {/if}
-                    <span class="name" data-tooltip={`${vehicleDisplayName(v)}${vehicleTypeLabel(v) ? ` · Typ ${vehicleTypeLabel(v)}` : ''} · ${v.game_vehicle_id}`}>
-                      {vehicleDisplayName(v)}
-                    </span>
-                    {#if distanceText(v)}
-                      <span class="dist">{distanceText(v)}</span>
-                    {/if}
-                  </label>
-                  {#if v.modes}
-                    <select bind:value={modes[v.id]} data-tooltip="Ausrückmodus" aria-label={`Ausrückmodus für ${vehicleDisplayName(v)}`} disabled={busy}>
-                      {#each v.modes.split(',') as m (m)}
-                        <option value={m}>{m}</option>
-                      {/each}
-                    </select>
-                  {/if}
-                </div>
+                <DispatchVehicleOption
+                  vehicle={v}
+                  checked={selected.includes(v.id)}
+                  hideStatus={g.key === 'hidden'}
+                  distance={distanceText(v)}
+                  disabled={busy}
+                  mode={modes[v.id] ?? ''}
+                  onToggle={() => toggle(v)}
+                  onModeChange={(mode) => (modes = { ...modes, [v.id]: mode })}
+                />
               {/each}
             </div>
           {/each}
@@ -712,13 +701,13 @@
     flex-wrap: wrap;
   }
 
-  .player {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--text-dim);
-  }
+  .player-combobox { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 13px; }
+  .control-label { color: var(--text-dim); }
+  .select-wrap { position: relative; display: flex; align-items: center; min-width: 160px; }
+  .availability { width: 7px; height: 7px; flex: 0 0 auto; border: 1px solid var(--border-strong); background: var(--text-dim); }
+  .select-wrap .availability { position: absolute; z-index: 1; left: 9px; pointer-events: none; }
+  .availability.assigned { border-color: var(--good); background: var(--good); }
+  .select-wrap select { width: 100%; padding-left: 24px; }
 
   .search {
     display: flex;
@@ -793,54 +782,6 @@
     gap: 4px;
   }
 
-  .veh {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
-    padding: 3px 6px;
-    border-radius: var(--radius-sm);
-    border: 1px solid transparent;
-  }
-
-  .veh:hover {
-    background: var(--accent-soft);
-  }
-
-  .veh.checked {
-    border-color: var(--selection);
-    background: var(--accent-soft);
-  }
-
-  .veh label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
-    min-width: 0;
-    cursor: pointer;
-  }
-
-  .veh .name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .veh .dist {
-    margin-left: auto;
-    flex: 0 0 auto;
-    font-size: 11px;
-    color: var(--text-dim);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .veh select {
-    width: 100%;
-    font-size: 12px;
-    padding: 2px 6px;
-  }
-
   footer {
     display: flex;
     align-items: center;
@@ -873,8 +814,8 @@
   @media (max-width: 560px) {
     .notes { display: flex; }
     .controls { align-items: stretch; }
-    .player, .search { width: 100%; }
-    .player select, .search input { flex: 1; }
+    .player-combobox, .search { width: 100%; }
+    .select-wrap, .search input { flex: 1; }
     .sort-toggle { width: 100%; justify-content: center; }
     footer .hint { display: none; }
   }

@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { CircleAlert, ClipboardList, Clock, KeyRound, LayoutGrid, Play, RadioTower, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from 'lucide-svelte';
+  import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Play, RadioTower, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from 'lucide-svelte';
   import { pollLogs, refreshState, switchSession } from '../lib/polling';
+  import { dismissibleDetails } from '../lib/dismissible-details';
   import { configureSounds, testSound } from '../lib/sounds';
   import { buildSpeechRequestEntries } from '../lib/speech-requests';
   import { app, persistSoundSettings } from '../lib/state.svelte';
@@ -8,7 +9,7 @@
   import { userFacingError } from '../lib/user-facing-error';
   import type { LogRow } from '../lib/types';
 
-  let { onResetLayout, onOpenWorkspaceEditor, workspaceName }: { onResetLayout: () => void; onOpenWorkspaceEditor: () => void; workspaceName: string } = $props();
+  let { onResetLayout, onOpenWorkspaceEditor, onOpenShortcuts = () => (app.shortcutsOpen = true), workspaceName }: { onResetLayout: () => void; onOpenWorkspaceEditor: () => void; onOpenShortcuts?: () => void; workspaceName: string } = $props();
 
   let tokenInput = $state(app.sessionToken);
   let pinInput = $state(app.pin);
@@ -41,10 +42,6 @@
 
   function onKey(e: KeyboardEvent): void {
     if (e.key === 'Enter') void apply();
-  }
-
-  function onWindowKey(e: KeyboardEvent): void {
-    if (e.key === 'Escape' && details?.open) details.open = false;
   }
 
   async function updateSound(): Promise<void> {
@@ -120,8 +117,6 @@
   });
 </script>
 
-<svelte:window onkeydown={onWindowKey} />
-
 <header class="topbar">
   <div class="brand">
     <img class="brand-logo" src="./aublst.png" alt="" />
@@ -167,7 +162,11 @@
     <ClipboardList size={16} />
   </button>
 
-  <details class="settings" bind:this={details}>
+  <button class="ghost icon-button" data-tooltip="Tastaturkürzel (F1)" aria-label="Tastaturkürzel öffnen" onclick={onOpenShortcuts}>
+    <Keyboard size={16} />
+  </button>
+
+  <details class="settings" bind:this={details} use:dismissibleDetails>
     <summary data-tooltip="Verbindung und Ton einstellen">
       <Settings size={16} />
       <span>{app.sessionToken ? `Sitzung ${app.sessionToken}` : 'Sitzung einrichten'}</span>

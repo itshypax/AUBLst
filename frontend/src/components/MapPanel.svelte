@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { Check, Construction, Crosshair, Eraser, Grid3X3, Map as MapIcon, MapPin, Minus, Move, Plus, Route, Save, ShieldCheck, SlidersHorizontal, Trash2, Undo2, Unlink, Upload, X } from 'lucide-svelte';
+  import { Check, Construction, Crosshair, Eraser, Grid3X3, Map as MapIcon, Route, Save, ShieldCheck, Trash2, Undo2, Unlink, Upload, X } from 'lucide-svelte';
   import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { eventCategory, station, type EventCategory } from '../lib/classify';
+  import { dismissibleDetails } from '../lib/dismissible-details';
   import { canvasToWorld, imageDrawRect, toScreen, worldToCanvas, type MapView, type Point } from '../lib/mapview';
   import { cloneRoutingConfig, formatDistance, nearestRoadSnap, parseRoutingConfig, roadRoutePreview, validateRoutingNetwork, type RoadEdge, type RoadKind, type RoadNode, type RoadRoutePreview, type RoadSnap, type RoutingConfig, type RoutingNetworkReport } from '../lib/routing';
   import { app, askConfirm, assignedEventForVehicle, canWrite, openAssign, openVehicleMenu, setHighlightedEvent, setHighlightedVehicle, showNotice } from '../lib/state.svelte';
@@ -10,6 +11,8 @@
   import { vehicleIconName } from '../lib/vehicleIcons';
   import type { EventItem, Vehicle } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
+  import MapFilters from './map/MapFilters.svelte';
+  import MapToolbar from './map/MapToolbar.svelte';
 
   let { standaloneModId = null }: { standaloneModId?: string | null } = $props();
 
@@ -81,8 +84,6 @@
     return toScreen(worldToCanvas(tooltipVehicle, app.mapBounds, view()), view());
   });
   const STATUS_LABELS = ['Alarmiert', 'Einsatzbereit Funk', 'Einsatzbereit Wache', 'Einsatz übernommen', 'An Einsatzstelle', 'Sprechwunsch', 'Nicht einsatzbereit', 'Patient aufgenommen', 'Am Transportziel'];
-  const CATEGORY_LABELS: Record<EventCategory, string> = { fire: 'Brand', hazard: 'Gefahrgut', water: 'Wasser', thl: 'Hilfeleistung', medical: 'Rettungsdienst', other: 'Sonstige' };
-  const CATEGORIES = Object.keys(CATEGORY_LABELS) as EventCategory[];
   type EventMarkerKind = EventCategory | 'control-room';
 
   const scaleBar = $derived.by(() => {
@@ -280,6 +281,14 @@
       scheduleRender();
     });
     app.focusPoint = null;
+  });
+
+  let handledFitMapSeq = 0;
+  $effect(() => {
+    const sequence = app.fitMapSeq;
+    if (!sequence || sequence === handledFitMapSeq) return;
+    handledFitMapSeq = sequence;
+    resetView();
   });
 
   function clientToCanvas(clientX: number, clientY: number): Point {
@@ -1301,19 +1310,20 @@
     class:node-hover={editorOpen && editorHoverNodeId !== null}
   >
     <canvas bind:this={canvas}></canvas>
-    <div class="map-controls" role="toolbar" aria-label="Kartensteuerung">
-      <button data-tooltip="Vergrößern" aria-label="Karte vergrößern" onpointerdown={(e) => e.stopPropagation()} onpointerup={(e) => e.stopPropagation()} onclick={() => zoomAtCenter(1.25)}><Plus size={15} /></button>
-      <button data-tooltip="Verkleinern" aria-label="Karte verkleinern" onpointerdown={(e) => e.stopPropagation()} onpointerup={(e) => e.stopPropagation()} onclick={() => zoomAtCenter(0.8)}><Minus size={15} /></button>
-      <button data-tooltip="Karte einpassen" aria-label="Karte einpassen" onpointerdown={(e) => e.stopPropagation()} onpointerup={(e) => e.stopPropagation()} onclick={resetView}><Crosshair size={15} /></button>
-      <button data-tooltip="Karte mit Pfeiltasten verschieben" aria-label="Karte mit Pfeiltasten verschieben" onpointerdown={(e) => e.stopPropagation()} onpointerup={(e) => e.stopPropagation()} onkeydown={onMapKeydown}><Move size={15} /></button>
-      {#if editorAvailable}
-        <button class:active={editorOpen} aria-pressed={editorOpen} data-tooltip="Straßennetz bearbeiten" aria-label="Straßennetz bearbeiten" onpointerdown={(e) => e.stopPropagation()} onpointerup={(e) => e.stopPropagation()} onclick={() => editorOpen ? void closeEditor() : openEditor()}><Route size={15} /></button>
-      {/if}
-      {#if !standaloneModId}
-        <button class="create-event" class:active={placing} aria-pressed={placing} disabled={editorOpen} data-tooltip="Einsatz auf der Karte anlegen" onpointerdown={(e) => e.stopPropagation()} onpointerup={(e) => e.stopPropagation()} onclick={() => (placing = !placing)}><MapPin size={15} /> Einsatz anlegen</button>
-        <button class:active={filtersOpen} aria-pressed={filtersOpen} disabled={editorOpen} data-tooltip="Kartenfilter" aria-label="Kartenfilter öffnen" onpointerdown={(e) => e.stopPropagation()} onpointerup={(e) => e.stopPropagation()} onclick={() => (filtersOpen = !filtersOpen)}><SlidersHorizontal size={15} /></button>
-      {/if}
-    </div>
+    <MapToolbar
+      {editorAvailable}
+      {editorOpen}
+      {placing}
+      {filtersOpen}
+      standalone={Boolean(standaloneModId)}
+      onZoomIn={() => zoomAtCenter(1.25)}
+      onZoomOut={() => zoomAtCenter(0.8)}
+      onReset={resetView}
+      {onMapKeydown}
+      onToggleEditor={() => editorOpen ? void closeEditor() : openEditor()}
+      onTogglePlacing={() => (placing = !placing)}
+      onToggleFilters={() => (filtersOpen = !filtersOpen)}
+    />
     {#if editorOpen}
       <div class="route-editor" onpointerdown={(e) => e.stopPropagation()} onpointerup={(e) => e.stopPropagation()} onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} oncontextmenu={(e) => e.stopPropagation()} role="dialog" aria-label="Straßennetz bearbeiten" tabindex="-1">
         <div class="route-editor-head">
@@ -1409,29 +1419,22 @@
       </div>
     {/if}
     {#if filtersOpen}
-      <div class="map-filters" onpointerdown={(e) => e.stopPropagation()} onpointerup={(e) => e.stopPropagation()} onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} oncontextmenu={(e) => e.stopPropagation()} role="dialog" aria-label="Kartenfilter" tabindex="-1">
-        <div class="filter-head"><strong>Kartenfilter</strong><button class="ghost" data-tooltip="Schließen" aria-label="Kartenfilter schließen" onclick={() => (filtersOpen = false)}><X size={14} /></button></div>
-        <div class="filter-section two">
-          <label><input type="checkbox" bind:checked={showVehicles} onchange={scheduleRender} /> Fahrzeuge</label>
-          <label><input type="checkbox" bind:checked={showEvents} onchange={scheduleRender} /> Einsätze</label>
-        </div>
-        <div class="filter-section"><span>Status</span><div class="options statuses">
-          {#each STATUS_LABELS as label, status (status)}
-            <label data-tooltip={label}><input type="checkbox" checked={!hiddenStatuses.has(status)} onchange={() => (hiddenStatuses = toggleSet(hiddenStatuses, status))} /><StatusBadge value={status} /></label>
-          {/each}
-        </div></div>
-        <div class="filter-section"><span>Einsatzarten</span><div class="options categories">
-          {#each CATEGORIES as category (category)}
-            <label><input type="checkbox" checked={!hiddenCategories.has(category)} onchange={() => (hiddenCategories = toggleSet(hiddenCategories, category))} /><i style={`background: ${eventColor(category)}`}></i>{CATEGORY_LABELS[category]}</label>
-          {/each}
-        </div></div>
-        <div class="filter-section"><span>Wachen</span><div class="options stations">
-          {#each stations as stationName (stationName)}
-            <label><input type="checkbox" checked={!hiddenStations.has(stationName)} onchange={() => (hiddenStations = toggleSet(hiddenStations, stationName))} />{stationName}</label>
-          {/each}
-        </div></div>
-        <button class="reset-filter" onclick={resetFilters}>Alle anzeigen</button>
-      </div>
+      <MapFilters
+        {showVehicles}
+        {showEvents}
+        {hiddenStatuses}
+        {hiddenCategories}
+        {hiddenStations}
+        {stations}
+        categoryColor={eventColor}
+        onShowVehiclesChange={(checked) => { showVehicles = checked; scheduleRender(); }}
+        onShowEventsChange={(checked) => { showEvents = checked; scheduleRender(); }}
+        onToggleStatus={(status) => (hiddenStatuses = toggleSet(hiddenStatuses, status))}
+        onToggleCategory={(category) => (hiddenCategories = toggleSet(hiddenCategories, category))}
+        onToggleStation={(stationName) => (hiddenStations = toggleSet(hiddenStations, stationName))}
+        onReset={resetFilters}
+        onClose={() => (filtersOpen = false)}
+      />
     {/if}
     {#if tooltipEvent}
       <div class="map-tooltip" style="left: {eventTooltipPosition.x + 14}px; top: {eventTooltipPosition.y + 14}px;">
@@ -1462,7 +1465,7 @@
   {#if !standaloneModId}<div class="legend">
     <span class="chip"><span class="dot event"></span> Einsatz</span>
     <span class="chip"><span class="dot vehicle"></span> Fahrzeug</span>
-    <details class="status-help">
+    <details class="status-help" use:dismissibleDetails>
       <summary>Statuslegende</summary>
       <div class="status-popover">
         {#each STATUS_LABELS as label, status (label)}
@@ -1508,9 +1511,6 @@
   .map-wrapper.editor-active.node-hover { cursor: move; }
   .map-wrapper.editor-active.panning { cursor: grabbing; }
 
-  .map-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; z-index: 6; }
-  .map-controls button { min-width: 30px; height: 30px; padding: 0 7px; justify-content: center; background: rgba(21, 22, 25, 0.94); }
-  .map-controls button.active { border-color: var(--accent-outline); background: #25282d; }
   .route-editor { position: absolute; top: 10px; left: 10px; z-index: 7; width: min(430px, calc(100% - 74px)); max-height: calc(100% - 20px); overflow: auto; border: 1px solid var(--border-strong); background: rgba(21, 22, 25, 0.98); box-shadow: var(--shadow); cursor: default; }
   .route-editor-head { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 10px; border-bottom: 1px solid var(--border); }
   .route-editor-head strong { font-size: 12px; }
@@ -1551,15 +1551,6 @@
   .route-actions .save-route { margin-left: auto; }
   .route-actions .danger-text { color: var(--danger-text); }
   .routing-file-input { display: none; }
-  .map-filters { position: absolute; top: 48px; right: 10px; z-index: 7; width: min(330px, calc(100% - 20px)); max-height: calc(100% - 62px); overflow: auto; padding: 10px; border: 1px solid var(--border-strong); background: rgba(21, 22, 25, 0.98); box-shadow: var(--shadow); cursor: default; }
-  .filter-head { display: flex; align-items: center; padding-bottom: 7px; border-bottom: 1px solid var(--border); } .filter-head strong { flex: 1; font-size: 12px; }
-  .filter-section { padding: 9px 0; border-bottom: 1px solid var(--border); } .filter-section > span { display: block; margin-bottom: 7px; color: var(--text-dim); font-size: 10px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; }
-  .filter-section.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .filter-section label { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; }
-  .options { display: grid; gap: 6px; } .options.statuses { grid-template-columns: repeat(5, 1fr); } .options.categories { grid-template-columns: 1fr 1fr; } .options.stations { grid-template-columns: 1fr 1fr; }
-  .options.statuses label { justify-content: center; } .options i { width: 8px; height: 8px; flex: 0 0 auto; }
-  .reset-filter { width: 100%; margin-top: 9px; justify-content: center; font-size: 11px; }
-
   canvas {
     position: absolute;
     inset: 0;
@@ -1614,8 +1605,6 @@
 
   @media (max-width: 620px) {
     .hint { display: none; }
-    .map-controls .create-event { font-size: 0; width: 30px; }
-    .map-controls .create-event :global(svg) { margin: 0; }
     .route-editor { top: 48px; width: calc(100% - 20px); }
     .route-actions button:not(.save-route) { font-size: 0; }
   }

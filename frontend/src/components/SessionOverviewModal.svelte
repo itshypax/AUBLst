@@ -58,11 +58,11 @@
   header { display: flex; align-items: center; gap: 10px; padding: 11px 15px; background: var(--panel-header); }
   header > :global(svg) { color: var(--text-dim); }
   h2 { margin: 0; flex: 1; font-size: 15px; }
-  .tabs { display: flex; gap: 18px; padding: 0 15px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--panel-header); }
-  .tab { position: relative; padding: 9px 2px 8px; border: 0; border-radius: 0; background: transparent; color: var(--text-dim); }
+  .tabs { display: flex; gap: 22px; padding: 0 15px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--panel-header); }
+  .tab { position: relative; min-width: 118px; justify-content: center; padding: 10px 2px 9px; border: 0; border-radius: 0; background: transparent; color: var(--text-dim); }
   .tab:hover:not(:disabled) { border-color: transparent; background: transparent; color: var(--text); }
   .tab.active { color: var(--text); }
-  .tab.active::after { content: ''; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--accent); }
+  .tab.active::after { content: ''; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--accent-outline); }
   .tab-panel { min-height: 0; flex: 1; }
   .tab-panel[hidden] { display: none; }
   @media (max-width: 760px) { .backdrop { padding: 7px; } }

@@ -45,7 +45,10 @@ export const app = $state({
   actionsOpen: false,
   sessionOverviewOpen: false,
   speechQueueOpen: false,
+  shortcutsOpen: false,
   hospitalAssignmentVehicleId: null as number | null,
+  focusVehicleSearchSeq: 0,
+  fitMapSeq: 0,
   soundEnabled: true,
   soundVolume: 0.7,
   notice: null as { message: string; kind: 'success' | 'error'; id: number } | null,
@@ -193,7 +196,10 @@ export function resetSessionData(): void {
   app.actionsOpen = false;
   app.sessionOverviewOpen = false;
   app.speechQueueOpen = false;
+  app.shortcutsOpen = false;
   app.hospitalAssignmentVehicleId = null;
+  app.focusVehicleSearchSeq = 0;
+  app.fitMapSeq = 0;
   pendingSyncedEvent = null;
 }
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Bed, Hospital, ShieldPlus, X } from 'lucide-svelte';
+  import { Bed, Check, Hospital, ShieldPlus, X } from 'lucide-svelte';
   import { api } from '../lib/api';
   import { focusTrap } from '../lib/focus';
   import { reservationAffectsCapacity } from '../lib/hospital-reservations';
@@ -7,6 +7,7 @@
   import { createRouteCalculator, formatDistance, type RouteDistance } from '../lib/routing';
   import { app, canWrite, showNotice } from '../lib/state.svelte';
   import type { Hospital as HospitalRow } from '../lib/types';
+  import EmptyState from './EmptyState.svelte';
 
   const vehicleId = app.hospitalAssignmentVehicleId!;
   const vehicle = $derived(app.vehicles.find((item) => item.id === vehicleId));
@@ -108,28 +109,33 @@
         {/if}
       </p>
       <div class="hospital-list">
+        <div class="hospital-list-head"><span>Klinik</span><span>Normal</span><span>Intensiv</span></div>
         {#each app.hospitals as hospital (hospital.id)}
           <div class="hospital-row">
             <div class="hospital-name">
               <strong>{hospital.name || 'Krankenhaus'}</strong>
               <span class:nearest={hospital.id === nearestHospitalId}>{distanceText(hospital)}</span>
+              {#if hospital.id === nearestHospitalId}<small>Am nächsten</small>{/if}
             </div>
             <button
               class:active={current?.hospital_id === hospital.id && current?.bed_type === 'ward'}
               disabled={busy || !canWrite() || free(hospital, 'ward') < 1}
               onclick={() => void assign(hospital, 'ward')}
             >
-              <Bed size={14} /> Normal <span>{free(hospital, 'ward')} frei</span>
+              {#if current?.hospital_id === hospital.id && current?.bed_type === 'ward'}<Check size={14} />{:else}<Bed size={14} />{/if}
+              <span class="bed-label">Normal</span><span>{free(hospital, 'ward')} frei</span>
             </button>
             <button
               class:active={current?.hospital_id === hospital.id && current?.bed_type === 'icu'}
               disabled={busy || !canWrite() || free(hospital, 'icu') < 1}
               onclick={() => void assign(hospital, 'icu')}
             >
-              <ShieldPlus size={14} /> Intensiv <span>{free(hospital, 'icu')} frei</span>
+              {#if current?.hospital_id === hospital.id && current?.bed_type === 'icu'}<Check size={14} />{:else}<ShieldPlus size={14} />{/if}
+              <span class="bed-label">Intensiv</span><span>{free(hospital, 'icu')} frei</span>
             </button>
           </div>
         {/each}
+        {#if !app.hospitals.length}<EmptyState title="Keine Kliniken gemeldet" description="Sobald EM4 Kliniken übermittelt, können hier Plätze reserviert werden." />{/if}
       </div>
       {#if errorMsg}<div class="error" role="alert">{errorMsg}</div>{/if}
     </div>
@@ -154,18 +160,21 @@
   .body { padding: 14px; overflow: auto; }
   p { margin: 0 0 12px; color: var(--text-dim); font-size: 12px; }
   .hospital-list { border: 1px solid var(--border); }
+  .hospital-list-head { position: sticky; top: -14px; z-index: 1; display: grid; grid-template-columns: minmax(140px, 1fr) 150px 150px; gap: 7px; padding: 6px 8px; border-bottom: 1px solid var(--border-strong); background: var(--panel-header); color: var(--text-dim); font-size: 10px; font-weight: 600; }
   .hospital-row { display: grid; grid-template-columns: minmax(140px, 1fr) 150px 150px; gap: 7px; align-items: center; padding: 8px; border-bottom: 1px solid var(--border); }
   .hospital-row:last-child { border-bottom: 0; }
-  .hospital-name { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+  .hospital-name { display: flex; flex-direction: column; min-width: 0; }
   .hospital-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   .hospital-name span { flex: 0 0 auto; color: var(--text-dim); font-size: 11px; font-weight: 400; }
   .hospital-name span.nearest { color: var(--good-text); font-weight: 700; }
+  .hospital-name small { color: var(--good-text); font-size: 9px; }
   .hospital-row button { justify-content: flex-start; font-size: 12px; }
-  .hospital-row button span { margin-left: auto; color: var(--text-dim); font-size: 10px; }
+  .hospital-row button span:last-child { margin-left: auto; color: var(--text-dim); font-size: 10px; }
+  .hospital-row button .bed-label { color: inherit; font-size: 11px; }
   .hospital-row button.active { border-color: var(--selection); background: var(--accent-soft); }
   .error { margin-top: 10px; padding: 8px 10px; border-left: 3px solid var(--danger); background: rgba(255, 82, 82, 0.08); color: var(--danger); font-size: 12px; }
   footer { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
   footer span { flex: 1; }
   .danger { color: var(--danger); }
-  @media (max-width: 620px) { .hospital-row { grid-template-columns: 1fr 1fr; } .hospital-name { grid-column: 1 / -1; } }
+  @media (max-width: 620px) { .hospital-list-head { display: none; } .hospital-row { grid-template-columns: 1fr 1fr; } .hospital-name { grid-column: 1 / -1; } }
 </style>
