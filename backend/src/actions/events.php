@@ -227,11 +227,31 @@ function action_events_get_vehicles(PDO $pdo): void {
     $event_id = $data['event_id'] ?? null;
     if (!$event_id) respond_json(400, ['error' => 'Missing event_id']);
 
-    $stmt = $pdo->prepare('SELECT vehicles.id, name, game_vehicle_id, vehicles.status as status FROM assignments
+    $stmt = $pdo->prepare('SELECT vehicles.id, name, game_vehicle_id, vehicles.status as status, h.mode
+        FROM assignments
         JOIN vehicles ON vehicles.session_id = assignments.session_id AND vehicles.id = assignments.vehicle_id
-        WHERE assignments.event_id = ? AND assignments.session_id = ?');
+        LEFT JOIN alarm_history h ON h.session_id = assignments.session_id
+            AND h.event_id = assignments.event_id AND h.vehicle_id = assignments.vehicle_id AND h.mode IS NOT NULL
+        WHERE assignments.event_id = ? AND assignments.session_id = ?
+        ORDER BY vehicles.id, h.id');
     $stmt->execute([$event_id, $sid]);
-    respond_json(200, ['ok' => true, 'vehicles' => $stmt->fetchAll()]);
+    $vehicles = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $vehicleId = (int)$row['id'];
+        if (!isset($vehicles[$vehicleId])) {
+            $vehicles[$vehicleId] = [
+                'id' => $vehicleId,
+                'name' => $row['name'],
+                'game_vehicle_id' => $row['game_vehicle_id'],
+                'status' => (int)$row['status'],
+                'alarm_modes' => [],
+            ];
+        }
+        if ($row['mode'] !== null && trim((string)$row['mode']) !== '') {
+            $vehicles[$vehicleId]['alarm_modes'][] = (string)$row['mode'];
+        }
+    }
+    respond_json(200, ['ok' => true, 'vehicles' => array_values($vehicles)]);
 }
 
 function action_events_unassign(PDO $pdo): void {

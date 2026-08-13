@@ -59,4 +59,14 @@ describe('Sprechwunsch-Warteschlange', () => {
 
     await waitFor(() => expect(mocks.dismissLog).toHaveBeenCalledWith(21));
   });
+
+  it('zeigt für nicht getrackte Einheiten keinen Status an', () => {
+    app.vehicles = [{ ...app.vehicles[0], game_vehicle_id: 'FuSTW', name: 'Streifenwagen', type: 'FUSTW', status: 0 }];
+    app.logs = [{ ...app.logs[0], entity_id: 'FuSTW', long_message: 'Streifenwagen mit Sprechwunsch' }];
+
+    const { container } = render(SpeechRequestsQueue);
+
+    expect(screen.getByText('Streifenwagen')).toBeTruthy();
+    expect(container.querySelector('.status-badge')).toBeNull();
+  });
 });

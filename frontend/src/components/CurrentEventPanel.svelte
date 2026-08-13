@@ -2,7 +2,7 @@
   import FaIcon from './FaIcon.svelte';
   import { BellRing, ChevronDown, Clock3, MessageSquarePlus, MessageSquareText, Radio, RadioTower, Search, Trash2, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
-  import { hasMapPosition, isActionUnit, isHiddenUnit, vehicleDisplayName } from '../lib/classify';
+  import { alarmVehicleCount, hasMapPosition, isActionUnit, isHiddenUnit, vehicleDisplayName } from '../lib/classify';
   import { refreshState } from '../lib/polling';
   import { createRouteCalculator, formatDistance } from '../lib/routing';
   import { buildSpeechRequestEntries } from '../lib/speech-requests';
@@ -26,15 +26,21 @@
   const currentEvent = $derived(app.assignEvent ? app.events.find((event) => event.id === app.assignEvent?.id) ?? app.assignEvent : null);
   const currentEventId = $derived(currentEvent?.id ?? null);
   const assignedIds = $derived(new Set(app.assignments.filter((item) => Number(item.event_id) === currentEventId).map((item) => Number(item.vehicle_id))));
-  const assignedVehicles = $derived(app.vehicles.filter((vehicle) => assignedIds.has(vehicle.id)));
+  const assignedModes = $derived(new Map(app.assignments
+    .filter((item) => Number(item.event_id) === currentEventId && item.alarm_modes?.length)
+    .map((item) => [Number(item.vehicle_id), item.alarm_modes ?? []])));
+  const assignedVehicles = $derived(app.vehicles.filter((vehicle) =>
+    assignedIds.has(vehicle.id) && !(canRepeatAlarm(vehicle) && app.dispatchVehicleIds.includes(vehicle.id))
+  ));
   const stagedVehicles = $derived(app.dispatchVehicleIds
     .map((id) => app.vehicles.find((vehicle) => vehicle.id === id))
     .filter((vehicle): vehicle is Vehicle => vehicle !== undefined)
-    .filter((vehicle) => !assignedIds.has(vehicle.id)));
+    .filter((vehicle) => !assignedIds.has(vehicle.id) || canRepeatAlarm(vehicle)));
   const availableVehicles = $derived(app.vehicles.filter((vehicle) => {
     const status = Number(vehicle.status);
-    return !isActionUnit(vehicle) && !assignedIds.has(vehicle.id) && !app.dispatchVehicleIds.includes(vehicle.id) && (isHiddenUnit(vehicle) || status === 1 || status === 2);
+    return !isActionUnit(vehicle) && (!assignedIds.has(vehicle.id) || isHiddenUnit(vehicle)) && !app.dispatchVehicleIds.includes(vehicle.id) && (isHiddenUnit(vehicle) || status === 1 || status === 2);
   }));
+  const stagedVehicleCount = $derived(stagedVehicles.reduce((count, vehicle) => count + alarmVehicleCount(vehicle, modes[vehicle.id]), 0));
   const matchingVehicles = $derived.by(() => {
     const terms = vehicleSearch.trim().toLocaleLowerCase('de').split(/\s+/).filter(Boolean);
     const rows = terms.length
@@ -115,6 +121,18 @@
     return vehicleDisplayName(vehicle);
   }
 
+  function modesAssignedTo(vehicleId: number): string[] {
+    return assignedModes.get(vehicleId) ?? [];
+  }
+
+  function hasLeftCurrentEvent(vehicle: Vehicle): boolean {
+    return [1, 2].includes(Number(vehicle.status));
+  }
+
+  function canRepeatAlarm(vehicle: Vehicle): boolean {
+    return isHiddenUnit(vehicle) || hasLeftCurrentEvent(vehicle);
+  }
+
   function distanceText(vehicle: Vehicle): string {
     if (!routeToEvent || !hasMapPosition(vehicle)) return '';
     return formatDistance(routeToEvent(vehicle, vehicle), false);
@@ -182,7 +200,7 @@
         player_id: null,
         modes: chosenModes,
       });
-      const count = stagedVehicles.length;
+      const count = stagedVehicleCount;
       setDispatchVehicleIds([]);
       await refreshState();
       showNotice(`${count} ${count === 1 ? 'Fahrzeug alarmiert' : 'Fahrzeuge alarmiert'}`);
@@ -242,7 +260,7 @@
       {#if eventTime()}<span class="event-time"><FaIcon icon={Clock3} size={12} />{eventTime()}</span>{/if}
       <button class="primary alarm" disabled={!stagedVehicles.length || busy || !canWrite() || !isAvailableInGame} onclick={() => void alarm()}>
         <FaIcon icon={BellRing} size={14} />
-        {busy ? 'Alarmiert …' : `Alarmieren${stagedVehicles.length ? ` (${stagedVehicles.length})` : ''}`}
+        {busy ? 'Alarmiert …' : `Alarmieren${stagedVehicles.length ? ` (${stagedVehicleCount})` : ''}`}
       </button>
     </div>
 
@@ -291,9 +309,19 @@
         <div class="table-head"><span>S</span><span>Fahrzeug</span><span></span></div>
         <div class="vehicle-rows">
           {#each assignedVehicles as vehicle (vehicle.id)}
-            <div class="vehicle-row assigned">
-              <StatusBadge value={vehicle.status} />
-              <span class="vehicle-name">{displayName(vehicle)}</span>
+            {@const previouslyAssigned = canRepeatAlarm(vehicle)}
+            <div class="vehicle-row assigned" class:previous={previouslyAssigned}>
+              {#if previouslyAssigned}<span aria-hidden="true"></span>{:else}<StatusBadge value={vehicle.status} />{/if}
+              {#if previouslyAssigned}
+                <button
+                  class="ghost vehicle-name previous-vehicle"
+                  data-tooltip="Erneut vormerken"
+                  aria-label={`${displayName(vehicle)} erneut vormerken`}
+                  onclick={() => stageVehicle(vehicle)}
+                >{displayName(vehicle)}{#each modesAssignedTo(vehicle.id) as mode}<span class="assigned-mode">{` (${mode})`}</span>{/each}</button>
+              {:else}
+                <span class="vehicle-name">{displayName(vehicle)}{#each modesAssignedTo(vehicle.id) as mode}<span class="assigned-mode">{` (${mode})`}</span>{/each}</span>
+              {/if}
               {#if Number(vehicle.status) === 3}
                 <button class="ghost row-action" data-tooltip="Einrücken lassen" aria-label={`${displayName(vehicle)} einrücken lassen`} disabled={returning.has(vehicle.id) || !canWrite()} onclick={() => void sendHome(vehicle)}><FaIcon icon={Undo2} size={14} /></button>
               {:else}<span></span>{/if}
@@ -301,7 +329,7 @@
           {/each}
           {#each stagedVehicles as vehicle (vehicle.id)}
             <div class="vehicle-row staged">
-              <StatusBadge value={vehicle.status} />
+              {#if !isHiddenUnit(vehicle)}<StatusBadge value={vehicle.status} />{:else}<span aria-hidden="true"></span>{/if}
               <div class="vehicle-name with-mode">
                 <span>{displayName(vehicle)}</span>
                 {#if vehicle.modes}
@@ -385,6 +413,10 @@
   .vehicle-row { min-height: 34px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
   .vehicle-row.staged { border-left: 2px solid var(--warn); background: rgba(240, 160, 60, .045); }
   .vehicle-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .assigned-mode { color: var(--text-dim); font-weight: 400; }
+  .vehicle-row.previous .vehicle-name { color: var(--text-dim); font-style: italic; font-weight: 500; }
+  button.previous-vehicle { justify-content: flex-start; padding: 0; border: 0; border-radius: 0; background: transparent; text-align: left; }
+  button.previous-vehicle:hover:not(:disabled) { border: 0; background: transparent; color: var(--text); }
   .vehicle-name.with-mode { display: flex; align-items: center; gap: 5px; }
   .vehicle-name.with-mode > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .vehicle-name select { min-width: 0; max-width: 100px; padding: 2px 4px; font-size: 10px; }

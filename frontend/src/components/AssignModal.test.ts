@@ -212,6 +212,42 @@ describe('Alarmierungsdialog', () => {
     expect(checkbox.closest('.veh')?.querySelector('.status-badge')).toBeNull();
   });
 
+  it('zeigt bei weiteren Einheiten die mit dem Modus gewählte Fahrzeuganzahl', async () => {
+    const user = userEvent.setup();
+    app.vehicles = [{
+      ...vehicle,
+      id: 2,
+      game_vehicle_id: 'ASF',
+      name: 'Abschleppwagen',
+      type: 'ASF',
+      modes: '1,2,3,4,Masterlift,Tieflader',
+    }];
+
+    render(AssignModal);
+    await user.click(await screen.findByRole('checkbox', { name: /Abschleppwagen/ }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /Ausrückmodus für Abschleppwagen/ }), '3');
+
+    expect(screen.getByText('Ausgewählt (3)')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Alarmieren (3)' })).toBeTruthy();
+  });
+
+  it('zeigt auch bei bereits alarmierten weiteren Einheiten keinen Status', async () => {
+    mocks.api.mockImplementation(async (action: string) => {
+      if (action === 'events_get_vehicles') {
+        return { vehicles: [{ id: 2, game_vehicle_id: 'FuSTW', name: 'Streifenwagen', status: 0, alarm_modes: ['1', '2'] }] };
+      }
+      if (action === 'events_get_feedback') return { feedback: [] };
+      if (action === 'events_get_logs') return { logs: [] };
+      return { ok: true };
+    });
+
+    const { container } = render(AssignModal);
+
+    await waitFor(() => expect(container.querySelector('.block .chip')).not.toBeNull());
+    expect(container.querySelector('.block .chip .status-badge')).toBeNull();
+    expect(container.querySelector('.block .chip')?.textContent).toContain('Streifenwagen (1) (2)');
+  });
+
   it('alarmiert weitere Einheiten unabhaengig von Status und Zuordnung', async () => {
     const user = userEvent.setup();
     const abschleppwagen = {

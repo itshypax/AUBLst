@@ -6,6 +6,7 @@ import { playPhone, playSoundCue, playSoundCues } from './sounds';
 import type { LogRow, StateResponse } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 import {
+  broadcastLogDismissed,
   broadcastPollingLogs,
   broadcastPollingSnapshot,
   broadcastPollingState,
@@ -37,6 +38,7 @@ let logController: AbortController | null = null;
 let generation = 0;
 let started = false;
 let lastState: StateResponse | null = null;
+const dismissedLogIds = new Set<number>();
 
 function resetCursors(): void {
   lastEventIds = new Set();
@@ -45,6 +47,11 @@ function resetCursors(): void {
   logCursor = INITIAL_LOG_CURSOR;
   stateFailures = 0;
   logFailures = 0;
+  dismissedLogIds.clear();
+}
+
+function applyDismissedLogState(rows: LogRow[]): LogRow[] {
+  return rows.map((row) => dismissedLogIds.has(row.id) ? { ...row, state: 'inactive' as const } : row);
 }
 
 function nextDelay(base: number, failures: number): number {
@@ -250,6 +257,7 @@ export async function pollLogs(): Promise<void> {
   const requestGeneration = generation;
   const incomingIds: number[] = [];
   const incomingRows: LogRow[] = [];
+  const broadcastRows: LogRow[] = [];
   try {
     for (let page = 0; page < 5; page += 1) {
       const data = await apiGet<{ logs: LogRow[] }>(
@@ -260,9 +268,12 @@ export async function pollLogs(): Promise<void> {
       if (requestGeneration !== generation) return;
       const rows = data.logs ?? [];
       if (!rows.length) break;
-      app.logs = mergeLogRows(app.logs, rows, MAX_LOG_ROWS);
-      incomingIds.push(...rows.map((row) => row.id));
-      incomingRows.push(...rows);
+      const applicableRows = applyDismissedLogState(rows);
+      const activeRows = applicableRows.filter((row) => !dismissedLogIds.has(row.id));
+      app.logs = mergeLogRows(app.logs, applicableRows, MAX_LOG_ROWS);
+      incomingIds.push(...activeRows.map((row) => row.id));
+      incomingRows.push(...activeRows);
+      broadcastRows.push(...applicableRows);
       logCursor = advanceLogCursor(logCursor, rows);
       if (rows.length < 100) break;
     }
@@ -278,7 +289,7 @@ export async function pollLogs(): Promise<void> {
       app.lastLogBatch = [];
     }
     logsInitialized = true;
-    broadcastPollingLogs(incomingRows, logCursor, receivedAt);
+    broadcastPollingLogs(broadcastRows, logCursor, receivedAt);
   } catch (error) {
     if (controller.signal.aborted || requestGeneration !== generation) return;
     logFailures += 1;
@@ -292,6 +303,12 @@ export async function pollLogs(): Promise<void> {
 
 export async function dismissLog(id: number): Promise<void> {
   await api('log_viewed', { mid: id }, { requireFresh: true });
+  markLogDismissed(id);
+  broadcastLogDismissed(id);
+}
+
+function markLogDismissed(id: number): void {
+  dismissedLogIds.add(id);
   app.logs = app.logs.map((row) => (row.id === id ? { ...row, state: 'inactive' as const } : row));
   app.lastLogBatch = app.lastLogBatch.filter((item) => item !== id);
 }
@@ -310,13 +327,14 @@ export function startPolling(): void {
     },
     onState: (state, receivedAt) => { void applyState(state, false, receivedAt); },
     onLogs: (rows, cursor, receivedAt) => {
-      app.logs = mergeLogRows(app.logs, rows, MAX_LOG_ROWS);
+      app.logs = mergeLogRows(app.logs, applyDismissedLogState(rows), MAX_LOG_ROWS);
       logCursor = cursor;
       app.logsHealthy = true;
       app.lastSuccessfulLogPoll = receivedAt;
       app.logError = '';
       logsInitialized = true;
     },
+    onLogDismissed: markLogDismissed,
     onSnapshot: (snapshot) => { void applyPollingSnapshot(snapshot); },
     snapshot: pollingSnapshot,
   });
@@ -346,7 +364,7 @@ function pollingSnapshot(): PollingSnapshot {
 
 async function applyPollingSnapshot(snapshot: PollingSnapshot): Promise<void> {
   if (snapshot.state) await applyState(snapshot.state, false, snapshot.lastSuccessfulSync ?? Date.now());
-  app.logs = snapshot.logs;
+  app.logs = applyDismissedLogState(snapshot.logs);
   logCursor = snapshot.logCursor;
   app.stateHealthy = snapshot.stateHealthy;
   app.logsHealthy = snapshot.logsHealthy;

@@ -22,9 +22,28 @@ function action_state(PDO $pdo): void {
     $events->execute([$sid]);
     $events = $events->fetchAll();
 
-    $assignments = $pdo->prepare('SELECT event_id, vehicle_id FROM assignments WHERE session_id = ?');
+    $assignments = $pdo->prepare('SELECT a.event_id, a.vehicle_id, h.mode
+        FROM assignments a
+        LEFT JOIN alarm_history h ON h.session_id = a.session_id
+            AND h.event_id = a.event_id AND h.vehicle_id = a.vehicle_id AND h.mode IS NOT NULL
+        WHERE a.session_id = ? ORDER BY a.event_id, a.vehicle_id, h.id');
     $assignments->execute([$sid]);
-    $assignments = $assignments->fetchAll();
+    $assignmentRows = $assignments->fetchAll();
+    $assignments = [];
+    foreach ($assignmentRows as $row) {
+        $key = (int)$row['event_id'] . ':' . (int)$row['vehicle_id'];
+        if (!isset($assignments[$key])) {
+            $assignments[$key] = [
+                'event_id' => (int)$row['event_id'],
+                'vehicle_id' => (int)$row['vehicle_id'],
+                'alarm_modes' => [],
+            ];
+        }
+        if ($row['mode'] !== null && trim((string)$row['mode']) !== '') {
+            $assignments[$key]['alarm_modes'][] = (string)$row['mode'];
+        }
+    }
+    $assignments = array_values($assignments);
 
     $cleanup = $pdo->prepare('DELETE r FROM hospital_reservations r
         JOIN vehicles v ON v.id = r.vehicle_id AND v.session_id = r.session_id

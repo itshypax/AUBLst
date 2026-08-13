@@ -18,7 +18,7 @@ const RESCUE_ORDER = ['1', 'CHRISTOPH', '2', '72', '3', '4', '74'];
 
 const OTHER_KEY = '_other';
 
-function idOf(v: Vehicle): string {
+function idOf(v: Pick<Vehicle, 'game_vehicle_id'>): string {
   return (v.game_vehicle_id ?? '').toUpperCase();
 }
 
@@ -43,8 +43,14 @@ export function isActionUnit(v: Vehicle): boolean {
   return idOf(v).startsWith(ACTION_PREFIX);
 }
 
-export function isHiddenUnit(v: Vehicle): boolean {
+export function isHiddenUnit(v: Pick<Vehicle, 'game_vehicle_id'>): boolean {
   return HIDDEN_IDS.has(idOf(v));
+}
+
+export function alarmVehicleCount(v: Pick<Vehicle, 'game_vehicle_id' | 'modes'>, mode?: string): number {
+  if (!isHiddenUnit(v)) return 1;
+  const value = Number((mode || v.modes?.split(',')[0] || '').trim());
+  return Number.isInteger(value) && value > 0 ? value : 1;
 }
 
 export function vehicleDisplayName(v: Vehicle): string {

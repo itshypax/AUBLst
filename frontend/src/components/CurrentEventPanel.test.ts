@@ -114,6 +114,84 @@ describe('Aktueller Einsatz', () => {
     expect(container.querySelector('.vehicle-row.staged')).not.toBeNull();
   });
 
+  it('zeigt ein wieder alarmierbares Einsatzfahrzeug als frühere Beteiligung und merkt es per Klick erneut vor', async () => {
+    app.vehicles = [{ ...app.vehicles[0], status: 1 }];
+
+    const { container } = render(CurrentEventPanel);
+
+    const previousRow = container.querySelector('.vehicle-row.assigned.previous');
+    expect(previousRow).not.toBeNull();
+    expect(previousRow?.querySelector('.status-badge')).toBeNull();
+
+    await fireEvent.click(screen.getByRole('button', { name: '4-RTW-B erneut vormerken' }));
+
+    expect(app.dispatchVehicleIds).toEqual([4]);
+    expect(container.querySelector('.vehicle-row.assigned.previous')).toBeNull();
+    expect(container.querySelector('.vehicle-row.staged')).not.toBeNull();
+    expect(screen.getByRole('button', { name: '4-RTW-B entfernen' })).toBeTruthy();
+  });
+
+  it('zeigt den alarmierten Dropdown-Wert in Klammern hinter dem Fahrzeug', () => {
+    app.vehicles = [{
+      id: 41,
+      game_vehicle_id: '1_WLF_1',
+      name: '1-WLF-1',
+      type: 'WLF',
+      modes: 'AB-Rüst,AB-Atemschutz',
+      x: 0,
+      y: 0,
+      status: 4,
+      assigned_player_id: null,
+    }];
+    app.assignments = [{ event_id: 1030, vehicle_id: 41, alarm_modes: ['AB-Rüst'] }];
+
+    const { container } = render(CurrentEventPanel);
+
+    expect(container.querySelector('.vehicle-row.assigned')?.textContent).toContain('1-WLF-1 (AB-Rüst)');
+  });
+
+  it('zeigt getrennte Alarmierungen derselben Einheit einzeln an', () => {
+    app.logs = [];
+    app.vehicles = [{
+      id: 42,
+      game_vehicle_id: 'ASF',
+      name: 'Abschleppwagen',
+      type: 'ASF',
+      modes: '1,2,3,4,Masterlift,Tieflader',
+      x: -1000000,
+      y: -1000000,
+      status: 2,
+      assigned_player_id: null,
+    }];
+    app.assignments = [{ event_id: 1030, vehicle_id: 42, alarm_modes: ['1', '2'] }];
+
+    const { container } = render(CurrentEventPanel);
+
+    expect(container.querySelector('.vehicle-row.assigned')?.textContent).toContain('Abschleppwagen (1) (2)');
+  });
+
+  it('lässt nicht getrackte Einheiten erneut vormerken, zählt den Modus und zeigt keinen Status', async () => {
+    app.logs = [];
+    app.vehicles = [
+      { id: 31, game_vehicle_id: 'ASF', name: 'Abschleppwagen', type: 'ASF', modes: '1,2,3,4,Masterlift,Tieflader', x: -1000000, y: -1000000, status: 6, assigned_player_id: null },
+      { id: 32, game_vehicle_id: 'FuSTW', name: 'Streifenwagen', type: 'FUSTW', modes: '1,2,3', x: -1000000, y: -1000000, status: 0, assigned_player_id: null },
+      { id: 33, game_vehicle_id: 'TD', name: 'Stadtwerke', type: 'TD', modes: null, x: -1000000, y: -1000000, status: 4, assigned_player_id: null },
+    ];
+    app.assignments = app.vehicles.map((vehicle) => ({ event_id: 1030, vehicle_id: vehicle.id }));
+
+    const { container } = render(CurrentEventPanel);
+
+    expect(container.querySelectorAll('.vehicle-row.assigned')).toHaveLength(3);
+    expect(container.querySelector('.status-badge')).toBeNull();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Abschleppwagen erneut vormerken' }));
+    await fireEvent.change(screen.getByRole('combobox', { name: 'Ausrückmodus für Abschleppwagen' }), { target: { value: '3' } });
+
+    expect(app.dispatchVehicleIds).toEqual([31]);
+    expect(container.querySelector('.vehicle-row.staged .status-badge')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Alarmieren (3)' })).toBeTruthy();
+  });
+
   it('hat keinen eigenen Schließen-Knopf', () => {
     render(CurrentEventPanel);
 

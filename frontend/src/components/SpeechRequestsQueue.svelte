@@ -1,7 +1,7 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
   import { Check, FolderOpen, Hospital, RadioTower, X } from '../lib/fontawesome-icons';
-  import { isHospitalTransportUnit } from '../lib/classify';
+  import { isHiddenUnit, isHospitalTransportUnit } from '../lib/classify';
   import { dismissLog } from '../lib/polling';
   import { buildSpeechRequestEntries, type SpeechRequestEntry } from '../lib/speech-requests';
   import { app, canWrite, openAssign } from '../lib/state.svelte';
@@ -92,7 +92,7 @@
         <span class="wait">{ageText(entry)}</span>
         <div class="request-main">
           <div class="request-name">
-            {#if entry.vehicle}<StatusBadge value={entry.vehicle.status} />{/if}
+            {#if entry.vehicle && !isHiddenUnit(entry.vehicle)}<StatusBadge value={entry.vehicle.status} />{/if}
             <strong>{vehicleName(entry)}</strong>
           </div>
           <span class="message">{decodeEntities(entry.row.long_message)}</span>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Vehicle } from './types';
-import { alarmGroups, eventCategory, hasLoeschzug, isHospitalTransportUnit, sortVehiclesByAlarmPriority, vehicleDisplayName, vehicleTypeLabel } from './classify';
+import { alarmGroups, alarmVehicleCount, eventCategory, hasLoeschzug, isHospitalTransportUnit, sortVehiclesByAlarmPriority, vehicleDisplayName, vehicleTypeLabel } from './classify';
 
 function vehicle(id: number, type: string): Vehicle {
   return {
@@ -75,6 +75,17 @@ describe('Fahrzeuggruppierung', () => {
 
     expect(externalGroup?.label).toBe('Feuerwehr extern');
     expect(externalGroup && hasLoeschzug(externalGroup)).toBe(false);
+  });
+
+  it('zählt den Zahlenmodus nicht getrackter Einheiten als Fahrzeuganzahl', () => {
+    const asf = { ...vehicle(21, 'ASF'), game_vehicle_id: 'ASF', modes: '1,2,3,4,Masterlift,Tieflader' };
+    const police = { ...vehicle(22, 'FUSTW'), game_vehicle_id: 'FuSTW', modes: '1,2,3' };
+    const utilities = { ...vehicle(23, 'TD'), game_vehicle_id: 'TD', modes: null };
+
+    expect(alarmVehicleCount(asf, '3')).toBe(3);
+    expect(alarmVehicleCount(police, '2')).toBe(2);
+    expect(alarmVehicleCount(asf, 'Masterlift')).toBe(1);
+    expect(alarmVehicleCount(utilities)).toBe(1);
   });
 });
 

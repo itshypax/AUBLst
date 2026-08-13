@@ -21,6 +21,7 @@ interface PollingHandlers {
   onLeaderChange: (leader: boolean) => void;
   onState: (state: StateResponse, receivedAt: number) => void;
   onLogs: (rows: LogRow[], cursor: LogCursor, receivedAt: number) => void;
+  onLogDismissed: (id: number) => void;
   onSnapshot: (snapshot: PollingSnapshot) => void;
   snapshot: () => PollingSnapshot;
 }
@@ -31,7 +32,8 @@ type PollingMessage =
   | { type: 'snapshot-request'; sender: string; scope: string }
   | { type: 'snapshot'; sender: string; scope: string; target: string; snapshot: PollingSnapshot }
   | { type: 'state'; sender: string; scope: string; state: StateResponse; receivedAt: number }
-  | { type: 'logs'; sender: string; scope: string; rows: LogRow[]; cursor: LogCursor; receivedAt: number };
+  | { type: 'logs'; sender: string; scope: string; rows: LogRow[]; cursor: LogCursor; receivedAt: number }
+  | { type: 'log-dismissed'; sender: string; scope: string; id: number };
 
 const windowId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
   ? crypto.randomUUID()
@@ -92,6 +94,10 @@ function onMessage(event: MessageEvent<PollingMessage>): void {
     if (leader && handlers) {
       post({ type: 'snapshot', sender: windowId, scope, target: message.sender, snapshot: handlers.snapshot() });
     }
+    return;
+  }
+  if (message.type === 'log-dismissed') {
+    handlers?.onLogDismissed(message.id);
     return;
   }
   if (leader) return;
@@ -164,6 +170,11 @@ export function broadcastPollingState(state: StateResponse, receivedAt: number):
 export function broadcastPollingLogs(rows: LogRow[], cursor: LogCursor, receivedAt: number): void {
   if (!channel || !scope || !leader || !rows.length) return;
   post({ type: 'logs', sender: windowId, scope, rows, cursor, receivedAt });
+}
+
+export function broadcastLogDismissed(id: number): void {
+  if (!channel || !scope) return;
+  post({ type: 'log-dismissed', sender: windowId, scope, id });
 }
 
 export function broadcastPollingSnapshot(): void {

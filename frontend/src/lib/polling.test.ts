@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { app, resetSessionData } from './state.svelte';
 import type { LogRow } from './types';
 
-const mocks = vi.hoisted(() => ({ apiGet: vi.fn(), playPhone: vi.fn(), playSoundCue: vi.fn(), playSoundCues: vi.fn() }));
+const mocks = vi.hoisted(() => ({ api: vi.fn(), apiGet: vi.fn(), playPhone: vi.fn(), playSoundCue: vi.fn(), playSoundCues: vi.fn() }));
 
-vi.mock('./api', () => ({ apiGet: mocks.apiGet, fetchMapImage: vi.fn() }));
+vi.mock('./api', () => ({ api: mocks.api, apiGet: mocks.apiGet, fetchMapImage: vi.fn() }));
 vi.mock('./sounds', () => ({
   playPhone: mocks.playPhone,
   playSoundCue: mocks.playSoundCue,
@@ -25,6 +25,7 @@ function row(id: number): LogRow {
 }
 
 beforeEach(() => {
+  mocks.api.mockReset().mockResolvedValue({ ok: true });
   mocks.apiGet.mockReset();
   mocks.playPhone.mockReset();
   mocks.playSoundCue.mockReset();
@@ -67,5 +68,22 @@ describe('Funk-Polling', () => {
     await pollLogs();
 
     expect(mocks.playSoundCues).toHaveBeenCalledWith(['speech-request']);
+  });
+
+  it('öffnet einen erledigten Sprechwunsch durch einen älteren Poll nicht erneut', async () => {
+    const speechRequest = {
+      ...row(21),
+      message: 'Sprechwunsch',
+      long_message: 'Florian Auenburg 1-HLF-1 mit Sprechwunsch',
+    };
+    mocks.apiGet.mockResolvedValueOnce({ logs: [speechRequest] }).mockResolvedValueOnce({ logs: [speechRequest] });
+    const { dismissLog, pollLogs, switchSession } = await import('./polling');
+    await switchSession('../backend/api.php', 'demo', '');
+
+    await pollLogs();
+    await dismissLog(21);
+    await pollLogs();
+
+    expect(app.logs.find((item) => item.id === 21)?.state).toBe('inactive');
   });
 });

@@ -109,6 +109,7 @@ export interface AssignedVehicle {
   name: string | null;
   game_vehicle_id: string;
   status: number;
+  alarm_modes?: string[];
 }
 
 export interface EventNote {
@@ -120,6 +121,7 @@ export interface EventNote {
 export interface Assignment {
   event_id: number;
   vehicle_id: number;
+  alarm_modes?: string[];
 }
 
 export interface EventFeedback {

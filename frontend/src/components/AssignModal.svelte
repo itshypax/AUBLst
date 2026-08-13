@@ -3,7 +3,7 @@
   import { ArrowUpDown, Play, Search, Send, Siren, Undo2, X } from '../lib/fontawesome-icons';
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
-  import { alarmGroups, hasLoeschzug, hasMapPosition, isHiddenUnit, loeschzugFor, vehicleAlarmPriority, vehicleDisplayName, type StationGroup } from '../lib/classify';
+  import { alarmGroups, alarmVehicleCount, hasLoeschzug, hasMapPosition, isHiddenUnit, loeschzugFor, vehicleAlarmPriority, vehicleDisplayName, type StationGroup } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
   import { createRouteCalculator, formatDistance, type RouteDistance } from '../lib/routing';
@@ -206,6 +206,10 @@
   }
 
   let modes = $state<Record<number, string>>(initialModes());
+  const selectedVehicleCount = $derived(selected.reduce((count, id) => {
+    const vehicle = vehicles.find((item) => item.id === id);
+    return count + (vehicle ? alarmVehicleCount(vehicle, modes[id]) : 1);
+  }, 0));
 
   function distanceText(v: Vehicle): string {
     return formatDistance(distanceFor(v));
@@ -316,7 +320,7 @@
       }
       localStorage.setItem(LAST_MODES_KEY, JSON.stringify(lastModes));
       clearCurrentEvent();
-      showNotice(`${selected.length} ${selected.length === 1 ? 'Fahrzeug alarmiert' : 'Fahrzeuge alarmiert'}`);
+      showNotice(`${selectedVehicleCount} ${selectedVehicleCount === 1 ? 'Fahrzeug alarmiert' : 'Fahrzeuge alarmiert'}`);
       void refreshState();
     } catch (err) {
       errorMsg = (err as Error).message;
@@ -403,8 +407,8 @@
             <div class="chips">
               {#each assigned as a (a.id)}
                 <span class="chip">
-                  <StatusBadge value={a.status} />
-                  {a.name || a.game_vehicle_id}
+                  {#if !isHiddenUnit(a)}<StatusBadge value={a.status} />{/if}
+                  {a.name || a.game_vehicle_id}{#each a.alarm_modes ?? [] as mode}<span class="assigned-mode">{` (${mode})`}</span>{/each}
                   {#if Number(a.status) === 3}
                     <button class="ghost" data-tooltip="Einrücken lassen" aria-label="Einrücken lassen" disabled={returning.has(a.id)} onclick={() => void sendHome(a.id)}>
                       <FaIcon icon={Undo2} size={12} />
@@ -454,7 +458,7 @@
 
         {#if selected.length}
           <div class="block">
-            <span class="block-label">Ausgewählt ({selected.length})</span>
+            <span class="block-label">Ausgewählt ({selectedVehicleCount})</span>
             <div class="chips">
               {#each selected as id (id)}
                 <span class="chip selected">
@@ -514,7 +518,7 @@
       <span class="hint">Strg+Enter alarmiert · Esc schließt</span>
       <button class="primary" disabled={!selected.length || busy || !canWrite() || !isAvailableInGame} onclick={() => void submit()}>
         <FaIcon icon={Send} size={14} />
-        {busy ? 'Wird alarmiert …' : `Alarmieren${selected.length ? ` (${selected.length})` : ''}`}
+        {busy ? 'Wird alarmiert …' : `Alarmieren${selected.length ? ` (${selectedVehicleCount})` : ''}`}
       </button>
     </footer>
   </div>
@@ -689,6 +693,7 @@
     background: var(--bg-raised);
     font-size: 13px;
   }
+  .assigned-mode { color: var(--text-dim); font-weight: 400; }
 
   .chip.selected {
     border-color: var(--selection);
