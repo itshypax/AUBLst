@@ -149,17 +149,28 @@ function reconcile_hospital_reservations(PDO $pdo, $session_id, int $hospital_id
     $stmt->execute([$reported_available, $session_id, $hospital_id, $bed_type]);
 }
 
+function message_is_speech_request(array $message): bool {
+    $short = (string)($message['message'] ?? '');
+    $long = (string)($message['long_message'] ?? '');
+    $signal = strtolower((string)preg_replace('/\s+/', '', $short));
+    return stripos($short, 'sprechwunsch') !== false
+        || stripos($long, 'sprechwunsch') !== false
+        || in_array($signal, ['5', 's5', 'status5', 'fms5'], true);
+}
+
+function open_speech_request_occurrence_id(PDO $pdo, $session_id, string $game_vehicle_id, ?int $event_id): ?int {
+    if ($game_vehicle_id === '') return null;
+    $stmt = $pdo->prepare("INSERT INTO speech_request_occurrences
+        (session_id, entity_id, event_id, state) VALUES (?, ?, ?, 'active')
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)");
+    $stmt->execute([$session_id, $game_vehicle_id, $event_id]);
+    return (int)$pdo->lastInsertId();
+}
+
 function upsert_message(PDO $pdo, $session_id, array $m) {
     $entity_id = $m['entity_id'] ?? null;
     $message = $m['message'] ?? null;
-
-    if ($entity_id !== null && $message !== null) {
-        $stmt = $pdo->prepare('SELECT * FROM activity_logs WHERE session_id = ? AND entity_id = ? AND message = ?');
-        $stmt->execute([$session_id, $entity_id, $message]);
-        $saved = $stmt->fetch();
-    } else {
-        $saved = [];
-    }
+    $is_speech_request = message_is_speech_request($m);
 
     // Messages carrying a vehicle id inherit the event that vehicle is assigned to
     if ($entity_id !== null && $entity_id !== '') {
@@ -177,23 +188,54 @@ function upsert_message(PDO $pdo, $session_id, array $m) {
         $event_data = [];
     }
 
-    $stmt = $pdo->prepare('INSERT INTO activity_logs (session_id, type, entity_id, event_id, message, long_message, meta, state)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE event_id = VALUES(event_id), type = VALUES(type), long_message = VALUES(long_message),
-            meta = VALUES(meta), state = VALUES(state), updated_at = CURRENT_TIMESTAMP(6)');
+    $occurrence_id = $is_speech_request
+        ? open_speech_request_occurrence_id(
+            $pdo,
+            $session_id,
+            (string)($entity_id ?? ''),
+            isset($event_data['event_id']) ? (int)$event_data['event_id'] : null,
+        )
+        : 0;
+
+    if ($entity_id !== null && $message !== null && $occurrence_id !== null) {
+        $stmt = $pdo->prepare('SELECT * FROM activity_logs
+            WHERE session_id = ? AND entity_id = ? AND message = ? AND occurrence_id = ?');
+        $stmt->execute([$session_id, $entity_id, $message, $occurrence_id]);
+        $saved = $stmt->fetch();
+    } else {
+        $saved = [];
+    }
+
+    $state = $is_speech_request ? 'active' : check_options('state', $saved, $m, 'active');
+
+    $stmt = $pdo->prepare('INSERT INTO activity_logs
+        (session_id, type, entity_id, event_id, message, occurrence_id, long_message, meta, state)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            updated_at = IF(
+                NOT (event_id <=> VALUES(event_id))
+                OR NOT (type <=> VALUES(type))
+                OR NOT (long_message <=> VALUES(long_message))
+                OR NOT (meta <=> VALUES(meta))
+                OR NOT (state <=> VALUES(state)),
+                CURRENT_TIMESTAMP(6), updated_at
+            ),
+            event_id = VALUES(event_id), type = VALUES(type), long_message = VALUES(long_message),
+            meta = VALUES(meta), state = VALUES(state), id = LAST_INSERT_ID(id)');
     $stmt->execute([
         $session_id,
         check_options('type', $event_data, $m, 'global'),
         check_options('entity_id', $saved, $m, null),
         check_options('event_id', $event_data, $m, null),
         check_options('message', $saved, $m, null),
+        $occurrence_id,
         check_options('long_message', $saved, $m, $message),
         json_encode($m),
-        check_options('state', $saved, $m, 'active'),
+        $state,
     ]);
 
-    $stmt = $pdo->prepare('SELECT * FROM activity_logs WHERE session_id = ? AND entity_id = ? AND message = ?');
-    $stmt->execute([$session_id, $entity_id, $message]);
+    $stmt = $pdo->prepare('SELECT * FROM activity_logs WHERE id = ? AND session_id = ?');
+    $stmt->execute([(int)$pdo->lastInsertId(), $session_id]);
     return $stmt->fetch();
 }
 

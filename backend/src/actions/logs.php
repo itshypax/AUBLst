@@ -27,12 +27,35 @@ function action_log_viewed(PDO $pdo): void {
     $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
     $sid = $session['id'];
 
-    $stmt = $pdo->prepare("UPDATE activity_logs
-        SET state = 'inactive', updated_at = CURRENT_TIMESTAMP(6)
-        WHERE session_id = ? AND id = ?");
+    $stmt = $pdo->prepare('SELECT id, occurrence_id FROM activity_logs WHERE session_id = ? AND id = ?');
     $stmt->execute([$sid, $mid]);
-    $stmt = $pdo->prepare('SELECT updated_at FROM activity_logs WHERE session_id = ? AND id = ?');
-    $stmt->execute([$sid, $mid]);
+    $log = $stmt->fetch();
+    if (!$log) respond_json(404, ['error' => 'Log entry not found']);
+
+    $occurrenceId = (int)($log['occurrence_id'] ?? 0);
+    if ($occurrenceId > 0) {
+        $stmt = $pdo->prepare("UPDATE speech_request_occurrences
+            SET state = 'inactive', updated_at = CURRENT_TIMESTAMP(6)
+            WHERE session_id = ? AND id = ?");
+        $stmt->execute([$sid, $occurrenceId]);
+        $stmt = $pdo->prepare('SELECT id FROM activity_logs WHERE session_id = ? AND occurrence_id = ?');
+        $stmt->execute([$sid, $occurrenceId]);
+        $ids = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        $stmt = $pdo->prepare("UPDATE activity_logs
+            SET state = 'inactive', updated_at = CURRENT_TIMESTAMP(6)
+            WHERE session_id = ? AND occurrence_id = ?");
+        $stmt->execute([$sid, $occurrenceId]);
+    } else {
+        $ids = [(int)$log['id']];
+        $stmt = $pdo->prepare("UPDATE activity_logs
+            SET state = 'inactive', updated_at = CURRENT_TIMESTAMP(6)
+            WHERE session_id = ? AND id = ?");
+        $stmt->execute([$sid, $mid]);
+    }
+
+    $stmt = $pdo->prepare('SELECT MAX(updated_at) FROM activity_logs WHERE session_id = ? AND id IN ('
+        . implode(',', array_fill(0, count($ids), '?')) . ')');
+    $stmt->execute(array_merge([$sid], $ids));
     $updatedAt = $stmt->fetchColumn();
-    respond_json(200, ['ok' => true, 'updated_at' => $updatedAt ?: null]);
+    respond_json(200, ['ok' => true, 'ids' => $ids, 'updated_at' => $updatedAt ?: null]);
 }

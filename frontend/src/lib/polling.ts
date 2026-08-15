@@ -338,10 +338,13 @@ export async function pollLogs(): Promise<void> {
 }
 
 export async function dismissLog(id: number): Promise<void> {
-  const result = await api<{ ok: boolean; updated_at?: string | null }>('log_viewed', { mid: id }, { requireFresh: true });
+  const result = await api<{ ok: boolean; ids?: number[]; updated_at?: string | null }>('log_viewed', { mid: id }, { requireFresh: true });
   const updatedAt = result.updated_at || app.logs.find((row) => row.id === id)?.updated_at || '';
-  markLogDismissed(id, updatedAt);
-  broadcastLogDismissed(id, updatedAt);
+  const dismissedIds = result.ids?.length ? result.ids : [id];
+  for (const dismissedId of dismissedIds) {
+    markLogDismissed(dismissedId, updatedAt);
+    broadcastLogDismissed(dismissedId, updatedAt);
+  }
 }
 
 function markLogDismissed(id: number, updatedAt: string): void {

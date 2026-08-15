@@ -34,9 +34,11 @@ afterEach(() => cleanup());
 
 describe('Sprechwunsch-Warteschlange', () => {
   it('zeigt Fahrzeug, Einsatz und Klinikaktion', () => {
+    app.vehicles = [{ ...app.vehicles[0], status: 4 }];
     render(SpeechRequestsQueue);
 
     expect(screen.getByText('4-RTW-B')).toBeTruthy();
+    expect(screen.getByText('5')).toBeTruthy();
     expect(screen.getByText(/Verkehrsunfall E-CALL/)).toBeTruthy();
     expect(screen.getByRole('button', { name: /Klinik für 4-RTW-B/ })).toBeTruthy();
   });
@@ -58,6 +60,28 @@ describe('Sprechwunsch-Warteschlange', () => {
     await user.click(screen.getByRole('button', { name: /Sprechwunsch von 4-RTW-B abarbeiten/ }));
 
     await waitFor(() => expect(mocks.dismissLog).toHaveBeenCalledWith(21));
+  });
+
+  it('führt zwei Sprechwünsche desselben Fahrzeugs getrennt', async () => {
+    app.logs = [
+      { ...app.logs[0], occurrence_id: 101 },
+      {
+        ...app.logs[0],
+        id: 22,
+        occurrence_id: 102,
+        created_at: '2026-08-10 00:15:00',
+        updated_at: '2026-08-10 00:15:00',
+      },
+    ];
+    const user = userEvent.setup();
+    render(SpeechRequestsQueue);
+
+    const doneButtons = screen.getAllByRole('button', { name: /Sprechwunsch von 4-RTW-B abarbeiten/ });
+    expect(doneButtons).toHaveLength(2);
+    await user.click(doneButtons[0]);
+
+    await waitFor(() => expect(mocks.dismissLog).toHaveBeenCalledWith(21));
+    expect(mocks.dismissLog).not.toHaveBeenCalledWith(22);
   });
 
   it('zeigt für nicht getrackte Einheiten keinen Status an', () => {

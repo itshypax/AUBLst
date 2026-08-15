@@ -58,7 +58,7 @@
     if (dismissing.has(entry.key)) return;
     dismissing = new Set(dismissing).add(entry.key);
     try {
-      await Promise.all(entry.rows.map((row) => dismissLog(row.id)));
+      await dismissLog(entry.row.id);
     } catch (error) {
       app.lastError = (error as Error).message;
     } finally {
@@ -92,7 +92,7 @@
         <span class="wait">{ageText(entry)}</span>
         <div class="request-main">
           <div class="request-name">
-            {#if entry.vehicle && !isHiddenUnit(entry.vehicle)}<StatusBadge value={entry.vehicle.status} />{/if}
+            {#if entry.vehicle && !isHiddenUnit(entry.vehicle)}<StatusBadge value={5} />{/if}
             <strong>{vehicleName(entry)}</strong>
           </div>
           <span class="message">{decodeEntities(entry.row.long_message)}</span>

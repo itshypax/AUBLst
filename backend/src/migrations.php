@@ -111,6 +111,69 @@ function migration_definitions(): array {
             $pdo->exec('ALTER TABLE activity_logs
                 MODIFY updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)');
         },
+        '2026081502_speech_request_occurrences' => static function (PDO $pdo): void {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS speech_request_occurrences (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                session_id INT NOT NULL,
+                entity_id VARCHAR(255) NOT NULL,
+                event_id INT NULL,
+                state ENUM('active','inactive') NOT NULL DEFAULT 'active',
+                active_marker TINYINT GENERATED ALWAYS AS (CASE WHEN state = 'active' THEN 1 ELSE NULL END) STORED,
+                created_at TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6),
+                updated_at TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+                UNIQUE KEY uniq_active_speech_request (session_id, entity_id, active_marker),
+                INDEX idx_speech_request_session (session_id, created_at, id),
+                CONSTRAINT fk_speech_request_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+            if (!database_column_exists($pdo, 'activity_logs', 'occurrence_id')) {
+                $pdo->exec('ALTER TABLE activity_logs
+                    ADD COLUMN occurrence_id INT UNSIGNED NULL DEFAULT 0 AFTER message');
+            }
+            if (database_index_exists($pdo, 'activity_logs', 'uniq_activity_log')) {
+                $pdo->exec('ALTER TABLE activity_logs DROP INDEX uniq_activity_log');
+            }
+            if (!database_index_exists($pdo, 'activity_logs', 'uniq_activity_log_occurrence')) {
+                $pdo->exec('ALTER TABLE activity_logs
+                    ADD UNIQUE KEY uniq_activity_log_occurrence (session_id, entity_id, message, occurrence_id)');
+            }
+        },
+        '2026081503_speech_request_lifecycle' => static function (PDO $pdo): void {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS speech_request_occurrences (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                session_id INT NOT NULL,
+                entity_id VARCHAR(255) NOT NULL,
+                event_id INT NULL,
+                state ENUM('active','inactive') NOT NULL DEFAULT 'active',
+                active_marker TINYINT GENERATED ALWAYS AS (CASE WHEN state = 'active' THEN 1 ELSE NULL END) STORED,
+                created_at TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6),
+                updated_at TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+                UNIQUE KEY uniq_active_speech_request (session_id, entity_id, active_marker),
+                INDEX idx_speech_request_session (session_id, created_at, id),
+                CONSTRAINT fk_speech_request_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+            $pdo->exec('UPDATE activity_logs SET occurrence_id = 0 WHERE occurrence_id > 0');
+            $pdo->exec("INSERT INTO speech_request_occurrences
+                (session_id, entity_id, event_id, state, created_at, updated_at)
+                SELECT session_id, entity_id, MAX(event_id), 'active', MIN(created_at), MAX(updated_at)
+                FROM activity_logs
+                WHERE state = 'active' AND entity_id IS NOT NULL AND entity_id <> ''
+                  AND (
+                    LOWER(message) LIKE '%sprechwunsch%'
+                    OR LOWER(long_message) LIKE '%sprechwunsch%'
+                    OR LOWER(REPLACE(message, ' ', '')) IN ('5', 's5', 'status5', 'fms5')
+                  )
+                GROUP BY session_id, entity_id
+                ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)");
+            $pdo->exec("UPDATE activity_logs l
+                JOIN speech_request_occurrences o
+                  ON o.session_id = l.session_id AND o.entity_id = l.entity_id AND o.state = 'active'
+                SET l.occurrence_id = o.id
+                WHERE l.state = 'active' AND (
+                    LOWER(l.message) LIKE '%sprechwunsch%'
+                    OR LOWER(l.long_message) LIKE '%sprechwunsch%'
+                    OR LOWER(REPLACE(l.message, ' ', '')) IN ('5', 's5', 'status5', 'fms5')
+                )");
+        },
     ];
 }
 

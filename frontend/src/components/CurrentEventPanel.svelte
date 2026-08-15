@@ -6,7 +6,7 @@
   import { refreshState } from '../lib/polling';
   import { createRouteCalculator, formatDistance } from '../lib/routing';
   import { buildSpeechRequestEntries } from '../lib/speech-requests';
-  import { app, canWrite, setDispatchVehicleIds, showNotice, toggleDispatchVehicle } from '../lib/state.svelte';
+  import { app, canWrite, openVehicleMenu, setDispatchVehicleIds, showNotice, toggleDispatchVehicle } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import type { EventFeedback, StateResponse, Vehicle } from '../lib/types';
   import EmptyState from './EmptyState.svelte';
@@ -36,12 +36,12 @@
     .filter((item) => Number(item.event_id) === currentEventId && item.alarm_modes?.length)
     .map((item) => [Number(item.vehicle_id), item.alarm_modes ?? []])));
   const assignedVehicles = $derived(app.vehicles.filter((vehicle) =>
-    assignedIds.has(vehicle.id) && !(canRepeatAlarm(vehicle) && app.dispatchVehicleIds.includes(vehicle.id))
+    assignedIds.has(vehicle.id) && !(canStageAgain(vehicle) && app.dispatchVehicleIds.includes(vehicle.id))
   ));
   const stagedVehicles = $derived(app.dispatchVehicleIds
     .map((id) => app.vehicles.find((vehicle) => vehicle.id === id))
     .filter((vehicle): vehicle is Vehicle => vehicle !== undefined)
-    .filter((vehicle) => !assignedIds.has(vehicle.id) || canRepeatAlarm(vehicle)));
+    .filter((vehicle) => !assignedIds.has(vehicle.id) || canStageAgain(vehicle)));
   const availableVehicles = $derived(app.vehicles.filter((vehicle) => {
     const status = Number(vehicle.status);
     return !isActionUnit(vehicle) && (!assignedIds.has(vehicle.id) || isHiddenUnit(vehicle)) && !app.dispatchVehicleIds.includes(vehicle.id) && (isHiddenUnit(vehicle) || status === 1 || status === 2);
@@ -135,8 +135,12 @@
     return [1, 2].includes(Number(vehicle.status));
   }
 
-  function canRepeatAlarm(vehicle: Vehicle): boolean {
+  function canStageAgain(vehicle: Vehicle): boolean {
     return isHiddenUnit(vehicle) || hasLeftCurrentEvent(vehicle);
+  }
+
+  function canRepeatFromAssignedRow(vehicle: Vehicle): boolean {
+    return !isHiddenUnit(vehicle) && hasLeftCurrentEvent(vehicle);
   }
 
   function distanceText(vehicle: Vehicle): string {
@@ -341,9 +345,19 @@
         <div class="table-head"><span>S</span><span>Fahrzeug</span><span></span></div>
         <div class="vehicle-rows">
           {#each assignedVehicles as vehicle (vehicle.id)}
-            {@const previouslyAssigned = canRepeatAlarm(vehicle)}
-            <div class="vehicle-row assigned" class:previous={previouslyAssigned}>
-              {#if previouslyAssigned}<span aria-hidden="true"></span>{:else}<StatusBadge value={vehicle.status} />{/if}
+            {@const previouslyAssigned = canRepeatFromAssignedRow(vehicle)}
+            <div
+              class="vehicle-row assigned"
+              class:previous={previouslyAssigned}
+              role="group"
+              aria-label={displayName(vehicle)}
+              oncontextmenu={(event) => {
+                if (previouslyAssigned) return;
+                event.preventDefault();
+                openVehicleMenu(vehicle.id, event.clientX, event.clientY);
+              }}
+            >
+              {#if previouslyAssigned || isHiddenUnit(vehicle)}<span aria-hidden="true"></span>{:else}<StatusBadge value={vehicle.status} />{/if}
               {#if previouslyAssigned}
                 <button
                   class="ghost vehicle-name previous-vehicle"

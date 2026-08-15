@@ -38,18 +38,40 @@ describe('Sprechwunsch-Warteschlange', () => {
     expect(speechRequestVehicle(row, [...vehicles, police])).toBeUndefined();
   });
 
-  it('führt doppelte Meldungen eines Fahrzeugs zu einem offenen Eintrag zusammen', () => {
+  it('führt Meldungsvarianten desselben Status-5-Vorkommnisses zusammen', () => {
     const event: EventItem = { id: 1030, game_event_id: '30', name: 'Verkehrsunfall', x: 0, y: 0, status: 'active', created_by: 'game' };
     const assignments: Assignment[] = [{ event_id: event.id, vehicle_id: vehicles[0].id }];
     const entries = buildSpeechRequestEntries([
-      log(1, '4_RTW_B'),
-      { ...log(2, '4_RTW_B', 'FMS5'), created_at: '2026-08-10 10:02:00' },
+      { ...log(1, '4_RTW_B'), occurrence_id: 101 },
+      { ...log(2, '4_RTW_B', 'FMS5'), occurrence_id: 101, created_at: '2026-08-10 10:02:00' },
     ], vehicles, [event], assignments);
 
     expect(entries).toHaveLength(1);
     expect(entries[0].rows).toHaveLength(2);
     expect(entries[0].event?.id).toBe(1030);
     expect(entries[0].requestedAt).toBe('2026-08-10 10:01:00');
+  });
+
+  it('behält zwei Sprechwünsche desselben Fahrzeugs mit eigener Startzeit', () => {
+    const entries = buildSpeechRequestEntries([
+      { ...log(1, '4_RTW_B'), occurrence_id: 101 },
+      { ...log(2, '4_RTW_B'), occurrence_id: 102 },
+    ], vehicles, [], []);
+
+    expect(entries).toHaveLength(2);
+    expect(entries.map((entry) => entry.requestedAt)).toEqual([
+      '2026-08-10 10:01:00',
+      '2026-08-10 10:02:00',
+    ]);
+    expect(entries[0].key).not.toBe(entries[1].key);
+  });
+
+  it('verwechselt technische IDs mit unterschiedlichen Segmenten nicht', () => {
+    const similarVehicles = [
+      { ...vehicles[0], id: 3, game_vehicle_id: '1_AB_11' },
+      { ...vehicles[0], id: 4, game_vehicle_id: '1_AB1_1' },
+    ];
+    expect(speechRequestVehicle(log(1, '1_AB1_1'), similarVehicles)?.id).toBe(4);
   });
 
   it('blendet abgearbeitete Meldungen aus', () => {

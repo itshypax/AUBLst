@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/domain.php';
 require_once __DIR__ . '/../src/http.php';
 require_once __DIR__ . '/../src/migrations.php';
+require_once __DIR__ . '/../src/repository.php';
 require_once __DIR__ . '/../src/actions/mods.php';
 
 $tests = [];
@@ -71,6 +72,13 @@ test_case('Migrationen haben eine feste Reihenfolge', static function (): void {
     sort($sorted, SORT_STRING);
     expect_same($sorted, $versions);
     expect_same(count($versions), count(array_unique($versions)));
+});
+
+test_case('Sprechwunschvarianten werden als Status 5 erkannt', static function (): void {
+    expect_true(message_is_speech_request(['message' => 'S5']));
+    expect_true(message_is_speech_request(['message' => 'FMS5']));
+    expect_true(message_is_speech_request(['message' => 'Info', 'long_message' => 'Fahrzeug mit Sprechwunsch']));
+    expect_true(!message_is_speech_request(['message' => 'S4', 'long_message' => 'Ankunft']));
 });
 
 test_case('Straßennetz verwirft ungültige Kanten', static function (): void {

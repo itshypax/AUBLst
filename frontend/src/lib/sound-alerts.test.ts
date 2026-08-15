@@ -99,4 +99,38 @@ describe('zeitabhängige Tonhinweise', () => {
     expect(tracker.update(state([vehicle(1, 5)], [], [{ ...request, state: 'inactive' }]), now + 2_000, config)).toEqual([]);
     expect(tracker.update(state([vehicle(1, 5)], [], [{ ...request, id: 21, created_at: '2026-08-15 12:00:02' }]), now + 3_000, config)).toEqual(['speech-request-timeout']);
   });
+
+  it('misst zwei Sprechwünsche desselben Fahrzeugs ab ihrer eigenen Eingangszeit', () => {
+    const tracker = new SoundAlertTracker();
+    const first: LogRow = {
+      id: 20,
+      occurrence_id: 101,
+      type: 'vehicle',
+      entity_id: '1_TEST_1',
+      event_id: null,
+      message: 'Sprechwunsch',
+      long_message: '1-TEST-1 mit Sprechwunsch',
+      state: 'active',
+      created_at: '2026-08-15 12:00:00',
+      updated_at: '2026-08-15 12:00:00',
+    };
+    const second: LogRow = {
+      ...first,
+      id: 21,
+      occurrence_id: 102,
+      created_at: '2026-08-15 12:15:00',
+      updated_at: '2026-08-15 12:15:00',
+    };
+
+    expect(tracker.update(
+      state([vehicle(1, 5)], [], [first, second]),
+      Date.parse('2026-08-15T12:15:01'),
+      config,
+    )).toEqual(['speech-request-timeout']);
+    expect(tracker.update(
+      state([vehicle(1, 5)], [], [first, second]),
+      Date.parse('2026-08-15T12:17:01'),
+      config,
+    )).toEqual(['speech-request-timeout']);
+  });
 });

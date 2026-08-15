@@ -145,6 +145,12 @@ ist. Befehle an das Spiel landen in der `commands`-Tabelle und werden per
 EMDispatch nichts geändert, bestehende Spielanbindungen laufen unverändert
 weiter.
 
+Bei Fahrzeugmeldungen ist `entity_id` immer die `game_vehicle_id`, nicht der
+Anzeigename. Pro Fahrzeug bleibt höchstens ein Sprechwunsch offen. Weitere
+Status-5-Meldungen dieses Fahrzeugs gehören zu diesem Eintrag. Sobald er
+abgearbeitet ist, legt die nächste Status-5-Meldung einen neuen Sprechwunsch
+mit eigener Eingangszeit an.
+
 Manuell angelegte Einsatznamen bleiben in der Leitstelle unverändert. Im
 `event_create`-Befehl für EM4 werden Umlaute ersetzt (`ä` → `ae`, `ö` → `oe`,
 `ü` → `ue`, `ß` → `ss`). Bei Einsätzen aus EM4 wandelt die Leitstelle diese

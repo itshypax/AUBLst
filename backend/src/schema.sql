@@ -197,6 +197,20 @@ CREATE TABLE IF NOT EXISTS alarm_history (
   CONSTRAINT fk_alarm_history_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS speech_request_occurrences (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  session_id INT NOT NULL,
+  entity_id VARCHAR(255) NOT NULL,
+  event_id INT NULL,
+  state ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  active_marker TINYINT GENERATED ALWAYS AS (CASE WHEN state = 'active' THEN 1 ELSE NULL END) STORED,
+  created_at TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uniq_active_speech_request (session_id, entity_id, active_marker),
+  INDEX idx_speech_request_session (session_id, created_at, id),
+  CONSTRAINT fk_speech_request_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS activity_logs (
   id INT AUTO_INCREMENT PRIMARY KEY,
   session_id INT NOT NULL,
@@ -204,6 +218,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   entity_id VARCHAR(255) NULL,
   event_id INT NULL,
   message VARCHAR(20) NOT NULL,
+  occurrence_id INT UNSIGNED NULL DEFAULT 0,
   long_message VARCHAR(512) NOT NULL,
   state ENUM('active','inactive','disabled') NOT NULL,
   meta JSON NULL,
@@ -211,7 +226,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   updated_at TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   INDEX idx_session (session_id, id),
   INDEX idx_session_updated (session_id, updated_at, id),
-  UNIQUE KEY uniq_activity_log (session_id, entity_id, message),
+  UNIQUE KEY uniq_activity_log_occurrence (session_id, entity_id, message, occurrence_id),
   CONSTRAINT fk_logs_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 

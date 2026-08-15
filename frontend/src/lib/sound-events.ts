@@ -22,7 +22,7 @@ export function soundCueForLog(row: LogRow): SoundCue | null {
 
   if (/(schiffsverkehr|schiffverkehr)/.test(text)) return released ? 'ship-released' : 'ship-blocked';
   if (/(tramverkehr|straßenbahnverkehr|strassenbahnverkehr)/.test(text)) return released ? 'tram-released' : 'tram-blocked';
-  if (/(zugverkehr|bahnverkehr|bahnstrecke|gleisverkehr)/.test(text)) return released ? 'train-released' : 'train-blocked';
+  if (/(zugverkehr|bahnverkehr|bahnstrecke|gleisverkehr|schienenverkehr)/.test(text)) return released ? 'train-released' : 'train-blocked';
   return null;
 }
 

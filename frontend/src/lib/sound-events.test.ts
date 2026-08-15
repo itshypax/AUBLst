@@ -23,6 +23,7 @@ describe('Soundereignisse', () => {
     ['Schiffsverkehr freigegeben', 'ship-released'],
     ['Tramverkehr eingestellt', 'tram-blocked'],
     ['Tramverkehr freigegeben', 'tram-released'],
+    ['Schienenverkehr eingestellt', 'train-blocked'],
     ['Bahnstrecke gesperrt', 'train-blocked'],
     ['Zugverkehr freigegeben', 'train-released'],
   ] as const)('ordnet „%s“ dem passenden Ton zu', (message, cue) => {

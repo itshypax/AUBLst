@@ -21,8 +21,8 @@ export function isSpeechRequest(row: LogRow): boolean {
   );
 }
 
-function normalized(value: string | null | undefined): string {
-  return (value ?? '').toLocaleLowerCase('de').replace(/[^a-z0-9äöüß]/g, '');
+function technicalIdentifier(value: string | null | undefined): string {
+  return (value ?? '').trim().toLocaleLowerCase('de');
 }
 
 function appearsAsIdentifier(message: string, identifier: string): boolean {
@@ -36,9 +36,9 @@ function appearsAsIdentifier(message: string, identifier: string): boolean {
 }
 
 export function speechRequestVehicle(row: LogRow, vehicles: Vehicle[]): Vehicle | undefined {
-  const entity = normalized(row.entity_id);
+  const entity = technicalIdentifier(row.entity_id);
   if (entity) {
-    const exact = vehicles.find((vehicle) => normalized(vehicle.game_vehicle_id) === entity);
+    const exact = vehicles.find((vehicle) => technicalIdentifier(vehicle.game_vehicle_id) === entity);
     if (exact) return exact;
   }
 
@@ -82,7 +82,14 @@ export function buildSpeechRequestEntries(
   for (const row of logs) {
     if (row.state !== 'active' || !isSpeechRequest(row)) continue;
     const vehicle = speechRequestVehicle(row, vehicles);
-    const key = vehicle ? `vehicle:${vehicle.id}` : `message:${normalized(row.entity_id) || row.id}`;
+    const occurrence = Number(row.occurrence_id) > 0
+      ? `status:${Number(row.occurrence_id)}`
+      : row.occurrence_id === 0
+        ? 'legacy'
+        : `log:${row.id}`;
+    const key = vehicle
+      ? `vehicle:${vehicle.id}:${occurrence}`
+      : `message:${technicalIdentifier(row.entity_id) || row.id}:${occurrence}`;
     const existing = grouped.get(key);
     if (existing) {
       existing.rows.push(row);

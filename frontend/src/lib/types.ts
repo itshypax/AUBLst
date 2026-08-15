@@ -99,6 +99,7 @@ export interface LogRow {
   entity_id: string | null;
   event_id: number | null;
   message: string;
+  occurrence_id?: number | null;
   long_message: string;
   state: 'active' | 'inactive' | 'disabled';
   created_at?: string;

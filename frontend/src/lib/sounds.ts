@@ -34,6 +34,7 @@ interface RawSoundProfile {
   label?: unknown;
   extends?: unknown;
   cues?: unknown;
+  browser_titles?: unknown;
 }
 
 interface RawSoundManifest {
@@ -45,6 +46,13 @@ interface RawSoundManifest {
 
 interface CompiledSoundProfile extends SoundProfileOption {
   sources: Partial<Record<SoundCue, string | null>>;
+  repeats: Partial<Record<SoundCue, number>>;
+  browserTitles: BrowserTitleVariant[];
+}
+
+interface BrowserTitleVariant {
+  text: string;
+  chance: number;
 }
 
 export const SOUND_CUES: ReadonlyArray<{ id: SoundCue; label: string }> = [
@@ -70,6 +78,7 @@ const cueIds = new Set<SoundCue>(SOUND_CUES.map((cue) => cue.id));
 const SAFE_PROFILE_ID = /^[A-Za-z0-9_.-]{1,64}$/;
 const SAFE_ASSET_SEGMENT = /^[A-Za-z0-9_. -]+$/;
 const SUPPORTED_AUDIO = /\.(?:aac|m4a|mp3|oga|ogg|wav)$/i;
+const DEFAULT_BROWSER_TITLE = 'Hier Leitstelle Auenburg';
 
 const FALLBACK_STANDARD: CompiledSoundProfile = {
   id: 'standard',
@@ -79,6 +88,8 @@ const FALLBACK_STANDARD: CompiledSoundProfile = {
     'radio-message': './assets/Alarm.wav',
     'speech-request': './assets/sprechwunsch.mp3',
   },
+  repeats: {},
+  browserTitles: [],
 };
 
 const DEFAULT_ALERT_CONFIG: SoundAlertConfig = {
@@ -95,9 +106,11 @@ let defaultProfile = FALLBACK_STANDARD.id;
 let alertConfig: SoundAlertConfig = DEFAULT_ALERT_CONFIG;
 let manifestPromise: Promise<SoundProfileOption[]> | null = null;
 const audioByCue = new Map<SoundCue, HTMLAudioElement>();
+const playbackTokens = new Map<SoundCue, number>();
 let enabled = true;
 let volume = 0.7;
 let activeProfile = FALLBACK_STANDARD.id;
+let titleProfile: string | null = null;
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -106,6 +119,32 @@ function safeString(value: unknown): string {
 function positiveSeconds(value: unknown, fallback: number): number {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : fallback;
+}
+
+function repeatCount(value: unknown, fallback: number): number {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 1 && number <= 10 ? number : fallback;
+}
+
+function isSilentSource(value: unknown): boolean {
+  return value === null || safeString(value).toLocaleLowerCase('en-US') === 'none';
+}
+
+function browserTitles(value: unknown, inherited: BrowserTitleVariant[]): BrowserTitleVariant[] {
+  if (!Array.isArray(value)) return inherited.map((variant) => ({ ...variant }));
+  const variants: BrowserTitleVariant[] = [];
+  let remainingChance = 1;
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) || remainingChance <= 0) continue;
+    const raw = entry as Record<string, unknown>;
+    const text = safeString(raw.text);
+    const chance = Number(raw.chance);
+    if (!text || text.length > 120 || !Number.isFinite(chance) || chance <= 0) continue;
+    const acceptedChance = Math.min(chance, remainingChance);
+    variants.push({ text, chance: acceptedChance });
+    remainingChance -= acceptedChance;
+  }
+  return variants;
 }
 
 function sourceUrl(file: unknown, version: unknown): string | null {
@@ -144,12 +183,27 @@ function compileProfiles(raw: RawSoundManifest): Map<string, CompiledSoundProfil
     const parentId = safeString(entry.extends);
     const parent = parentId ? compile(parentId, stack) : id === FALLBACK_STANDARD.id ? FALLBACK_STANDARD : null;
     const sources = { ...(parent?.sources ?? {}) };
+    const repeats = { ...(parent?.repeats ?? {}) };
+    const titleVariants = browserTitles(entry.browser_titles, parent?.browserTitles ?? []);
     if (entry.cues && typeof entry.cues === 'object' && !Array.isArray(entry.cues)) {
-      for (const [cue, file] of Object.entries(entry.cues)) {
+      for (const [cue, definition] of Object.entries(entry.cues)) {
         if (!cueIds.has(cue as SoundCue)) continue;
-        if (file === null) sources[cue as SoundCue] = null;
-        else {
-          const source = sourceUrl(file, raw.version);
+        const cueId = cue as SoundCue;
+        if (isSilentSource(definition)) {
+          sources[cueId] = null;
+          repeats[cueId] = 1;
+        } else if (typeof definition === 'object' && !Array.isArray(definition)) {
+          const options = definition as Record<string, unknown>;
+          if (Object.hasOwn(options, 'file')) {
+            if (isSilentSource(options.file)) sources[cueId] = null;
+            else {
+              const source = sourceUrl(options.file, raw.version);
+              if (source) sources[cueId] = source;
+            }
+          }
+          repeats[cueId] = repeatCount(options.repeat, repeats[cueId] ?? 1);
+        } else {
+          const source = sourceUrl(definition, raw.version);
           if (source) sources[cue as SoundCue] = source;
         }
       }
@@ -158,6 +212,8 @@ function compileProfiles(raw: RawSoundManifest): Map<string, CompiledSoundProfil
       id,
       label: safeString(entry.label) || id,
       sources,
+      repeats,
+      browserTitles: titleVariants,
     };
     compiled.set(id, profile);
     stack.delete(id);
@@ -244,6 +300,26 @@ function sourceFor(cue: SoundCue): string | null {
   return profile.sources[cue] ?? null;
 }
 
+function repeatsFor(cue: SoundCue): number {
+  const profile = profiles.get(activeProfile) ?? profiles.get(defaultProfile) ?? FALLBACK_STANDARD;
+  return profile.repeats[cue] ?? 1;
+}
+
+function applyBrowserTitle(profileId: string): void {
+  if (typeof document === 'undefined') return;
+  const profile = profiles.get(profileId) ?? profiles.get(defaultProfile) ?? FALLBACK_STANDARD;
+  const roll = Math.random();
+  let chance = 0;
+  for (const variant of profile.browserTitles) {
+    chance += variant.chance;
+    if (roll < chance) {
+      document.title = variant.text;
+      return;
+    }
+  }
+  document.title = DEFAULT_BROWSER_TITLE;
+}
+
 function audioFor(cue: SoundCue): HTMLAudioElement | null {
   const existing = audioByCue.get(cue);
   if (existing) return existing;
@@ -260,9 +336,17 @@ export function configureSounds(nextEnabled: boolean, nextVolume: number, nextPr
   volume = Math.min(1, Math.max(0, nextVolume));
   const resolvedProfile = profiles.has(nextProfile) ? nextProfile : defaultProfile;
   if (activeProfile !== resolvedProfile) {
-    for (const audio of audioByCue.values()) audio.pause();
+    for (const [cue, audio] of audioByCue) {
+      playbackTokens.set(cue, (playbackTokens.get(cue) ?? 0) + 1);
+      audio.onended = null;
+      audio.pause();
+    }
     audioByCue.clear();
     activeProfile = resolvedProfile;
+  }
+  if (titleProfile !== resolvedProfile) {
+    applyBrowserTitle(resolvedProfile);
+    titleProfile = resolvedProfile;
   }
   for (const audio of audioByCue.values()) audio.volume = volume;
 }
@@ -271,13 +355,36 @@ export async function playSoundCue(cue: SoundCue, force = false): Promise<boolea
   if (!enabled && !force) return false;
   const audio = audioFor(cue);
   if (!audio) return false;
+  const playable = audio;
+  const token = (playbackTokens.get(cue) ?? 0) + 1;
+  playbackTokens.set(cue, token);
+
+  function queueNext(remaining: number): void {
+    if (remaining <= 0) {
+      playable.onended = null;
+      return;
+    }
+    playable.onended = () => {
+      if (playbackTokens.get(cue) !== token) return;
+      playable.currentTime = 0;
+      playable.volume = volume;
+      void playable.play()
+        .then(() => queueNext(remaining - 1))
+        .catch(() => {
+          if (playbackTokens.get(cue) === token) playable.onended = null;
+        });
+    };
+  }
+
   try {
     audio.pause();
     audio.currentTime = 0;
     audio.volume = volume;
+    queueNext(repeatsFor(cue) - 1);
     await audio.play();
     return true;
   } catch {
+    if (playbackTokens.get(cue) === token) audio.onended = null;
     return false;
   }
 }

@@ -166,6 +166,27 @@ describe('Aktueller Einsatz', () => {
     expect(screen.getByRole('button', { name: '4-RTW-B entfernen' })).toBeTruthy();
   });
 
+  it('öffnet für ein aktives Einsatzfahrzeug das gemeinsame Fahrzeugmenü', async () => {
+    const { container } = render(CurrentEventPanel);
+    const row = container.querySelector('.vehicle-row.assigned');
+    expect(row).not.toBeNull();
+
+    await fireEvent.contextMenu(row!, { clientX: 140, clientY: 85 });
+
+    expect(app.contextMenu).toEqual({ vehicleId: 4, x: 140, y: 85 });
+  });
+
+  it('öffnet für eine frühere kursive Beteiligung kein Fahrzeugmenü', async () => {
+    app.vehicles = [{ ...app.vehicles[0], status: 1 }];
+    const { container } = render(CurrentEventPanel);
+    const row = container.querySelector('.vehicle-row.assigned.previous');
+    expect(row).not.toBeNull();
+
+    await fireEvent.contextMenu(row!, { clientX: 140, clientY: 85 });
+
+    expect(app.contextMenu).toBeNull();
+  });
+
   it('zeigt den alarmierten Dropdown-Wert in Klammern hinter dem Fahrzeug', () => {
     app.vehicles = [{
       id: 41,
@@ -205,7 +226,7 @@ describe('Aktueller Einsatz', () => {
     expect(container.querySelector('.vehicle-row.assigned')?.textContent).toContain('Abschleppwagen (1) (2)');
   });
 
-  it('lässt nicht getrackte Einheiten erneut vormerken, zählt den Modus und zeigt keinen Status', async () => {
+  it('zeigt nicht getrackte Einheiten normal und alarmiert sie nur über Schnellwahl oder Suche erneut', async () => {
     app.logs = [];
     app.vehicles = [
       { id: 31, game_vehicle_id: 'ASF', name: 'Abschleppwagen', type: 'ASF', modes: '1,2,3,4,Masterlift,Tieflader', x: -1000000, y: -1000000, status: 6, assigned_player_id: null },
@@ -217,14 +238,43 @@ describe('Aktueller Einsatz', () => {
     const { container } = render(CurrentEventPanel);
 
     expect(container.querySelectorAll('.vehicle-row.assigned')).toHaveLength(3);
+    expect(container.querySelector('.vehicle-row.assigned.previous')).toBeNull();
     expect(container.querySelector('.status-badge')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Abschleppwagen erneut vormerken' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Streifenwagen erneut vormerken' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Stadtwerke erneut vormerken' })).toBeNull();
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Abschleppwagen erneut vormerken' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Abschleppwagen vormerken' }));
     await fireEvent.change(screen.getByRole('combobox', { name: 'Ausrückmodus für Abschleppwagen' }), { target: { value: '3' } });
 
     expect(app.dispatchVehicleIds).toEqual([31]);
     expect(container.querySelector('.vehicle-row.staged .status-badge')).toBeNull();
     expect(screen.getByRole('button', { name: 'Alarmieren (3)' })).toBeTruthy();
+  });
+
+  it('merkt eine bereits zugeordnete versteckte Einheit über die Suche erneut vor', async () => {
+    app.logs = [];
+    app.vehicles = [{
+      id: 33,
+      game_vehicle_id: 'TD',
+      name: 'Stadtwerke',
+      type: 'TD',
+      modes: null,
+      x: -1000000,
+      y: -1000000,
+      status: 4,
+      assigned_player_id: null,
+    }];
+    app.assignments = [{ event_id: 1030, vehicle_id: 33 }];
+    render(CurrentEventPanel);
+
+    const search = screen.getByPlaceholderText('Fahrzeug suchen …');
+    await fireEvent.focus(search);
+    await fireEvent.input(search, { target: { value: 'Stadtwerke' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Stadtwerke' }));
+
+    expect(app.dispatchVehicleIds).toEqual([33]);
+    expect(screen.getByRole('button', { name: 'Stadtwerke entfernen' })).toBeTruthy();
   });
 
   it('hat keinen eigenen Schließen-Knopf', () => {
