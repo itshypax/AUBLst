@@ -53,6 +53,13 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Alarmierungsdialog', () => {
+  it('zeigt den Fahrzeugnamen ohne technische Kennung an', async () => {
+    render(AssignModal);
+
+    expect(await screen.findByRole('checkbox', { name: /1-HLF-1/ })).toBeTruthy();
+    expect(screen.queryByText('1_HLF_1')).toBeNull();
+  });
+
   it('alarmiert nicht mit Enter in der Spielerauswahl', async () => {
     const user = userEvent.setup();
     render(AssignModal);

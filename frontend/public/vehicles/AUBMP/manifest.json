@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "icons": [
+    { "game_vehicle_id": "1_HLF_2", "file": "HLF2.webp" },
+    { "game_vehicle_id": "3_ELW_1", "file": "ELW3.webp" },
+    { "game_vehicle_id": "3_WLF_1", "file": "WLF3.webp" },
+    { "game_vehicle_id": "4_GWRH_1", "file": "GWRH.webp" },
+    { "game_vehicle_id": "4_NEF_K", "file": "NEF2.webp" },
+    { "game_vehicle_id": "2_RTW_Z", "file": "RTW_Reserve.webp" },
+    { "game_vehicle_id": "4_RTW_R", "file": "RTW_Reserve.webp" },
+    { "game_vehicle_id": "2_ITW_R", "file": "ITW_Reserve.webp" },
+    { "game_vehicle_id": "CHRISTOPH_82", "file": "CHX82.webp" },
+    { "game_vehicle_id": "CHRISTOPH_84", "file": "CHX84.webp" },
+    { "game_vehicle_id": "0_FLB_1", "file": "FLB.webp" },
+    { "game_vehicle_id": "0_KLB_1", "file": "KLB.webp" },
+
+    { "type": "RTW", "stations": ["72", "74"], "file": "RTW_Ext.webp" },
+    { "type": "NEF", "stations": ["72", "74"], "file": "NEF_Ext.webp" },
+
+    { "type": "HLF", "file": "HLF1.webp" },
+    { "type": "RTW", "file": "RTW.webp" },
+    { "type": "NEF", "file": "NEF.webp" },
+    { "type": "KDOW", "file": "KDOW.webp" },
+    { "type": "DLK", "file": "DLK.webp" },
+    { "type": "GWAS", "file": "GWAS.webp" },
+    { "type": "KLAF", "file": "KLAF.webp" },
+    { "type": "TMF", "file": "TMF.webp" },
+    { "type": "RW", "file": "RW.webp" },
+    { "type": "KRAN", "file": "KRAN.webp" },
+    { "type": "TLF", "file": "TLF.webp" },
+    { "type": "GWW", "file": "GWW.webp" },
+    { "type": "GWSAN", "file": "GWSAN.webp" },
+    { "type": "KMB", "file": "KMB.webp" },
+    { "type": "GWL", "file": "GWL.webp" },
+    { "type": "ITW", "file": "ITW.webp" },
+    { "type": "ELW", "file": "ELW.webp" },
+    { "type": "WLF", "file": "WLF.webp" }
+  ]
+}

@@ -43,6 +43,7 @@ describe('Klinikziele in der Fahrzeugübersicht', () => {
     expect(normal.classList.contains('intensive')).toBe(false);
     expect(intensive.classList.contains('intensive')).toBe(true);
     expect(normal.closest('.vehicle-label')?.getAttribute('data-tooltip')).toContain('Ziel: Uniklinik');
+    expect(normal.closest('.vehicle-label')?.getAttribute('data-tooltip')).not.toContain('72_RTW_A');
     expect(normal.closest('.vehicle-label')?.getAttribute('data-tooltip')).not.toContain('Normal');
     expect(intensive.closest('.vehicle-label')?.getAttribute('data-tooltip')).toContain('Ziel: Berg · Intensiv');
   });

@@ -43,6 +43,13 @@ Kartenbild als `backend/maps/<mod_id>.jpg` (oder `.png`/`.webp`) ablegen,
 fertig. Der Upload per `mods_put` (Base64 in die Datenbank) funktioniert
 weiterhin, Dateien haben aber Vorrang.
 
+### Fahrzeuggrafiken
+
+Fahrzeuggrafiken liegen unter `frontend/public/vehicles/<mod_id>/`. Die
+`manifest.json` im jeweiligen Ordner ordnet Fahrzeuge und Typen den Bildern
+zu. Submods können mit `extends` die Regeln ihres Hauptmods erben. Das Format
+ist in `frontend/public/vehicles/README.md` beschrieben.
+
 ### Frontend
 
 ```bash

@@ -9,7 +9,7 @@
   import { cloneRoutingConfig, formatDistance, nearestRoadSnap, parseRoutingConfig, roadRoutePreview, validateRoutingNetwork, type RoadEdge, type RoadKind, type RoadNode, type RoadRoutePreview, type RoadSnap, type RoutingConfig, type RoutingNetworkReport } from '../lib/routing';
   import { app, askConfirm, assignedEventForVehicle, canWrite, openAssign, openVehicleMenu, setHighlightedEvent, setHighlightedVehicle, showNotice } from '../lib/state.svelte';
   import { statusCode, statusDisplay } from '../lib/status';
-  import { vehicleIconName } from '../lib/vehicleIcons';
+  import { loadVehicleIconManifest, vehicleIconPath, type VehicleIconManifest } from '../lib/vehicleIcons';
   import type { EventItem, Vehicle } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
   import MapFilters from './map/MapFilters.svelte';
@@ -111,15 +111,18 @@
   });
 
   const iconCache = new Map<string, HTMLImageElement>();
+  let vehicleIconManifest = $state<VehicleIconManifest | null>(null);
+  let vehicleIconManifestGeneration = 0;
+
   function iconFor(v: Vehicle): HTMLImageElement | null {
-    const name = vehicleIconName(v);
-    if (!name) return null;
-    let image = iconCache.get(name);
+    const src = vehicleIconPath(v, vehicleIconManifest);
+    if (!src) return null;
+    let image = iconCache.get(src);
     if (!image) {
       image = new Image();
       image.onload = () => scheduleRender();
-    image.src = `./vehicles/${name}.webp`;
-      iconCache.set(name, image);
+      image.src = src;
+      iconCache.set(src, image);
     }
     return image.complete && image.naturalWidth > 0 ? image : null;
   }
@@ -193,6 +196,20 @@
       render();
     });
   }
+
+  $effect(() => {
+    const modId = standaloneModId || app.modId;
+    const generation = ++vehicleIconManifestGeneration;
+    vehicleIconManifest = null;
+    iconCache.clear();
+    scheduleRender();
+    if (!modId) return;
+    void loadVehicleIconManifest(modId).then((manifest) => {
+      if (generation !== vehicleIconManifestGeneration) return;
+      vehicleIconManifest = manifest;
+      scheduleRender();
+    });
+  });
 
   let resizeQueued = false;
   function scheduleResize(): void {

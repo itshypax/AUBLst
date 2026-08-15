@@ -2,7 +2,7 @@
   import FaIcon from './FaIcon.svelte';
   import { Check, Hospital, Play, Plus, Search, TrafficCone, TriangleAlert, Truck, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
-  import { actionUnits, hasLoeschzug, isHiddenUnit, isHospitalTransportUnit, loeschzugFor, stationColumns, stationGroups, tabLabel, vehicleTypeLabel, type MainTab, type StationGroup } from '../lib/classify';
+  import { actionUnits, hasLoeschzug, isHiddenUnit, isHospitalTransportUnit, loeschzugFor, stationColumns, stationGroups, tabLabel, vehicleDisplayName, vehicleTypeLabel, type MainTab, type StationGroup } from '../lib/classify';
   import { refreshState } from '../lib/polling';
   import { app, canWrite, focusVehicle, openVehicleMenu, setDispatchVehicleIds, setHighlightedVehicle, toggleDispatchVehicle } from '../lib/state.svelte';
   import type { HospitalReservation, Vehicle } from '../lib/types';
@@ -79,7 +79,7 @@
   });
 
   function displayName(v: Vehicle): string {
-    return v.name || v.type || v.game_vehicle_id;
+    return vehicleDisplayName(v);
   }
 
   function canStage(v: Vehicle): boolean {
@@ -104,10 +104,9 @@
   }
 
   function rowTitle(v: Vehicle, reservation?: HospitalReservation): string {
-    const parts = [v.name || v.game_vehicle_id];
+    const parts = [vehicleDisplayName(v)];
     const typeLabel = vehicleTypeLabel(v);
     if (typeLabel) parts.push(`Typ ${typeLabel}`);
-    parts.push(v.game_vehicle_id);
     if (reservation) {
       const destination = (reservation.hospital_name || 'Klinik').replace(/^Krankenhaus\s+/i, '');
       parts.push(`Ziel: ${destination}${reservation.bed_type === 'icu' ? ' · Intensiv' : ''}`);

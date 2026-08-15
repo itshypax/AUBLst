@@ -1,6 +1,7 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
   import { Check, FolderOpen, Radio } from '../lib/fontawesome-icons';
+  import { vehicleDisplayNameForIdentifier } from '../lib/classify';
   import { dismissLog } from '../lib/polling';
   import { isSpeechRequest } from '../lib/speech-requests';
   import { app, canWrite, eventById, openAssign, setHighlightedEvent } from '../lib/state.svelte';
@@ -12,6 +13,10 @@
 
   function timeOf(row: LogRow): string {
     return row.updated_at?.slice(11, 16) ?? '';
+  }
+
+  function entityName(row: LogRow): string {
+    return vehicleDisplayNameForIdentifier(row.entity_id, app.vehicles);
   }
 
   function openEvent(row: LogRow): void {
@@ -53,7 +58,7 @@
       >
         <span class="time" data-tooltip={row.updated_at}>{timeOf(row)}</span>
         {#if row.entity_id}
-          <span class="entity">{row.entity_id}</span>
+          <span class="entity">{entityName(row)}</span>
         {/if}
         <span class="message">{decodeEntities(row.long_message)}</span>
         {#if row.state === 'inactive'}

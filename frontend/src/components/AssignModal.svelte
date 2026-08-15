@@ -3,7 +3,7 @@
   import { ArrowUpDown, Play, Search, Send, Siren, Undo2, X } from '../lib/fontawesome-icons';
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
-  import { alarmGroups, alarmVehicleCount, hasLoeschzug, hasMapPosition, isHiddenUnit, loeschzugFor, vehicleAlarmPriority, vehicleDisplayName, type StationGroup } from '../lib/classify';
+  import { alarmGroups, alarmVehicleCount, hasLoeschzug, hasMapPosition, isHiddenUnit, loeschzugFor, vehicleAlarmPriority, vehicleDisplayName, vehicleDisplayNameForIdentifier, type StationGroup } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
   import { createRouteCalculator, formatDistance, type RouteDistance } from '../lib/routing';
@@ -54,7 +54,7 @@
         id: 'speech-' + row.id,
         at: row.created_at || row.updated_at,
         kind: 'log',
-        source: row.entity_id || '',
+        source: vehicleDisplayNameForIdentifier(row.entity_id, vehicles),
         text: decodeEntities(row.long_message || row.message),
       });
     }

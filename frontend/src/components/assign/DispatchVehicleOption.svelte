@@ -23,8 +23,8 @@
     onModeChange: (mode: string) => void;
   } = $props();
 
-  const title = $derived(`${vehicleDisplayName(vehicle)}${vehicleTypeLabel(vehicle) ? ` · Typ ${vehicleTypeLabel(vehicle)}` : ''} · ${vehicle.game_vehicle_id}`);
-  const secondary = $derived([vehicleTypeLabel(vehicle), vehicle.game_vehicle_id].filter(Boolean).join(' · '));
+  const title = $derived(`${vehicleDisplayName(vehicle)}${vehicleTypeLabel(vehicle) ? ` · Typ ${vehicleTypeLabel(vehicle)}` : ''}`);
+  const secondary = $derived(vehicleTypeLabel(vehicle));
 </script>
 
 <div class="veh" class:checked>
@@ -33,7 +33,7 @@
     {#if !hideStatus}<StatusBadge value={vehicle.status} />{/if}
     <span class="identity" data-tooltip={title}>
       <span class="name">{vehicleDisplayName(vehicle)}</span>
-      <span class="secondary">{secondary}</span>
+      {#if secondary}<span class="secondary">{secondary}</span>{/if}
     </span>
     {#if distance}<span class="distance">{distance}</span>{/if}
   </label>

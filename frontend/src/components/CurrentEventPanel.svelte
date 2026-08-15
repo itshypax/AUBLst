@@ -2,7 +2,7 @@
   import FaIcon from './FaIcon.svelte';
   import { BellRing, ChevronDown, Clock3, MessageSquarePlus, MessageSquareText, Radio, RadioTower, Search, Trash2, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
-  import { alarmVehicleCount, hasMapPosition, isActionUnit, isHiddenUnit, vehicleDisplayName } from '../lib/classify';
+  import { alarmVehicleCount, hasMapPosition, isActionUnit, isHiddenUnit, vehicleDisplayName, vehicleDisplayNameForIdentifier } from '../lib/classify';
   import { refreshState } from '../lib/polling';
   import { createRouteCalculator, formatDistance } from '../lib/routing';
   import { buildSpeechRequestEntries } from '../lib/speech-requests';
@@ -22,6 +22,12 @@
   let feedbackBusy = $state(false);
   let returning = $state<Set<number>>(new Set());
   let errorMsg = $state('');
+
+  const QUICK_UNITS = [
+    { label: 'POL', gameVehicleId: 'FUSTW', name: 'Streifenwagen' },
+    { label: 'BEST', gameVehicleId: 'BSW', name: 'Bestatter' },
+    { label: 'ASF', gameVehicleId: 'ASF', name: 'Abschleppwagen' },
+  ] as const;
 
   const currentEvent = $derived(app.assignEvent ? app.events.find((event) => event.id === app.assignEvent?.id) ?? app.assignEvent : null);
   const currentEventId = $derived(currentEvent?.id ?? null);
@@ -87,7 +93,7 @@
         id: `radio-${row.id}`,
         at: row.created_at || row.updated_at,
         kind: 'radio',
-        source: row.entity_id || 'Funk',
+        source: vehicleDisplayNameForIdentifier(row.entity_id, app.vehicles, 'Funk'),
         text: decodeEntities(row.long_message || row.message),
       });
     }
@@ -158,6 +164,16 @@
 
   function unstageVehicle(vehicleId: number): void {
     if (app.dispatchVehicleIds.includes(vehicleId)) toggleDispatchVehicle(vehicleId);
+  }
+
+  function quickVehicle(gameVehicleId: string): Vehicle | undefined {
+    return app.vehicles.find((vehicle) => vehicle.game_vehicle_id.toUpperCase() === gameVehicleId);
+  }
+
+  function toggleQuickVehicle(vehicle: Vehicle | undefined): void {
+    if (!vehicle) return;
+    if (app.dispatchVehicleIds.includes(vehicle.id)) unstageVehicle(vehicle.id);
+    else stageVehicle(vehicle);
   }
 
   async function loadFeedback(eventId: number): Promise<void> {
@@ -255,9 +271,11 @@
       <span class="event-number">{currentEvent.id}</span>
       <div class="event-title">
         <strong>{currentEvent.name || 'Einsatz'}</strong>
-        <span>Position {currentEvent.x.toFixed(1)}, {currentEvent.y.toFixed(1)}</span>
+        <div class="event-meta">
+          <span>Position {currentEvent.x.toFixed(1)}, {currentEvent.y.toFixed(1)}</span>
+          {#if eventTime()}<span class="event-time"><FaIcon icon={Clock3} size={12} />{eventTime()}</span>{/if}
+        </div>
       </div>
-      {#if eventTime()}<span class="event-time"><FaIcon icon={Clock3} size={12} />{eventTime()}</span>{/if}
       <button class="primary alarm" disabled={!stagedVehicles.length || busy || !canWrite() || !isAvailableInGame} onclick={() => void alarm()}>
         <FaIcon icon={BellRing} size={14} />
         {busy ? 'Alarmiert …' : `Alarmieren${stagedVehicles.length ? ` (${stagedVehicleCount})` : ''}`}
@@ -297,7 +315,21 @@
           </div>
         {/if}
       </div>
-      <span class="toolbar-hint">Oder in der Fahrzeugübersicht <strong>+</strong> wählen</span>
+      <div class="quick-units" aria-label="Schnellwahl">
+        {#each QUICK_UNITS as quick (quick.gameVehicleId)}
+          {@const vehicle = quickVehicle(quick.gameVehicleId)}
+          {@const selected = Boolean(vehicle && app.dispatchVehicleIds.includes(vehicle.id))}
+          <button
+            class="quick-unit"
+            class:selected
+            aria-pressed={selected}
+            aria-label={vehicle ? `${quick.name} ${selected ? 'aus Vormerkung entfernen' : 'vormerken'}` : `${quick.name} nicht verfügbar`}
+            data-tooltip={vehicle ? `${quick.name} ${selected ? 'aus Vormerkung entfernen' : 'vormerken'}` : `${quick.name} nicht verfügbar`}
+            disabled={!vehicle}
+            onclick={() => toggleQuickVehicle(vehicle)}
+          >{quick.label}</button>
+        {/each}
+      </div>
     </div>
 
     {#if !isAvailableInGame}
@@ -383,11 +415,12 @@
 
 <style>
   .current-event { position: relative; }
-  .event-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); }
+  .event-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); }
   .event-number { display: grid; place-items: center; min-width: 30px; height: 30px; border: 1px solid var(--border-strong); background: var(--bg-raised); font-variant-numeric: tabular-nums; font-weight: 700; }
   .event-title { display: flex; flex-direction: column; min-width: 0; }
   .event-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .event-title span, .event-time { color: var(--text-dim); font-size: 11px; }
+  .event-meta { display: flex; align-items: center; gap: 9px; min-width: 0; color: var(--text-dim); font-size: 11px; }
+  .event-meta > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .event-time { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
   .alarm { min-height: 30px; }
   .dispatch-toolbar { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-bottom: 1px solid var(--border); }
@@ -401,8 +434,9 @@
   .result-identity strong, .result-identity small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .result-identity small { color: var(--text-dim); font-size: 10px; }
   .vehicle-results .distance { margin-left: auto; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .toolbar-hint { flex: 0 0 auto; color: var(--text-dim); font-size: 11px; }
-  .toolbar-hint strong { color: var(--text); }
+  .quick-units { display: flex; flex: 0 0 auto; gap: 4px; }
+  .quick-unit { min-width: 42px; height: 29px; justify-content: center; padding: 3px 7px; border-color: var(--border); background: transparent; color: var(--text-dim); font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+  .quick-unit.selected { border-color: var(--status-3-border); background: rgba(240, 160, 60, .1); color: var(--warn-text); }
   .dispatch-state { padding: 6px 8px; border-bottom: 1px solid var(--border); color: var(--warn-text); background: rgba(240, 160, 60, .08); font-size: 11px; }
   .dispatch-content { display: grid; grid-template-columns: minmax(220px, 1.1fr) minmax(180px, .9fr); flex: 1 1 auto; min-height: 0; }
   .vehicle-pane, .feedback-pane { min-width: 0; min-height: 0; }
@@ -444,6 +478,6 @@
     .dispatch-content { grid-template-columns: minmax(0, 1fr); overflow: auto; }
     .vehicle-pane { min-height: 150px; }
     .feedback-pane { min-height: 150px; border-top: 1px solid var(--border); border-left: 0; }
-    .toolbar-hint { display: none; }
+    .dispatch-toolbar { gap: 6px; }
   }
 </style>

@@ -27,6 +27,8 @@ describe('Funkmeldungen', () => {
   it('zeigt Sprechwünsche nur als Eintrag in der Chronologie', () => {
     render(LogPanel);
 
+    expect(screen.getByText('4-RTW-B')).toBeTruthy();
+    expect(screen.queryByText('4_RTW_B')).toBeNull();
     expect(screen.getByText('Florian Auenburg 4-RTW-B mit Sprechwunsch')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Klinik .* zuweisen/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Einsatz öffnen' })).toBeNull();

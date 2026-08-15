@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Vehicle } from './types';
-import { alarmGroups, alarmVehicleCount, eventCategory, hasLoeschzug, isHospitalTransportUnit, sortVehiclesByAlarmPriority, vehicleDisplayName, vehicleTypeLabel } from './classify';
+import { alarmGroups, alarmVehicleCount, eventCategory, hasLoeschzug, isHospitalTransportUnit, sortVehiclesByAlarmPriority, vehicleDisplayName, vehicleDisplayNameForIdentifier, vehicleTypeLabel } from './classify';
 
 function vehicle(id: number, type: string): Vehicle {
   return {
@@ -19,6 +19,13 @@ function vehicle(id: number, type: string): Vehicle {
 describe('Fahrzeuggruppierung', () => {
   it('zeigt das interne BSW-Kürzel als Bestattungswagen an', () => {
     expect(vehicleDisplayName({ ...vehicle(1, 'BSW'), game_vehicle_id: 'BSW', name: 'Bestatter' })).toBe('Bestattungswagen');
+  });
+
+  it('löst technische Kennungen für sichtbare Texte zum Fahrzeugnamen auf', () => {
+    const kdow = { ...vehicle(1, 'KDOW'), game_vehicle_id: '1_KDOW_1', name: '1-KDOW-1' };
+    expect(vehicleDisplayNameForIdentifier('1_KDOW_1', [kdow])).toBe('1-KDOW-1');
+    expect(vehicleDisplayNameForIdentifier('1-KDOW-1', [kdow])).toBe('1-KDOW-1');
+    expect(vehicleDisplayNameForIdentifier('unbekannt', [kdow])).toBe('unbekannt');
   });
 
   it('blendet numerische Typklassen aus', () => {

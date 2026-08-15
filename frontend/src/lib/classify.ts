@@ -62,6 +62,24 @@ export function vehicleDisplayName(v: Vehicle): string {
   return name || v.game_vehicle_id;
 }
 
+function normalizedVehicleIdentifier(value: string | null | undefined): string {
+  return (value ?? '').trim().toLocaleLowerCase('de').replace(/[^a-z0-9äöüß]/g, '');
+}
+
+export function vehicleDisplayNameForIdentifier(
+  identifier: string | null | undefined,
+  vehicles: Vehicle[],
+  fallback = '',
+): string {
+  const normalized = normalizedVehicleIdentifier(identifier);
+  if (!normalized) return fallback;
+  const vehicle = vehicles.find((candidate) =>
+    [candidate.game_vehicle_id, candidate.name]
+      .some((value) => normalizedVehicleIdentifier(value) === normalized)
+  );
+  return vehicle ? vehicleDisplayName(vehicle) : identifier?.trim() || fallback;
+}
+
 export function vehicleTypeLabel(v: Vehicle): string {
   const type = v.type?.trim() ?? '';
   if (['none', 'null', 'undefined', 'n/a'].includes(type.toLocaleLowerCase('de'))) return '';

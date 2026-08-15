@@ -41,6 +41,19 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Aktueller Einsatz', () => {
+  it('zeigt Position und Zeit gemeinsam links vom Alarmieren-Button', () => {
+    const timedEvent = { ...app.assignEvent!, created_at: '2026-08-15 18:36:42' };
+    app.assignEvent = timedEvent;
+    app.events = [timedEvent];
+
+    const { container } = render(CurrentEventPanel);
+
+    const meta = screen.getByText('Position 100.0, 200.0').closest('.event-meta');
+    expect(meta?.textContent).toContain('18:36:42');
+    expect(container.querySelector('.event-summary')?.children).toHaveLength(3);
+    expect(container.querySelector('.event-summary')?.lastElementChild).toBe(screen.getByRole('button', { name: 'Alarmieren' }));
+  });
+
   it('zeigt ohne Suchtext alle verfügbaren Fahrzeuge im Dropdown', async () => {
     app.assignments = [];
     app.vehicles = Array.from({ length: 12 }, (_, index) => ({
@@ -112,6 +125,28 @@ describe('Aktueller Einsatz', () => {
     expect(screen.queryByText('Alarmiert')).toBeNull();
     expect(screen.getByRole('button', { name: '4-RTW-B entfernen' })).toBeTruthy();
     expect(container.querySelector('.vehicle-row.staged')).not.toBeNull();
+  });
+
+  it('merkt Polizei, Bestatter und Abschlepper über die Schnellwahl vor', async () => {
+    app.logs = [];
+    app.assignments = [];
+    app.vehicles = [
+      { id: 31, game_vehicle_id: 'ASF', name: 'Abschleppwagen', type: 'ASF', modes: '1,2,3,4,Masterlift,Tieflader', x: -1000000, y: -1000000, status: 6, assigned_player_id: null },
+      { id: 32, game_vehicle_id: 'FuSTW', name: 'Streifenwagen', type: 'FUSTW', modes: '1,2,3', x: -1000000, y: -1000000, status: 0, assigned_player_id: null },
+      { id: 33, game_vehicle_id: 'BSW', name: 'Bestatter', type: 'BSW', modes: '1,2,3,4', x: -1000000, y: -1000000, status: 2, assigned_player_id: null },
+    ];
+    render(CurrentEventPanel);
+
+    expect(screen.queryByText(/Oder in der Fahrzeugübersicht/)).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Streifenwagen vormerken' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Bestatter vormerken' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Abschleppwagen vormerken' }));
+
+    expect(app.dispatchVehicleIds).toEqual([32, 33, 31]);
+    expect(screen.getByRole('button', { name: 'Streifenwagen aus Vormerkung entfernen' }).getAttribute('aria-pressed')).toBe('true');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Bestatter aus Vormerkung entfernen' }));
+    expect(app.dispatchVehicleIds).toEqual([32, 31]);
   });
 
   it('zeigt ein wieder alarmierbares Einsatzfahrzeug als frühere Beteiligung und merkt es per Klick erneut vor', async () => {
