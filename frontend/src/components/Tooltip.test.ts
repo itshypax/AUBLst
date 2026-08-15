@@ -45,4 +45,21 @@ describe('Leitstellen-Tooltip', () => {
     settings.remove();
     reload.remove();
   });
+
+  it('ändert den Accessibility-Baum während eines Rechtsklicks nicht', async () => {
+    render(Tooltip);
+    const button = document.createElement('button');
+    button.dataset.tooltip = 'Verbindung und Ton einstellen';
+    document.body.append(button);
+
+    button.focus();
+    expect(await screen.findByRole('tooltip')).toBeTruthy();
+    const describedBy = button.getAttribute('aria-describedby');
+
+    await fireEvent.pointerDown(button, { button: 2 });
+
+    expect(screen.getByRole('tooltip')).toBeTruthy();
+    expect(button.getAttribute('aria-describedby')).toBe(describedBy);
+    button.remove();
+  });
 });

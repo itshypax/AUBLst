@@ -62,11 +62,12 @@ describe('Polling-Koordination', () => {
     });
     setPollingScope(scope);
 
-    broadcastLogDismissed(21);
+    broadcastLogDismissed(21, '2026-08-15 20:10:00.123456');
     expect(MockBroadcastChannel.latest.posted).toContainEqual(expect.objectContaining({
       type: 'log-dismissed',
       scope,
       id: 21,
+      updatedAt: '2026-08-15 20:10:00.123456',
     }));
 
     MockBroadcastChannel.latest.receive({
@@ -74,8 +75,9 @@ describe('Polling-Koordination', () => {
       sender: 'anderes-fenster',
       scope,
       id: 34,
+      updatedAt: '2026-08-15 20:11:00.654321',
     });
-    expect(onLogDismissed).toHaveBeenCalledWith(34);
+    expect(onLogDismissed).toHaveBeenCalledWith(34, '2026-08-15 20:11:00.654321');
 
     stop();
   });

@@ -208,7 +208,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   state ENUM('active','inactive','disabled') NOT NULL,
   meta JSON NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   INDEX idx_session (session_id, id),
   INDEX idx_session_updated (session_id, updated_at, id),
   UNIQUE KEY uniq_activity_log (session_id, entity_id, message),

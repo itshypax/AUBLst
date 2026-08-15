@@ -70,6 +70,10 @@ describe('Routing', () => {
     }
   });
 
+  it('leitet die Streckenart nicht aus dem Anzeigenamen ab', () => {
+    expect(usesDirectLine({ ...landVehicle, game_vehicle_id: '1_HLF_1', name: 'Boot der Wache' })).toBe(false);
+  });
+
   it('nutzt ohne Straßendaten weiterhin den konfigurierten Maßstab', () => {
     const result = routeDistance(
       { x: 0, y: 0 },

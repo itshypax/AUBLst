@@ -8,6 +8,7 @@ export function dismissible(node: HTMLElement, initialOptions: DismissibleOption
   let options = initialOptions;
 
   function onPointerDown(event: PointerEvent): void {
+    if (event.button !== 0) return;
     if (!(event.target instanceof Node) || node.contains(event.target) || options.ignore?.(event.target)) return;
     options.onDismiss();
   }

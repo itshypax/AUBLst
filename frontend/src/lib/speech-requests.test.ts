@@ -32,6 +32,12 @@ describe('Sprechwunsch-Warteschlange', () => {
     expect(speechRequestVehicle(row, vehicles)?.id).toBe(2);
   });
 
+  it('verwendet einen Anzeigenamen nicht als technische Fahrzeugkennung', () => {
+    const police = { ...vehicles[0], id: 3, game_vehicle_id: 'FuSTW', name: 'Streifenwagen' };
+    const row = { ...log(1, 'Streifenwagen'), long_message: 'Streifenwagen mit Sprechwunsch' };
+    expect(speechRequestVehicle(row, [...vehicles, police])).toBeUndefined();
+  });
+
   it('führt doppelte Meldungen eines Fahrzeugs zu einem offenen Eintrag zusammen', () => {
     const event: EventItem = { id: 1030, game_event_id: '30', name: 'Verkehrsunfall', x: 0, y: 0, status: 'active', created_by: 'game' };
     const assignments: Assignment[] = [{ event_id: event.id, vehicle_id: vehicles[0].id }];

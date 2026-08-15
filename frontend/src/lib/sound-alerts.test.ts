@@ -5,6 +5,7 @@ import type { Assignment, EventItem, LogRow, Vehicle } from './types';
 
 const config: SoundAlertConfig = {
   unassignedVehicleStatuses: [3, 4],
+  unassignedVehicleExceptions: [],
   vehicleCTimeoutSeconds: 120,
   vehicleCTimeoutOverrides: {},
   speechRequestTimeoutSeconds: 120,
@@ -50,6 +51,19 @@ describe('zeitabhängige Tonhinweise', () => {
       'unassigned-vehicle-status-3',
       'unassigned-vehicle-status-4',
     ]);
+  });
+
+  it('ignoriert konfigurierte Fahrzeuge ohne Einsatz', () => {
+    const tracker = new SoundAlertTracker();
+    const ignored = { ...config, unassignedVehicleExceptions: ['1_TEST_1'] };
+    expect(tracker.update(state([vehicle(1, 1), vehicle(2, 1)]), 0, ignored)).toEqual([]);
+    expect(tracker.update(state([vehicle(1, 3), vehicle(2, 3)]), 1_000, ignored)).toEqual([
+      'unassigned-vehicle-status-3',
+    ]);
+
+    const onlyIgnored = new SoundAlertTracker();
+    expect(onlyIgnored.update(state([vehicle(1, 1)]), 0, ignored)).toEqual([]);
+    expect(onlyIgnored.update(state([vehicle(1, 4)]), 1_000, ignored)).toEqual([]);
   });
 
   it('meldet Status C nach 120 Sekunden und berücksichtigt Fahrzeugausnahmen', () => {

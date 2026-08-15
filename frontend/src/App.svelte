@@ -31,7 +31,7 @@
     setHighlightFromSync,
   } from './lib/state.svelte';
   import { startUiSync, uiSyncScope, updateUiSyncPresence } from './lib/ui-sync';
-  import { AREA_IDS, cloneWorkspace, loadWorkspaces, saveWorkspaces, setWorkspaceInUrl, WORKSPACE_STORAGE_KEY, workspaceIdFromUrl, workspaceUrl, type AreaId, type WorkspaceLayout } from './lib/workspaces';
+  import { AREA_IDS, cloneWorkspace, loadWorkspaces, saveWorkspaces, setWorkspaceInUrl, workspaceIdFromUrl, workspaceUrl, type AreaId, type WorkspaceLayout } from './lib/workspaces';
 
   const pageParams = new URLSearchParams(location.search);
   const localHostname = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '::1';
@@ -173,21 +173,8 @@
   }
 
   function openWorkspaceTab(id: string): void {
-    window.open(workspaceUrl(id), '_blank', 'noopener');
-  }
-
-  function onWorkspaceStorage(event: StorageEvent): void {
-    if (event.key !== WORKSPACE_STORAGE_KEY) return;
-    const next = loadWorkspaces();
-    workspaces = next;
-    const current = next.find((workspace) => workspace.id === activeWorkspaceId);
-    if (current) {
-      colRatio = current.ratios.col;
-      leftRowRatio = current.ratios.left;
-      rightRowRatio = current.ratios.right;
-    } else {
-      selectWorkspace(next[0].id);
-    }
+    const workspace = workspaces.find((item) => item.id === id);
+    if (workspace) window.open(workspaceUrl(workspace), '_blank', 'noopener');
   }
 
   function onSeparatorKey(kind: DragKind, e: KeyboardEvent): void {
@@ -232,7 +219,7 @@
   }
 </script>
 
-<svelte:window onpointermove={onMove} onpointerup={endDrag} onstorage={onWorkspaceStorage} onkeydown={onGlobalKeydown} />
+<svelte:window onpointermove={onMove} onpointerup={endDrag} onkeydown={onGlobalKeydown} />
 
 {#if routingEditorRequested}
   <RoutingEditorPage modId={routingEditorModId} />

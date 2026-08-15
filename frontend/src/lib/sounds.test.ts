@@ -27,6 +27,7 @@ describe('Soundprofile', () => {
           { id: 'jannik', label: 'Stimme Jannik', extends: 'standard', cues: { 'speech-request': 'sounds/Jannik/sprechwunsch.m4a' } },
         ],
         alerts: {
+          unassigned_vehicle_exceptions: ['0_flb_1'],
           vehicle_c_timeout_seconds: 150,
           vehicle_c_timeout_overrides: { '1_test_1': 360 },
           speech_request_timeout_seconds: 180,
@@ -40,6 +41,7 @@ describe('Soundprofile', () => {
       { id: 'jannik', label: 'Stimme Jannik' },
     ]);
     expect(sounds.getSoundAlertConfig()).toMatchObject({
+      unassignedVehicleExceptions: ['0_FLB_1'],
       vehicleCTimeoutSeconds: 150,
       vehicleCTimeoutOverrides: { '1_TEST_1': 360 },
       speechRequestTimeoutSeconds: 180,

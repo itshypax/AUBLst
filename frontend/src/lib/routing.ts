@@ -201,7 +201,7 @@ export function parseRoutingConfig(value: unknown, fallback: RoutingConfig = DEF
 }
 
 export function usesDirectLine(vehicle: Vehicle): boolean {
-  const identity = `${vehicle.type ?? ''} ${vehicle.name ?? ''} ${vehicle.game_vehicle_id ?? ''}`.toUpperCase();
+  const identity = `${vehicle.type ?? ''} ${vehicle.game_vehicle_id ?? ''}`.toUpperCase();
   return DIRECT_TYPE_MARKERS.some((marker) => new RegExp(`(^|[^A-Z0-9])${marker}([^A-Z0-9]|$)`).test(identity));
 }
 

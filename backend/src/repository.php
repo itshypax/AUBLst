@@ -180,7 +180,7 @@ function upsert_message(PDO $pdo, $session_id, array $m) {
     $stmt = $pdo->prepare('INSERT INTO activity_logs (session_id, type, entity_id, event_id, message, long_message, meta, state)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE event_id = VALUES(event_id), type = VALUES(type), long_message = VALUES(long_message),
-            meta = VALUES(meta), state = VALUES(state), updated_at = CURRENT_TIMESTAMP');
+            meta = VALUES(meta), state = VALUES(state), updated_at = CURRENT_TIMESTAMP(6)');
     $stmt->execute([
         $session_id,
         check_options('type', $event_data, $m, 'global'),

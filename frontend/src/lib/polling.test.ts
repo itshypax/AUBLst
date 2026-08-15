@@ -8,6 +8,7 @@ vi.mock('./api', () => ({ api: mocks.api, apiGet: mocks.apiGet, fetchMapImage: v
 vi.mock('./sounds', () => ({
   getSoundAlertConfig: () => ({
     unassignedVehicleStatuses: [3, 4],
+    unassignedVehicleExceptions: [],
     vehicleCTimeoutSeconds: 120,
     vehicleCTimeoutOverrides: {},
     speechRequestTimeoutSeconds: 120,
@@ -52,7 +53,7 @@ describe('Funk-Polling', () => {
 
     expect(mocks.apiGet).toHaveBeenLastCalledWith(
       'logs',
-      { since: '2026-08-09 14:35:00', since_id: 10 },
+      { since: '2026-08-09 14:35:00', since_id: 0 },
       expect.any(Object)
     );
     expect(mocks.playSoundCues).toHaveBeenCalledWith(['radio-message']);
@@ -91,5 +92,26 @@ describe('Funk-Polling', () => {
     await pollLogs();
 
     expect(app.logs.find((item) => item.id === 21)?.state).toBe('inactive');
+  });
+
+  it('lässt einen späteren Sprechwunsch mit derselben Datenbank-ID wieder durch', async () => {
+    const firstRequest = {
+      ...row(21),
+      message: 'Sprechwunsch',
+      long_message: 'Florian Auenburg 1-HLF-1 mit Sprechwunsch',
+      updated_at: '2026-08-09 14:35:00.100000',
+    };
+    const nextRequest = { ...firstRequest, updated_at: '2026-08-09 14:36:00.100000' };
+    mocks.api.mockResolvedValueOnce({ ok: true, updated_at: '2026-08-09 14:35:01.100000' });
+    mocks.apiGet.mockResolvedValueOnce({ logs: [firstRequest] }).mockResolvedValueOnce({ logs: [nextRequest] });
+    const { dismissLog, pollLogs, switchSession } = await import('./polling');
+    await switchSession('../backend/api.php', 'demo', '');
+
+    await pollLogs();
+    await dismissLog(21);
+    await pollLogs();
+
+    expect(app.logs.find((item) => item.id === 21)?.state).toBe('active');
+    expect(mocks.playSoundCues).toHaveBeenCalledWith(['speech-request']);
   });
 });

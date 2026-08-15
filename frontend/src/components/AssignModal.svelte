@@ -116,7 +116,7 @@
   }
 
   function unitSuffix(v: Vehicle): string {
-    const parts = (v.game_vehicle_id || v.name || '').split(/[_-]/).filter(Boolean);
+    const parts = v.game_vehicle_id.split(/[_-]/).filter(Boolean);
     return parts.at(-1) ?? '';
   }
 

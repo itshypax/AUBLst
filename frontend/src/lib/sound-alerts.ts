@@ -43,8 +43,11 @@ export class SoundAlertTracker {
       .filter((assignment) => activeEventIds.has(Number(assignment.event_id)))
       .map((assignment) => Number(assignment.vehicle_id)));
     const warningStatuses = new Set(config.unassignedVehicleStatuses);
+    const warningExceptions = new Set(config.unassignedVehicleExceptions);
     const unassignedVehicleStatuses = new Map(state.vehicles
-      .filter((vehicle) => warningStatuses.has(Number(vehicle.status)) && !assignedVehicleIds.has(vehicle.id))
+      .filter((vehicle) => warningStatuses.has(Number(vehicle.status))
+        && !assignedVehicleIds.has(vehicle.id)
+        && !warningExceptions.has(vehicle.game_vehicle_id.trim().toUpperCase()))
       .map((vehicle) => [vehicle.id, Number(vehicle.status)]));
 
     if (this.initialized) {

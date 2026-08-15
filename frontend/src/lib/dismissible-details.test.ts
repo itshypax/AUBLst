@@ -39,6 +39,16 @@ describe('Schließbare Details', () => {
     destroy();
   });
 
+  it('bleibt bei einem Rechtsklick außerhalb unverändert', async () => {
+    const { details, outside, destroy } = createDetails();
+    details.open = true;
+
+    await fireEvent.pointerDown(outside, { button: 2 });
+
+    expect(details.open).toBe(true);
+    destroy();
+  });
+
   it('schließt bei einem Fokuswechsel nach außen', () => {
     const { details, outside, destroy } = createDetails();
     const input = details.querySelector('input')!;

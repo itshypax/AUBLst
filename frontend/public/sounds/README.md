@@ -22,6 +22,10 @@ Der Klingelton und normale Funkmeldungen kommen durch `extends: "standard"`
 weiter aus dem Standardprofil. Solange eine Jannik-Datei fehlt, bleibt nur der
 betroffene Hinweis stumm.
 
+`unassigned_vehicle_exceptions` enthält Fahrzeuge, die in Status 3 oder 4
+absichtlich keinem Einsatz zugeordnet sind. Für sie wird kein entsprechender
+Hinweiston abgespielt.
+
 `vehicle_c_timeout_overrides` setzt die C-Wartezeit für einzelne
 `game_vehicle_id`s in Sekunden. `0` schaltet die C-Warnung für das betreffende
 Fahrzeug aus:

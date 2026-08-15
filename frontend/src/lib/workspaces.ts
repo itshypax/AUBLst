@@ -15,6 +15,7 @@ export interface WorkspaceLayout {
 }
 
 export const WORKSPACE_STORAGE_KEY = 'leitstelleWorkspaces:v1';
+const WORKSPACE_TRANSFER_PARAM = 'workspace_layout';
 
 const DEFAULT_RATIOS = { col: 0.58, left: 0.62, right: 0.55 };
 
@@ -101,30 +102,57 @@ function normalizeWorkspace(value: Partial<WorkspaceLayout>, fallback: Workspace
 }
 
 export function loadWorkspaces(): WorkspaceLayout[] {
+  let initial: WorkspaceLayout[] | null = null;
   try {
-    const parsed = JSON.parse(localStorage.getItem(WORKSPACE_STORAGE_KEY) ?? 'null');
+    const parsed = JSON.parse(sessionStorage.getItem(WORKSPACE_STORAGE_KEY) ?? 'null');
     if (Array.isArray(parsed) && parsed.length) {
-      return parsed.slice(0, 20).map((item, index) => normalizeWorkspace(item, DEFAULT_WORKSPACES[index] ?? DEFAULT_WORKSPACES[0]));
+      initial = parsed.slice(0, 20).map((item, index) => normalizeWorkspace(item, DEFAULT_WORKSPACES[index] ?? DEFAULT_WORKSPACES[0]));
     }
   } catch {
-    // Ungültige alte Einstellungen werden durch die Startansichten ersetzt.
+    // Ungültige Einstellungen werden durch die Startansichten ersetzt.
   }
-  const defaults = DEFAULT_WORKSPACES.map(cloneWorkspace);
-  try {
-    const legacy = JSON.parse(localStorage.getItem('panelLayout') ?? 'null');
-    if (legacy) defaults[0].ratios = {
-      col: clamp(legacy.col, DEFAULT_RATIOS.col),
-      left: clamp(legacy.left, DEFAULT_RATIOS.left),
-      right: clamp(legacy.right, DEFAULT_RATIOS.right),
-    };
-  } catch {
-    // Die frühere Größenangabe ist optional.
+
+  if (!initial) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(WORKSPACE_STORAGE_KEY) ?? 'null');
+      if (Array.isArray(parsed) && parsed.length) {
+        initial = parsed.slice(0, 20).map((item, index) => normalizeWorkspace(item, DEFAULT_WORKSPACES[index] ?? DEFAULT_WORKSPACES[0]));
+      }
+    } catch {
+      // Bestehende browserweite Einstellungen werden einmalig übernommen.
+    }
   }
-  return defaults;
+
+  if (!initial) {
+    initial = DEFAULT_WORKSPACES.map(cloneWorkspace);
+    try {
+      const legacy = JSON.parse(localStorage.getItem('panelLayout') ?? 'null');
+      if (legacy) initial[0].ratios = {
+        col: clamp(legacy.col, DEFAULT_RATIOS.col),
+        left: clamp(legacy.left, DEFAULT_RATIOS.left),
+        right: clamp(legacy.right, DEFAULT_RATIOS.right),
+      };
+    } catch {
+      // Die frühere Größenangabe ist optional.
+    }
+  }
+
+  const transferred = workspaceFromUrl();
+  if (transferred) {
+    const fallback = DEFAULT_WORKSPACES.find((workspace) => workspace.id === transferred.id) ?? DEFAULT_WORKSPACES[0];
+    const workspace = normalizeWorkspace(transferred, fallback);
+    const index = initial.findIndex((item) => item.id === workspace.id);
+    initial = index === -1
+      ? [...initial, workspace]
+      : initial.map((item) => item.id === workspace.id ? workspace : item);
+  }
+
+  saveWorkspaces(initial);
+  return initial;
 }
 
 export function saveWorkspaces(workspaces: WorkspaceLayout[]): void {
-  localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(workspaces));
+  sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(workspaces));
 }
 
 export function workspaceIdFromUrl(workspaces: WorkspaceLayout[]): string {
@@ -138,9 +166,24 @@ export function setWorkspaceInUrl(id: string): void {
   history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
-export function workspaceUrl(id: string): string {
+function workspaceFromUrl(): Partial<WorkspaceLayout> | null {
   const url = new URL(location.href);
-  url.searchParams.set('workspace', id);
+  const value = url.searchParams.get(WORKSPACE_TRANSFER_PARAM);
+  if (!value) return null;
+  url.searchParams.delete(WORKSPACE_TRANSFER_PARAM);
+  history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function workspaceUrl(workspace: WorkspaceLayout): string {
+  const url = new URL(location.href);
+  url.searchParams.set('workspace', workspace.id);
+  url.searchParams.set(WORKSPACE_TRANSFER_PARAM, JSON.stringify(workspace));
   return url.toString();
 }
 

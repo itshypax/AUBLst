@@ -23,6 +23,7 @@ export interface SoundProfileOption {
 
 export interface SoundAlertConfig {
   unassignedVehicleStatuses: number[];
+  unassignedVehicleExceptions: string[];
   vehicleCTimeoutSeconds: number;
   vehicleCTimeoutOverrides: Record<string, number>;
   speechRequestTimeoutSeconds: number;
@@ -82,6 +83,7 @@ const FALLBACK_STANDARD: CompiledSoundProfile = {
 
 const DEFAULT_ALERT_CONFIG: SoundAlertConfig = {
   unassignedVehicleStatuses: [3, 4],
+  unassignedVehicleExceptions: [],
   vehicleCTimeoutSeconds: 120,
   vehicleCTimeoutOverrides: {},
   speechRequestTimeoutSeconds: 120,
@@ -173,6 +175,12 @@ function parseAlertConfig(raw: RawSoundManifest): SoundAlertConfig {
   const statuses = Array.isArray(alerts.unassigned_vehicle_statuses)
     ? alerts.unassigned_vehicle_statuses.map(Number).filter((status) => Number.isInteger(status) && status >= 0 && status <= 9)
     : DEFAULT_ALERT_CONFIG.unassignedVehicleStatuses;
+  const exceptions = Array.isArray(alerts.unassigned_vehicle_exceptions)
+    ? alerts.unassigned_vehicle_exceptions
+      .map(safeString)
+      .filter(Boolean)
+      .map((vehicleId) => vehicleId.toUpperCase())
+    : DEFAULT_ALERT_CONFIG.unassignedVehicleExceptions;
   const overrides: Record<string, number> = {};
   if (alerts.vehicle_c_timeout_overrides && typeof alerts.vehicle_c_timeout_overrides === 'object' && !Array.isArray(alerts.vehicle_c_timeout_overrides)) {
     for (const [vehicleId, seconds] of Object.entries(alerts.vehicle_c_timeout_overrides)) {
@@ -183,6 +191,7 @@ function parseAlertConfig(raw: RawSoundManifest): SoundAlertConfig {
   }
   return {
     unassignedVehicleStatuses: statuses.length ? [...new Set(statuses)] : DEFAULT_ALERT_CONFIG.unassignedVehicleStatuses,
+    unassignedVehicleExceptions: [...new Set(exceptions)],
     vehicleCTimeoutSeconds: positiveSeconds(alerts.vehicle_c_timeout_seconds, DEFAULT_ALERT_CONFIG.vehicleCTimeoutSeconds),
     vehicleCTimeoutOverrides: overrides,
     speechRequestTimeoutSeconds: positiveSeconds(alerts.speech_request_timeout_seconds, DEFAULT_ALERT_CONFIG.speechRequestTimeoutSeconds),
@@ -201,6 +210,7 @@ export function getSoundAlertConfig(): SoundAlertConfig {
   return {
     ...alertConfig,
     unassignedVehicleStatuses: [...alertConfig.unassignedVehicleStatuses],
+    unassignedVehicleExceptions: [...alertConfig.unassignedVehicleExceptions],
     vehicleCTimeoutOverrides: { ...alertConfig.vehicleCTimeoutOverrides },
   };
 }

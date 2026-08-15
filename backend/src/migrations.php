@@ -107,6 +107,10 @@ function migration_definitions(): array {
                 SELECT session_id, id, game_vehicle_id, name, status, CURRENT_TIMESTAMP
                 FROM vehicles WHERE status BETWEEN 0 AND 9");
         },
+        '2026081501_activity_log_microseconds' => static function (PDO $pdo): void {
+            $pdo->exec('ALTER TABLE activity_logs
+                MODIFY updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)');
+        },
     ];
 }
 

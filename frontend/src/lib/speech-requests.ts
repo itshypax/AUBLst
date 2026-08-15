@@ -38,17 +38,14 @@ function appearsAsIdentifier(message: string, identifier: string): boolean {
 export function speechRequestVehicle(row: LogRow, vehicles: Vehicle[]): Vehicle | undefined {
   const entity = normalized(row.entity_id);
   if (entity) {
-    const exact = vehicles.find((vehicle) =>
-      [vehicle.game_vehicle_id, vehicle.name].some((identifier) => normalized(identifier) === entity),
-    );
+    const exact = vehicles.find((vehicle) => normalized(vehicle.game_vehicle_id) === entity);
     if (exact) return exact;
   }
 
   const message = `${row.message} ${row.long_message}`;
   const candidates = vehicles
-    .flatMap((vehicle) => [vehicle.game_vehicle_id, vehicle.name]
-      .filter((identifier): identifier is string => Boolean(identifier))
-      .map((identifier) => ({ vehicle, identifier })))
+    .map((vehicle) => ({ vehicle, identifier: vehicle.game_vehicle_id }))
+    .filter(({ identifier }) => Boolean(identifier))
     .sort((a, b) => b.identifier.length - a.identifier.length);
   return candidates.find(({ identifier }) => appearsAsIdentifier(message, identifier))?.vehicle;
 }

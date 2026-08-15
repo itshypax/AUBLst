@@ -21,7 +21,7 @@ interface PollingHandlers {
   onLeaderChange: (leader: boolean) => void;
   onState: (state: StateResponse, receivedAt: number) => void;
   onLogs: (rows: LogRow[], cursor: LogCursor, receivedAt: number) => void;
-  onLogDismissed: (id: number) => void;
+  onLogDismissed: (id: number, updatedAt: string) => void;
   onSnapshot: (snapshot: PollingSnapshot) => void;
   snapshot: () => PollingSnapshot;
 }
@@ -33,7 +33,7 @@ type PollingMessage =
   | { type: 'snapshot'; sender: string; scope: string; target: string; snapshot: PollingSnapshot }
   | { type: 'state'; sender: string; scope: string; state: StateResponse; receivedAt: number }
   | { type: 'logs'; sender: string; scope: string; rows: LogRow[]; cursor: LogCursor; receivedAt: number }
-  | { type: 'log-dismissed'; sender: string; scope: string; id: number };
+  | { type: 'log-dismissed'; sender: string; scope: string; id: number; updatedAt: string };
 
 const windowId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
   ? crypto.randomUUID()
@@ -97,7 +97,7 @@ function onMessage(event: MessageEvent<PollingMessage>): void {
     return;
   }
   if (message.type === 'log-dismissed') {
-    handlers?.onLogDismissed(message.id);
+    handlers?.onLogDismissed(message.id, message.updatedAt);
     return;
   }
   if (leader) return;
@@ -172,9 +172,9 @@ export function broadcastPollingLogs(rows: LogRow[], cursor: LogCursor, received
   post({ type: 'logs', sender: windowId, scope, rows, cursor, receivedAt });
 }
 
-export function broadcastLogDismissed(id: number): void {
+export function broadcastLogDismissed(id: number, updatedAt: string): void {
   if (!channel || !scope) return;
-  post({ type: 'log-dismissed', sender: windowId, scope, id });
+  post({ type: 'log-dismissed', sender: windowId, scope, id, updatedAt });
 }
 
 export function broadcastPollingSnapshot(): void {

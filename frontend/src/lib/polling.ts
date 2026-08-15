@@ -39,7 +39,7 @@ let logController: AbortController | null = null;
 let generation = 0;
 let started = false;
 let lastState: StateResponse | null = null;
-const dismissedLogIds = new Set<number>();
+const dismissedLogVersions = new Map<number, string>();
 const soundAlertTracker = new SoundAlertTracker();
 
 function resetCursors(): void {
@@ -49,12 +49,25 @@ function resetCursors(): void {
   logCursor = INITIAL_LOG_CURSOR;
   stateFailures = 0;
   logFailures = 0;
-  dismissedLogIds.clear();
+  dismissedLogVersions.clear();
   soundAlertTracker.reset();
 }
 
 function applyDismissedLogState(rows: LogRow[]): LogRow[] {
-  return rows.map((row) => dismissedLogIds.has(row.id) ? { ...row, state: 'inactive' as const } : row);
+  return rows.map((row) => {
+    const dismissedVersion = dismissedLogVersions.get(row.id);
+    if (dismissedVersion === undefined) return row;
+    if (row.updated_at > dismissedVersion) {
+      dismissedLogVersions.delete(row.id);
+      return row;
+    }
+    return { ...row, state: 'inactive' as const };
+  });
+}
+
+function isChangedLogVersion(row: LogRow): boolean {
+  const existing = app.logs.find((item) => item.id === row.id);
+  return !existing || existing.updated_at !== row.updated_at || existing.state !== row.state;
 }
 
 function nextDelay(base: number, failures: number): number {
@@ -271,25 +284,35 @@ export async function pollLogs(): Promise<void> {
   const incomingIds: number[] = [];
   const incomingRows: LogRow[] = [];
   const broadcastRows: LogRow[] = [];
+  // Den letzten Zeitstempel erneut lesen: Eine ältere Zeilen-ID kann in derselben
+  // Sekunde geändert worden sein, nachdem der Cursor schon daran vorbeigelaufen ist.
+  let pageCursor = { timestamp: logCursor.timestamp, id: 0 };
+  let nextCursor = logCursor;
   try {
     for (let page = 0; page < 5; page += 1) {
       const data = await apiGet<{ logs: LogRow[] }>(
         'logs',
-        { since: logCursor.timestamp, since_id: logCursor.id },
+        { since: pageCursor.timestamp, since_id: pageCursor.id },
         { signal: controller.signal }
       );
       if (requestGeneration !== generation) return;
       const rows = data.logs ?? [];
       if (!rows.length) break;
       const applicableRows = applyDismissedLogState(rows);
-      const activeRows = applicableRows.filter((row) => !dismissedLogIds.has(row.id));
+      const activeRows = applicableRows.filter((row) => row.state === 'active' && isChangedLogVersion(row));
       app.logs = mergeLogRows(app.logs, applicableRows, MAX_LOG_ROWS);
       incomingIds.push(...activeRows.map((row) => row.id));
       incomingRows.push(...activeRows);
       broadcastRows.push(...applicableRows);
-      logCursor = advanceLogCursor(logCursor, rows);
+      pageCursor = advanceLogCursor(pageCursor, rows);
+      const advanced = advanceLogCursor(nextCursor, rows);
+      if (
+        advanced.timestamp > nextCursor.timestamp
+        || (advanced.timestamp === nextCursor.timestamp && advanced.id > nextCursor.id)
+      ) nextCursor = advanced;
       if (rows.length < 100) break;
     }
+    logCursor = nextCursor;
     app.logsHealthy = true;
     const receivedAt = Date.now();
     app.lastSuccessfulLogPoll = receivedAt;
@@ -315,13 +338,15 @@ export async function pollLogs(): Promise<void> {
 }
 
 export async function dismissLog(id: number): Promise<void> {
-  await api('log_viewed', { mid: id }, { requireFresh: true });
-  markLogDismissed(id);
-  broadcastLogDismissed(id);
+  const result = await api<{ ok: boolean; updated_at?: string | null }>('log_viewed', { mid: id }, { requireFresh: true });
+  const updatedAt = result.updated_at || app.logs.find((row) => row.id === id)?.updated_at || '';
+  markLogDismissed(id, updatedAt);
+  broadcastLogDismissed(id, updatedAt);
 }
 
-function markLogDismissed(id: number): void {
-  dismissedLogIds.add(id);
+function markLogDismissed(id: number, updatedAt: string): void {
+  const current = dismissedLogVersions.get(id);
+  if (current === undefined || updatedAt > current) dismissedLogVersions.set(id, updatedAt);
   app.logs = app.logs.map((row) => (row.id === id ? { ...row, state: 'inactive' as const } : row));
   app.lastLogBatch = app.lastLogBatch.filter((item) => item !== id);
 }

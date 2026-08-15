@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_WORKSPACES, loadWorkspaces, saveWorkspaces, WORKSPACE_STORAGE_KEY } from './workspaces';
+import { DEFAULT_WORKSPACES, loadWorkspaces, saveWorkspaces, WORKSPACE_STORAGE_KEY, workspaceUrl, type WorkspaceLayout } from './workspaces';
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  sessionStorage.clear();
+  history.replaceState(null, '', '/');
+});
 
 describe('Arbeitsansichten', () => {
   it('bildet die Dispositionsansicht als Standardansicht ab', () => {
@@ -15,15 +19,16 @@ describe('Arbeitsansichten', () => {
     });
   });
 
-  it('speichert unterschiedliche Monitoransichten gemeinsam', () => {
+  it('speichert Arbeitsansichten nur im aktuellen Fenster', () => {
     saveWorkspaces(DEFAULT_WORKSPACES);
 
-    expect(JSON.parse(localStorage.getItem(WORKSPACE_STORAGE_KEY) ?? '[]')).toHaveLength(3);
+    expect(JSON.parse(sessionStorage.getItem(WORKSPACE_STORAGE_KEY) ?? '[]')).toHaveLength(3);
+    expect(localStorage.getItem(WORKSPACE_STORAGE_KEY)).toBeNull();
     expect(loadWorkspaces().map((workspace) => workspace.id)).toEqual(['standard', 'einsatzmonitor', 'funkmonitor']);
   });
 
   it('entfernt doppelt eingetragene Panels beim Laden', () => {
-    localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
+    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
       ...DEFAULT_WORKSPACES[0],
       areas: { ...DEFAULT_WORKSPACES[0].areas, rightTop: ['vehicles', 'events'] },
     }]));
@@ -36,11 +41,38 @@ describe('Arbeitsansichten', () => {
   it('ergänzt für alte Arbeitsansichten Größenanteile je Modul', () => {
     const legacy = { ...DEFAULT_WORKSPACES[0] } as Partial<(typeof DEFAULT_WORKSPACES)[number]>;
     delete legacy.panelRatios;
-    localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([legacy]));
+    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([legacy]));
 
     const [workspace] = loadWorkspaces();
 
     expect(workspace.panelRatios.leftTop).toEqual([0.34, 0.66]);
     expect(workspace.panelRatios.leftBottom).toEqual([0.5, 0.5]);
+  });
+
+  it('übernimmt bestehende browserweite Einstellungen einmalig in das aktuelle Fenster', () => {
+    localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{ ...DEFAULT_WORKSPACES[0], name: 'Bisherige Ansicht' }]));
+
+    expect(loadWorkspaces()[0].name).toBe('Bisherige Ansicht');
+    expect(JSON.parse(sessionStorage.getItem(WORKSPACE_STORAGE_KEY) ?? '[]')[0].name).toBe('Bisherige Ansicht');
+
+    localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{ ...DEFAULT_WORKSPACES[0], name: 'Anderes Fenster' }]));
+    expect(loadWorkspaces()[0].name).toBe('Bisherige Ansicht');
+  });
+
+  it('übergibt eine Arbeitsansicht einmalig an einen neu geöffneten Tab', () => {
+    const custom: WorkspaceLayout = {
+      ...DEFAULT_WORKSPACES[0],
+      id: 'lagekarte',
+      name: 'Lagekarte',
+      areas: { ...DEFAULT_WORKSPACES[0].areas, leftTop: ['map'], rightBottom: [] },
+      panelRatios: { ...DEFAULT_WORKSPACES[0].panelRatios, leftTop: [1], rightBottom: [] },
+    };
+    saveWorkspaces(DEFAULT_WORKSPACES);
+    history.replaceState(null, '', workspaceUrl(custom));
+
+    const loaded = loadWorkspaces();
+
+    expect(loaded.find((workspace) => workspace.id === 'lagekarte')).toEqual(custom);
+    expect(location.search).not.toContain('workspace_layout');
   });
 });

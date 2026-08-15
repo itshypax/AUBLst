@@ -129,7 +129,8 @@
         else hide();
       });
     };
-    const onPointerDown = () => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
       keyboardInteraction = false;
       keyboardFocusActive = false;
       hide();

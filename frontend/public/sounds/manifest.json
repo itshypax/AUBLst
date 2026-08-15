@@ -50,6 +50,7 @@
   ],
   "alerts": {
     "unassigned_vehicle_statuses": [3, 4],
+    "unassigned_vehicle_exceptions": ["0_FLB_1", "0_KLB_1"],
     "vehicle_c_timeout_seconds": 120,
     "vehicle_c_timeout_overrides": {
       "11_HLF_1": 240,

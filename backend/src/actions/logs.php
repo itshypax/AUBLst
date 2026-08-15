@@ -27,7 +27,12 @@ function action_log_viewed(PDO $pdo): void {
     $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
     $sid = $session['id'];
 
-    $stmt = $pdo->prepare("UPDATE activity_logs SET state = 'inactive' WHERE session_id = ? AND id = ?");
+    $stmt = $pdo->prepare("UPDATE activity_logs
+        SET state = 'inactive', updated_at = CURRENT_TIMESTAMP(6)
+        WHERE session_id = ? AND id = ?");
     $stmt->execute([$sid, $mid]);
-    respond_json(200, ['ok' => true]);
+    $stmt = $pdo->prepare('SELECT updated_at FROM activity_logs WHERE session_id = ? AND id = ?');
+    $stmt->execute([$sid, $mid]);
+    $updatedAt = $stmt->fetchColumn();
+    respond_json(200, ['ok' => true, 'updated_at' => $updatedAt ?: null]);
 }
