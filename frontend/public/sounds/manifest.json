@@ -1,0 +1,62 @@
+{
+  "version": 3,
+  "default_profile": "standard",
+  "profiles": [
+    {
+      "id": "standard",
+      "label": "Standard",
+      "cues": {
+        "new-incident": "assets/phone.wav",
+        "radio-message": "assets/Alarm.wav",
+        "speech-request": "assets/sprechwunsch.mp3"
+      }
+    },
+    {
+      "id": "jannik",
+      "label": "Stimme Jannik",
+      "extends": "standard",
+      "cues": {
+        "speech-request": "sounds/Jannik/sprechwunsch.m4a",
+        "unassigned-vehicle-status-3": "sounds/Jannik/fahrzeug-3-ohne-einsatz.m4a",
+        "unassigned-vehicle-status-4": "sounds/Jannik/fahrzeug-4-ohne-einsatz.m4a",
+        "vehicle-c-timeout": "sounds/Jannik/fahrzeug-c-zeitueberschreitung.m4a",
+        "speech-request-timeout": "sounds/Jannik/sprechwunsch-zeitueberschreitung.m4a"
+      }
+    },
+    {
+      "id": "marvin",
+      "label": "Marvin",
+      "extends": "standard",
+      "cues": {
+        "speech-request": "sounds/Marvin/sprechwunsch.m4a",
+        "unassigned-vehicle-status-3": "sounds/Marvin/fahrzeug-3-ohne-einsatz.m4a",
+        "unassigned-vehicle-status-4": "sounds/Marvin/fahrzeug-4-ohne-einsatz.m4a",
+        "vehicle-c-timeout": "sounds/Marvin/fahrzeug-c-zeitueberschreitung.m4a",
+        "speech-request-timeout": "sounds/Marvin/sprechwunsch-zeitueberschreitung.m4a"
+      }
+    },
+    {
+      "id": "schwabe",
+      "label": "Schwabe",
+      "extends": "standard",
+      "cues": {
+        "speech-request": "sounds/Schwabe/sprechwunsch.m4a",
+        "unassigned-vehicle-status-3": "sounds/Schwabe/fahrzeug-3-ohne-einsatz.m4a",
+        "unassigned-vehicle-status-4": "sounds/Schwabe/fahrzeug-4-ohne-einsatz.m4a",
+        "vehicle-c-timeout": "sounds/Schwabe/fahrzeug-c-zeitueberschreitung.m4a",
+        "speech-request-timeout": "sounds/Schwabe/sprechwunsch-zeitueberschreitung.m4a"
+      }
+    }
+  ],
+  "alerts": {
+    "unassigned_vehicle_statuses": [3, 4],
+    "vehicle_c_timeout_seconds": 120,
+    "vehicle_c_timeout_overrides": {
+      "11_HLF_1": 240,
+      "11_TLF_1": 240,
+      "31_HLF_1": 240,
+      "31_GWL_1": 240
+    },
+    "speech_request_timeout_seconds": 120
+  }
+}

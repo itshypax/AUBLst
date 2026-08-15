@@ -6,6 +6,12 @@ const mocks = vi.hoisted(() => ({ api: vi.fn(), apiGet: vi.fn(), playPhone: vi.f
 
 vi.mock('./api', () => ({ api: mocks.api, apiGet: mocks.apiGet, fetchMapImage: vi.fn() }));
 vi.mock('./sounds', () => ({
+  getSoundAlertConfig: () => ({
+    unassignedVehicleStatuses: [3, 4],
+    vehicleCTimeoutSeconds: 120,
+    vehicleCTimeoutOverrides: {},
+    speechRequestTimeoutSeconds: 120,
+  }),
   playPhone: mocks.playPhone,
   playSoundCue: mocks.playSoundCue,
   playSoundCues: mocks.playSoundCues,

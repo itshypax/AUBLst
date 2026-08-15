@@ -20,6 +20,7 @@ export interface Vehicle {
   x: number;
   y: number;
   status: number;
+  status_since?: string | null;
   assigned_player_id: number | null;
 }
 

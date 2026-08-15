@@ -10,7 +10,11 @@ function action_state(PDO $pdo): void {
     $players->execute([$sid]);
     $players = $players->fetchAll();
 
-    $vehicles = $pdo->prepare('SELECT * FROM vehicles WHERE session_id = ?');
+    $vehicles = $pdo->prepare('SELECT v.*,
+        (SELECT h.created_at FROM vehicle_status_history h
+            WHERE h.session_id = v.session_id AND h.vehicle_id = v.id
+            ORDER BY h.created_at DESC, h.id DESC LIMIT 1) AS status_since
+        FROM vehicles v WHERE v.session_id = ?');
     $vehicles->execute([$sid]);
     $vehicles = $vehicles->fetchAll();
 

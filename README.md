@@ -50,6 +50,13 @@ Fahrzeuggrafiken liegen unter `frontend/public/vehicles/<mod_id>/`. Die
 zu. Submods können mit `extends` die Regeln ihres Hauptmods erben. Das Format
 ist in `frontend/public/vehicles/README.md` beschrieben.
 
+### Soundprofile
+
+Die auswählbaren Stimmen, Audiodateien und Warnzeiten stehen in
+`frontend/public/sounds/manifest.json`. Neue Profile können vorhandene Profile
+erben und nur einzelne Töne austauschen. Dateipfade und Fahrzeugausnahmen für
+die C-Zeitwarnung sind in `frontend/public/sounds/README.md` beschrieben.
+
 ### Frontend
 
 ```bash

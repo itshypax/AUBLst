@@ -1,8 +1,9 @@
 import { api, apiGet, fetchMapImage } from './api';
 import { advanceLogCursor, INITIAL_LOG_CURSOR, mergeLogRows } from './log-stream';
+import { SoundAlertTracker } from './sound-alerts';
 import { soundCuesForLogs } from './sound-events';
 import { app, persistSettings, resetSessionData } from './state.svelte';
-import { playPhone, playSoundCue, playSoundCues } from './sounds';
+import { getSoundAlertConfig, playPhone, playSoundCue, playSoundCues } from './sounds';
 import type { LogRow, StateResponse } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 import {
@@ -39,6 +40,7 @@ let generation = 0;
 let started = false;
 let lastState: StateResponse | null = null;
 const dismissedLogIds = new Set<number>();
+const soundAlertTracker = new SoundAlertTracker();
 
 function resetCursors(): void {
   lastEventIds = new Set();
@@ -48,6 +50,7 @@ function resetCursors(): void {
   stateFailures = 0;
   logFailures = 0;
   dismissedLogIds.clear();
+  soundAlertTracker.reset();
 }
 
 function applyDismissedLogState(rows: LogRow[]): LogRow[] {
@@ -184,6 +187,16 @@ async function applyState(data: StateResponse, playEventSounds: boolean, receive
   stateFailures = 0;
   lastState = data;
 
+  if (playEventSounds) {
+    const alertCues = soundAlertTracker.update({
+      vehicles: app.vehicles,
+      assignments: app.assignments,
+      events: app.events,
+      logs: app.logs,
+    }, receivedAt, getSoundAlertConfig());
+    if (alertCues.length) void playSoundCues(alertCues);
+  }
+
   const newMod = data.session.mod_id ?? null;
   if (app.modId !== newMod) {
     if (app.mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(app.mapImageUrl);
@@ -318,6 +331,7 @@ export function startPolling(): void {
   started = true;
   startPollingSync({
     onLeaderChange: (leader) => {
+      soundAlertTracker.reset();
       stateController?.abort();
       logController?.abort();
       clearTimeout(stateTimer);

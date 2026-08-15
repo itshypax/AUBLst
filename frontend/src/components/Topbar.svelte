@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import FaIcon from './FaIcon.svelte';
   import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Play, RadioTower, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
   import { pollLogs, refreshState, switchSession } from '../lib/polling';
   import { dismissibleDetails } from '../lib/dismissible-details';
-  import { configureSounds, testSound } from '../lib/sounds';
+  import { configureSounds, getDefaultSoundProfile, getSoundProfileOptions, loadSoundManifest, testSound } from '../lib/sounds';
   import { buildSpeechRequestEntries } from '../lib/speech-requests';
   import { app, persistSoundSettings } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
@@ -17,12 +18,24 @@
   let details: HTMLDetailsElement;
   let applying = $state(false);
   let soundMessage = $state('');
+  let soundProfiles = $state(getSoundProfileOptions());
   const appCommit = import.meta.env.VITE_APP_COMMIT || 'dev';
   const appCommitDate = import.meta.env.VITE_APP_COMMIT_DATE;
   const versionTooltip = appCommitDate
     ? `Commit ${appCommit} vom ${new Date(appCommitDate).toLocaleString('de-DE')}`
     : `Commit ${appCommit}`;
   const speechRequestCount = $derived(buildSpeechRequestEntries(app.logs, app.vehicles, app.events, app.assignments).length);
+
+  onMount(() => {
+    void loadSoundManifest().then((profiles) => {
+      soundProfiles = profiles;
+      if (!profiles.some((profile) => profile.id === app.soundProfile)) {
+        app.soundProfile = getDefaultSoundProfile();
+        persistSoundSettings();
+      }
+      configureSounds(app.soundEnabled, app.soundVolume, app.soundProfile);
+    });
+  });
 
   $effect(() => {
     if (!details?.open && !app.sessionChanging) {
@@ -46,12 +59,12 @@
   }
 
   async function updateSound(): Promise<void> {
-    configureSounds(app.soundEnabled, app.soundVolume);
+    configureSounds(app.soundEnabled, app.soundVolume, app.soundProfile);
     persistSoundSettings();
   }
 
   async function runSoundTest(): Promise<void> {
-    configureSounds(true, app.soundVolume);
+    configureSounds(true, app.soundVolume, app.soundProfile);
     soundMessage = (await testSound()) ? 'Ton abgespielt' : 'Browser blockiert die Wiedergabe';
     window.setTimeout(() => (soundMessage = ''), 2500);
   }
@@ -61,7 +74,7 @@
   let nowMs = $state(Date.now());
 
   $effect(() => {
-    configureSounds(app.soundEnabled, app.soundVolume);
+    configureSounds(app.soundEnabled, app.soundVolume, app.soundProfile);
     const timer = setInterval(() => (nowMs = Date.now()), 1000);
     return () => clearInterval(timer);
   });
@@ -190,6 +203,14 @@
       </button>
 
       <div class="settings-title sound-title">Ton</div>
+      <label class="sound-profile">
+        <span>Soundprofil</span>
+        <select bind:value={app.soundProfile} onchange={() => void updateSound()}>
+          {#each soundProfiles as profile (profile.id)}
+            <option value={profile.id}>{profile.label}</option>
+          {/each}
+        </select>
+      </label>
       <div class="sound-row">
         <button class="ghost sound-toggle" aria-pressed={app.soundEnabled} onclick={() => { app.soundEnabled = !app.soundEnabled; void updateSound(); }}>
           {#if app.soundEnabled}<FaIcon icon={Volume2} size={16} /> Ton an{:else}<FaIcon icon={VolumeX} size={16} /> Ton aus{/if}
@@ -258,6 +279,7 @@
   .apply { justify-content: center; }
   .reload-data { justify-content: flex-start; }
   .sound-row { display: flex; align-items: center; gap: 8px; }
+  .sound-profile select { width: 100%; }
   .sound-toggle { min-width: 74px; }
   .volume { flex: 1; }
   .volume input { width: 100%; }

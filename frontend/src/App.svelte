@@ -19,6 +19,7 @@
   import { loadGroupOverrides } from './lib/classify';
   import { shortcutActionForEvent, type ShortcutAction } from './lib/keyboard-shortcuts';
   import { startPolling } from './lib/polling';
+  import { configureSounds, loadSoundManifest } from './lib/sounds';
   import {
     app,
     closeEventFromSync,
@@ -40,7 +41,10 @@
   if (!routingEditorRequested) {
     initSettings();
     void loadGroupOverrides();
-    startPolling();
+    void loadSoundManifest().then(() => {
+      configureSounds(app.soundEnabled, app.soundVolume, app.soundProfile);
+      startPolling();
+    });
   }
 
   const clamp = (x: number) => Math.min(0.85, Math.max(0.15, x));

@@ -51,6 +51,7 @@ export const app = $state({
   fitMapSeq: 0,
   soundEnabled: true,
   soundVolume: 0.7,
+  soundProfile: 'standard',
   notice: null as { message: string; kind: 'success' | 'error'; id: number } | null,
 });
 
@@ -114,6 +115,7 @@ export function initSettings(): void {
   app.soundEnabled = localStorage.getItem('soundEnabled') !== 'false';
   const storedVolume = Number(localStorage.getItem('soundVolume'));
   app.soundVolume = Number.isFinite(storedVolume) ? Math.min(1, Math.max(0, storedVolume)) : 0.7;
+  app.soundProfile = localStorage.getItem('soundProfile') ?? 'standard';
 
   // Alte Versionen legten Zugangsdaten dauerhaft ab.
   localStorage.removeItem('sessionToken');
@@ -142,6 +144,7 @@ export function persistSettings(): void {
 export function persistSoundSettings(): void {
   localStorage.setItem('soundEnabled', String(app.soundEnabled));
   localStorage.setItem('soundVolume', String(app.soundVolume));
+  localStorage.setItem('soundProfile', app.soundProfile);
 }
 
 function pinStorageKey(apiBase: string, token: string): string {

@@ -12,6 +12,12 @@ vi.mock('../lib/polling', () => ({
 
 vi.mock('../lib/sounds', () => ({
   configureSounds: vi.fn(),
+  getDefaultSoundProfile: () => 'standard',
+  getSoundProfileOptions: () => [{ id: 'standard', label: 'Standard' }],
+  loadSoundManifest: vi.fn(async () => [
+    { id: 'standard', label: 'Standard' },
+    { id: 'jannik', label: 'Stimme Jannik' },
+  ]),
   testSound: vi.fn(async () => true),
 }));
 
@@ -48,6 +54,15 @@ describe('Kopfzeile', () => {
     expect(screen.queryByRole('button', { name: 'Einsatzakte öffnen' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Session-Statistik öffnen' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Tastaturkürzel öffnen' })).toBeTruthy();
+  });
+
+  it('bietet die Soundprofile im Sitzungsmenü an', async () => {
+    render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
+
+    const profile = await screen.findByRole('combobox', { name: 'Soundprofil' });
+    expect(profile).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'Standard' })).toBeTruthy();
+    expect(await screen.findByRole('option', { name: 'Stimme Jannik' })).toBeTruthy();
   });
 
   it('zeigt alle aktiven Lagehinweise', () => {
