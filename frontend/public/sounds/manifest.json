@@ -25,7 +25,7 @@
     },
     {
       "id": "marvin",
-      "label": "Marvin",
+      "label": "Stimme Marvin",
       "extends": "standard",
       "cues": {
         "speech-request": "sounds/Marvin/sprechwunsch.m4a",
@@ -37,7 +37,7 @@
     },
     {
       "id": "schwabe",
-      "label": "Schwabe",
+      "label": "Stimme Schwabe",
       "extends": "standard",
       "cues": {
         "speech-request": "sounds/Schwabe/sprechwunsch.m4a",
