@@ -31,7 +31,7 @@
       ],
       "cues": {
         "new-incident": {
-          "file": "sounds/Jannik/anrufton.mp3",
+          "file": "sounds/Jannik/anrufton2.wav",
           "repeat": 2
         },
         "speech-request": "sounds/Jannik/sprechwunsch.m4a",
