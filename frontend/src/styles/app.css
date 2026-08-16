@@ -266,7 +266,11 @@ input[type='range']:focus-visible {
 
 .splitter-col,
 .splitter-row {
-  background: transparent;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.018);
   border: 0;
   padding: 0;
   min-width: 0;
@@ -274,6 +278,25 @@ input[type='range']:focus-visible {
   border-radius: 3px;
   transition: background 0.15s ease;
   flex: 0 0 auto;
+}
+
+.splitter-col::after,
+.splitter-row::after {
+  display: block;
+  border-radius: 1px;
+  background: var(--border-strong);
+  content: '';
+  transition: background 0.15s ease;
+}
+
+.splitter-col::after {
+  width: 2px;
+  height: 30px;
+}
+
+.splitter-row::after {
+  width: 30px;
+  height: 2px;
 }
 
 .splitter-col {
@@ -291,6 +314,15 @@ input[type='range']:focus-visible {
 .splitter-col.active,
 .splitter-row.active {
   background: var(--accent-soft);
+}
+
+.splitter-col:hover::after,
+.splitter-row:hover::after,
+.splitter-col:focus-visible::after,
+.splitter-row:focus-visible::after,
+.splitter-col.active::after,
+.splitter-row.active::after {
+  background: var(--accent-outline);
 }
 
 .sr-only {

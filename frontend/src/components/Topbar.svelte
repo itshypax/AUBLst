@@ -139,8 +139,10 @@
 <header class="topbar">
   <div class="brand">
     <img class="brand-logo" src="./aublst.png" alt="" />
-    <span class="brand-name">AUB<span class="brand-lst">LST</span></span>
-    <span class="build-version" data-tooltip={versionTooltip}>{appCommit}</span>
+    <div class="brand-copy">
+      <span class="brand-name">AUB<span class="brand-lst">LST</span></span>
+      <span class="build-version" data-tooltip={versionTooltip}>{appCommit}</span>
+    </div>
   </div>
 
   <div class="clock" data-tooltip="Spielzeit">
@@ -246,12 +248,13 @@
 </header>
 
 <style>
-  .topbar { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 7px 12px; background: var(--bg-raised); border-bottom: 1px solid var(--border); flex: 0 0 auto; position: relative; z-index: 30; }
+  .topbar { display: flex; align-items: center; gap: 14px; min-height: 54px; padding: 8px 14px; background: var(--bg-raised); border-bottom: 1px solid var(--border); flex: 0 0 auto; position: relative; z-index: 30; }
   .brand { display: flex; align-items: center; gap: 8px; }
-  .brand-logo { width: 22px; height: 22px; border-radius: 4px; }
-  .brand-name { font-size: 16px; font-weight: 700; letter-spacing: 0.03em; }
+  .brand-logo { width: 26px; height: 26px; border-radius: 4px; }
+  .brand-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+  .brand-name { font-size: 17px; font-weight: 700; letter-spacing: 0.03em; line-height: 1; }
   .brand-lst { font-weight: 300; color: var(--text-dim); }
-  .build-version { color: var(--text-dim); font-size: 10px; }
+  .build-version { color: var(--text-dim); font-size: 9px; line-height: 1; }
   .clock { display: flex; align-items: center; gap: 6px; padding: 4px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); font-variant-numeric: tabular-nums; font-weight: 600; }
   .clock :global(svg) { color: var(--text-dim); }
   .game-states { display: flex; flex: 1 1 320px; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
@@ -297,7 +300,7 @@
     .game-state { max-width: min(280px, 100%); }
   }
   @media (max-width: 760px) {
-    .brand-name, .build-version, summary span { display: none; }
+    .brand-copy, summary span { display: none; }
     .topbar { gap: 8px; }
     .game-states { display: flex; }
     .connection span { display: inline; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }

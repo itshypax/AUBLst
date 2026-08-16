@@ -263,11 +263,6 @@
   }
   .speech-panel td.time {
     color: #fff;
-    font:
-      14px ui-monospace,
-      'Cascadia Mono',
-      Consolas,
-      monospace;
     font-variant-numeric: tabular-nums;
   }
   .request-text {
