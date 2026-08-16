@@ -32,7 +32,7 @@ function action_session_statistics(PDO $pdo): void {
     $session = require_session($pdo, request_value('session_token'));
     $sid = $session['id'];
 
-    $stmt = $pdo->prepare('SELECT id, name, status, created_by, created_at, updated_at
+    $stmt = $pdo->prepare('SELECT id, name, x, y, status, created_by, created_at, updated_at
         FROM events WHERE session_id = ? ORDER BY created_at ASC, id ASC');
     $stmt->execute([$sid]);
     $events = $stmt->fetchAll();
@@ -56,6 +56,13 @@ function action_session_statistics(PDO $pdo): void {
     respond_json(200, [
         'session' => [
             'token' => $session['token'],
+            'mod_id' => $session['mod_id'],
+            'map_bounds' => [
+                'min_x' => (float)$session['min_x'],
+                'min_y' => (float)$session['min_y'],
+                'max_x' => (float)$session['max_x'],
+                'max_y' => (float)$session['max_y'],
+            ],
             'created_at' => $session['created_at'],
             'generated_at' => $generated_at,
         ],
@@ -158,6 +165,7 @@ function action_sync(PDO $pdo): void {
         $stmt->execute([$sid, $data['time']['h'], $data['time']['m']]);
     }
 
+    touch_session($pdo, $sid);
     $pdo->commit();
     respond_json(200, ['ok' => true, 'session_id' => $sid]);
 }

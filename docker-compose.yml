@@ -1,0 +1,40 @@
+services:
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: game_ops_dashboard
+      MARIADB_USER: aublst
+      MARIADB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD in .env setzen}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD in .env setzen}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - aublst-db:/var/lib/mysql
+
+  app:
+    build:
+      context: .
+      args:
+        VITE_APP_COMMIT: ${APP_VERSION:-docker}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_NAME: game_ops_dashboard
+      DB_USER: aublst
+      DB_PASS: ${DB_PASSWORD:?DB_PASSWORD in .env setzen}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-}
+      REQUIRE_SESSION_PIN: ${REQUIRE_SESSION_PIN:-true}
+      ENABLE_REALTIME_STREAM: ${ENABLE_REALTIME_STREAM:-true}
+      ENABLE_ANONYMOUS_METRICS: ${ENABLE_ANONYMOUS_METRICS:-true}
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+
+volumes:
+  aublst-db:

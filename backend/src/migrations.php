@@ -174,6 +174,20 @@ function migration_definitions(): array {
                     OR LOWER(REPLACE(l.message, ' ', '')) IN ('5', 's5', 'status5', 'fms5')
                 )");
         },
+        '2026081601_realtime_and_metrics' => static function (PDO $pdo): void {
+            if (!database_column_exists($pdo, 'sessions', 'revision')) {
+                $pdo->exec('ALTER TABLE sessions ADD COLUMN revision BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER max_y');
+            }
+            $pdo->exec("CREATE TABLE IF NOT EXISTS anonymous_metrics (
+                metric_day DATE NOT NULL,
+                metric_name VARCHAR(64) NOT NULL,
+                sample_count INT UNSIGNED NOT NULL DEFAULT 0,
+                value_sum DOUBLE NOT NULL DEFAULT 0,
+                value_max DOUBLE NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (metric_day, metric_name)
+            ) ENGINE=InnoDB");
+        },
     ];
 }
 

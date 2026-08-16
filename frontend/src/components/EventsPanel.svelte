@@ -23,12 +23,6 @@
       .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id - a.id)
   );
 
-  const statusLabel: Record<string, string> = {
-    active: 'laufend',
-    canceled: 'abgebrochen',
-    completed: 'abgeschlossen',
-  };
-
   const categoryIcon = { fire: Flame, hazard: Biohazard, water: Waves, thl: Axe, medical: Cross, other: TriangleAlert };
   const categoryTitle: Record<EventCategory, string> = {
     fire: 'Brandeinsatz',

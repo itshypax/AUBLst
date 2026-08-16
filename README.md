@@ -2,8 +2,9 @@
 
 Web-Leitstelle für Spiele: Das Spiel meldet Fahrzeuge, Einsätze, Krankenhäuser
 und Funkmeldungen an den Server, ein Disponent alarmiert im Browser Fahrzeuge
-und schickt die Befehle zurück ins Spiel. Kommunikation läuft komplett über
-HTTP-Polling, es wird also kein Websocket-fähiges Hosting gebraucht.
+und schickt die Befehle zurück ins Spiel. Änderungen werden über Server-Sent
+Events gemeldet; regelmäßige HTTP-Abgleiche bleiben als Rückfall aktiv. Dafür
+ist kein Websocket-Server nötig.
 
 Hervorgegangen aus [Floko122/EMDispatch](https://github.com/Floko122/EMDispatch) –
 danke an Floko122 für die Grundlage.
@@ -91,6 +92,12 @@ Später lässt sich die Sitzung weiterhin über die Kopfzeile wechseln. Die
 Zugangsdaten bleiben nur für die aktuelle Browser-Sitzung gespeichert und
 werden nach einem Aufruf über URL-Parameter sofort aus der Adresszeile entfernt.
 
+Das Web-App-Manifest erlaubt auf unterstützten Desktop- und Mobilbrowsern die
+Installation als eigenständige App. In den Verbindungseinstellungen können
+Desktop-Meldungen für neue Einsätze und Sprechwünsche eingeschaltet werden.
+Diese Meldungen funktionieren, solange die App geöffnet ist. Web Push bei
+geschlossenem Browser ist noch nicht enthalten.
+
 ### Fahrzeug-Gruppierung
 
 Die Fahrzeugübersicht trennt Feuerwehr und Rettungsdienst per Tab und
@@ -129,6 +136,8 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
 
 ## API (Leitstelle → Server)
 
+- `POST api.php?action=capabilities` – API-Version und optionale Funktionen
+- `POST api.php?action=stream` – SSE-Kanal für Änderungen; Polling bleibt kompatibel
 - `POST api.php?action=state` – kompletter Zustand
 - `POST api.php?action=logs` – Funkmeldungen; Cursor über `since` und `since_id`
 - `POST api.php?action=events_create` / `events_finish` / `events_assign` /
@@ -214,13 +223,21 @@ normalen Sitzung bildet das Backend die normalisierten Kartenpunkte auf die von
 EM4 gelieferten Kartengrenzen ab. Der Graph ist in der Leitstelle unsichtbar und
 wird dort nur für die Entfernungsberechnung geladen.
 
+Die Sitzungsstatistik verwendet dieselbe Projektion und legt historische
+Einsatzorte als Heatmap über das tatsächliche Kartenbild. Leaflet oder Mapbox
+sind für diese Spielkarte nicht nötig, da keine geografischen Kacheln oder
+Koordinaten vorliegen.
+
 ## Entwicklung
 
 ```bash
 cd frontend
 npm run dev      # Dev-Server mit Hot Reload
 npm run check    # Typprüfung (svelte-check)
+npm run lint     # ESLint für TypeScript und Svelte
+npm run format   # Dateien mit Prettier formatieren
 npm test         # Komponenten- und Zustandsprüfungen (Vitest)
+npm run test:e2e # Browser-Smoke-Tests (Playwright)
 npm run build    # Produktions-Build
 ```
 
@@ -230,6 +247,25 @@ und CORS haben einen kleinen Testlauf ohne zusätzliche Bibliotheken:
 ```bash
 php backend/tests/run.php
 ```
+
+GitHub Actions führt Lint, Typecheck, Unit-Tests, Build, Playwright sowie
+PHP-Syntax- und Backend-Tests bei Pushes und Pull Requests aus.
+
+## Docker und Betrieb
+
+Für einen vollständigen Betrieb mit Apache/PHP und MariaDB gibt es eine
+Produktions-Compose-Datei:
+
+```bash
+cp .env.docker.example .env
+# Passwörter in .env ändern
+docker compose up -d --build
+```
+
+Details zu Backup, Plesk, SSE und den lokalen anonymen Tagesaggregaten stehen
+in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Die Bewertung der elf Ausbaupunkte
+und die verbleibenden Schritte stehen in
+[docs/TECHNICAL-ROADMAP.md](docs/TECHNICAL-ROADMAP.md).
 
 ### Manuelles Plesk-Release
 

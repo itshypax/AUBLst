@@ -19,6 +19,7 @@ if (!$npmCommand) { $npmCommand = Get-Command npm -ErrorAction Stop }
 $npm = $npmCommand.Source
 
 Invoke-Step 'Frontend-Tests' { & $npm --prefix $frontendRoot test }
+Invoke-Step 'Frontend-Lint' { & $npm --prefix $frontendRoot run lint }
 Invoke-Step 'Frontend-Pruefung' { & $npm --prefix $frontendRoot run check }
 Invoke-Step 'Frontend-Build' { & $npm --prefix $frontendRoot run build }
 

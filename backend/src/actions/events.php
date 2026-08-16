@@ -10,6 +10,7 @@ function action_update_events(PDO $pdo): void {
         $e['created_by'] = 'game';
         upsert_event($pdo, $sid, $e);
     }
+    touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }
 
@@ -31,6 +32,7 @@ function action_events_create(PDO $pdo): void {
         'name' => em4_safe_text((string)($data['name'] ?? 'Event')),
         'target' => ['x' => (float)$data['x'], 'y' => (float)$data['y']],
     ]);
+    touch_session($pdo, $sid);
 
     respond_json(200, ['ok' => true, 'event' => $event]);
 }
@@ -56,6 +58,7 @@ function action_events_finish(PDO $pdo): void {
         'event_id' => (int)$event_id,
         'event_game_id' => (int)$ev['game_event_id'],
     ]);
+    touch_session($pdo, $sid);
 
     respond_json(200, ['ok' => true]);
 }
@@ -159,6 +162,7 @@ function action_events_assign(PDO $pdo): void {
             $stmt->execute([$player_id, $vid, $sid]);
         }
     }
+    touch_session($pdo, $sid);
     $pdo->commit();
 
     respond_json(200, ['ok' => true]);
@@ -209,6 +213,7 @@ function action_events_reassign(PDO $pdo): void {
         $previous['assigned_player_id'] ?? null,
         (int)$vehicle['status'] === 4 ? 'on_scene' : 'enroute',
     ]);
+    touch_session($pdo, $sid);
     $pdo->commit();
 
     respond_json(200, [
@@ -281,6 +286,7 @@ function action_events_unassign(PDO $pdo): void {
             'assign_to_player_id' => null,
         ]);
     }
+    touch_session($pdo, $sid);
     $pdo->commit();
 
     respond_json(200, ['ok' => true]);
@@ -327,6 +333,7 @@ function action_events_set_note(PDO $pdo): void {
     $sid = $session['id'];
 
     $note = upsert_note($pdo, $sid, $data);
+    touch_session($pdo, $sid);
     respond_json(200, ['ok' => true, 'note' => $note]);
 }
 
@@ -415,6 +422,7 @@ function action_events_add_feedback(PDO $pdo): void {
     $stmt = $pdo->prepare('INSERT INTO event_feedback (session_id, event_id, content) VALUES (?, ?, ?)');
     $stmt->execute([$sid, $event_id, $content]);
     $id = (int)$pdo->lastInsertId();
+    touch_session($pdo, $sid);
 
     $stmt = $pdo->prepare('SELECT id, event_id, content, created_at FROM event_feedback WHERE session_id = ? AND id = ?');
     $stmt->execute([$sid, $id]);

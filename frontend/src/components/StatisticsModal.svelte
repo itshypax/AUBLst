@@ -6,6 +6,8 @@
   import { focusTrap } from '../lib/focus';
   import { buildSessionStatistics, exportSessionStatisticsPng, formatStatisticDuration, type SessionStatisticsModel, type StatisticValue } from '../lib/statistics';
   import type { SessionStatisticsResponse } from '../lib/types';
+  import { app } from '../lib/state.svelte';
+  import IncidentHeatmap from './IncidentHeatmap.svelte';
 
   let { embedded = false, onClose = () => {} }: { embedded?: boolean; onClose?: () => void } = $props();
 
@@ -89,6 +91,11 @@
         </div>
 
         <div class="charts">
+          <section class="chart heatmap-chart">
+            <h3>Einsatzschwerpunkte auf der Karte</h3>
+            <IncidentHeatmap imageUrl={app.mapImageUrl} points={model.heatmapPoints} bounds={model.mapBounds} />
+          </section>
+
           <section class="chart">
             <h3>Einsätze je Kategorie</h3>
             <div class="bar-list">
@@ -215,6 +222,7 @@
   .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .chart { min-height: 230px; padding: 13px 14px; border: 1px solid var(--border); background: var(--bg-raised); }
   .chart h3 { margin-bottom: 15px; font-size: 13px; }
+  .heatmap-chart { grid-column: 1 / -1; min-height: 0; }
   .bar-list { display: grid; gap: 12px; }
   .bar-list.compact { gap: 7px; }
   .bar-row { display: grid; grid-template-columns: minmax(110px, 145px) minmax(80px, 1fr) 38px; align-items: center; gap: 9px; font-size: 12px; }

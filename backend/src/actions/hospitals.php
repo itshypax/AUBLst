@@ -9,6 +9,7 @@ function action_update_hospitals(PDO $pdo): void {
     foreach (($data['updates'] ?? []) as $h) {
         upsert_hospital($pdo, $sid, $h);
     }
+    touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }
 
@@ -62,6 +63,7 @@ function action_hospital_reservation_set(PDO $pdo): void {
             status = 'reserved', baseline_available = VALUES(baseline_available), arrived_at = NULL,
             updated_at = CURRENT_TIMESTAMP");
     $stmt->execute([$sid, $vehicle_id, $hospital_id, $bed_type, (int)$hospital[$available_column]]);
+    touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }
 
@@ -73,5 +75,6 @@ function action_hospital_reservation_clear(PDO $pdo): void {
     if (!$vehicle_id) respond_json(400, ['error' => 'Fahrzeug fehlt.']);
     $stmt = $pdo->prepare('DELETE FROM hospital_reservations WHERE session_id = ? AND vehicle_id = ?');
     $stmt->execute([$sid, $vehicle_id]);
+    touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }

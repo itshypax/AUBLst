@@ -18,6 +18,9 @@ import {
   type PollingSnapshot,
 } from './polling-sync';
 import { uiSyncScope } from './ui-sync';
+import { startRealtimeStream } from './realtime';
+import { recordAnonymousMetrics } from './telemetry';
+import { notifyNewIncidents, notifySpeechRequests } from './notifications';
 
 const STATE_INTERVAL = 3_000;
 const LOG_INTERVAL = 2_000;
@@ -39,6 +42,9 @@ let logController: AbortController | null = null;
 let generation = 0;
 let started = false;
 let lastState: StateResponse | null = null;
+let realtimeConnected = false;
+let stopRealtime: (() => void) | null = null;
+let realtimeRefreshTimer = 0;
 const dismissedLogVersions = new Map<number, string>();
 const soundAlertTracker = new SoundAlertTracker();
 
@@ -72,7 +78,31 @@ function isChangedLogVersion(row: LogRow): boolean {
 
 function nextDelay(base: number, failures: number): number {
   if (document.hidden) return HIDDEN_INTERVAL;
+  if (realtimeConnected && failures === 0) return HIDDEN_INTERVAL;
   return Math.min(MAX_BACKOFF, base * Math.max(1, 2 ** failures));
+}
+
+function stopRealtimeStream(): void {
+  stopRealtime?.();
+  stopRealtime = null;
+  realtimeConnected = false;
+  clearTimeout(realtimeRefreshTimer);
+}
+
+function ensureRealtimeStream(): void {
+  if (stopRealtime || !isPollingLeader() || !app.sessionToken) return;
+  stopRealtime = startRealtimeStream({
+    onStatus: (connected) => {
+      realtimeConnected = connected;
+    },
+    onChange: () => {
+      clearTimeout(realtimeRefreshTimer);
+      realtimeRefreshTimer = window.setTimeout(() => {
+        void refreshState();
+        void pollLogs();
+      }, 100);
+    },
+  });
 }
 
 function scheduleState(delay = nextDelay(STATE_INTERVAL, stateFailures)): void {
@@ -122,6 +152,7 @@ function restartLoops(runImmediately: boolean): void {
     else scheduleConnectionRetry();
     return;
   }
+  ensureRealtimeStream();
   if (runImmediately) {
     void refreshState().finally(() => scheduleState());
     void pollLogs().finally(() => scheduleLogs());
@@ -147,6 +178,7 @@ async function connectCurrentSession(): Promise<void> {
     return;
   }
   if (requestGeneration !== generation) return;
+  ensureRealtimeStream();
 
   const logRequest = pollLogs().finally(() => {
     if (requestGeneration === generation) scheduleLogs();
@@ -163,6 +195,7 @@ export async function switchSession(apiBase: string, token: string, pin: string)
   clearTimeout(stateTimer);
   clearTimeout(logTimer);
   clearTimeout(connectionTimer);
+  stopRealtimeStream();
   app.sessionChanging = true;
   resetSessionData();
   resetCursors();
@@ -240,8 +273,11 @@ async function applyState(data: StateResponse, playEventSounds: boolean, receive
 
   const ids = new Set(app.events.map((event) => event.id));
   if (playEventSounds && eventsInitialized) {
-    const fresh = app.events.some((event) => !lastEventIds.has(event.id) && event.created_by === 'game');
-    if (fresh) void playPhone();
+    const fresh = app.events.filter((event) => !lastEventIds.has(event.id) && event.created_by === 'game');
+    if (fresh.length) {
+      void playPhone();
+      notifyNewIncidents(fresh);
+    }
     if ([...lastEventIds].some((id) => !ids.has(id))) void playSoundCue('incident-completed');
   }
   eventsInitialized = true;
@@ -256,6 +292,7 @@ export async function refreshState(): Promise<void> {
   const controller = new AbortController();
   stateController = controller;
   const requestGeneration = generation;
+  const startedAt = performance.now();
   try {
     const data = await apiGet<StateResponse>('state', {}, { signal: controller.signal });
     if (requestGeneration !== generation) return;
@@ -263,6 +300,7 @@ export async function refreshState(): Promise<void> {
     await applyState(data, isPollingLeader(), receivedAt, controller.signal);
     if (requestGeneration !== generation) return;
     broadcastPollingState(data, receivedAt);
+    recordAnonymousMetrics(performance.now() - startedAt, data.events?.length ?? 0);
   } catch (error) {
     if (controller.signal.aborted || requestGeneration !== generation) return;
     stateFailures += 1;
@@ -321,6 +359,7 @@ export async function pollLogs(): Promise<void> {
     if (logsInitialized && incomingIds.length) {
       app.lastLogBatch = incomingIds;
       void playSoundCues(soundCuesForLogs(incomingRows));
+      notifySpeechRequests(incomingRows);
     } else {
       app.lastLogBatch = [];
     }
@@ -365,6 +404,7 @@ export function startPolling(): void {
       clearTimeout(stateTimer);
       clearTimeout(logTimer);
       clearTimeout(connectionTimer);
+      stopRealtimeStream();
       if (leader) restartLoops(true);
     },
     onState: (state, receivedAt) => { void applyState(state, false, receivedAt); },

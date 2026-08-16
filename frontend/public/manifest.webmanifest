@@ -1,0 +1,13 @@
+{
+  "name": "AUBLst Leitstelle",
+  "short_name": "AUBLst",
+  "description": "Leitstellen-Oberfläche für EM4-Sitzungen",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1012",
+  "theme_color": "#151619",
+  "icons": [
+    { "src": "./aublst.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

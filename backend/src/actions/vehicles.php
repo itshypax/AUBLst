@@ -15,6 +15,7 @@ function action_update_vehicles(PDO $pdo): void {
 
         upsert_vehicle($pdo, $sid, $u);
     }
+    touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }
 
@@ -46,6 +47,7 @@ function action_vehicles_alarm(PDO $pdo): void {
     }
     $command_id = insert_command($pdo, $sid, 'assign', $payload);
     insert_alarm_history($pdo, $sid, $command_id, [], $veh, null, isset($payload['mode']) ? (string)$payload['mode'] : null);
+    touch_session($pdo, $sid);
 
     respond_json(200, ['ok' => true]);
 }
@@ -61,5 +63,6 @@ function action_vehicles_assign_player(PDO $pdo): void {
 
     $stmt = $pdo->prepare('UPDATE vehicles SET assigned_player_id = ? WHERE id = ? AND session_id = ?');
     $stmt->execute([$player_id, $vehicle_id, $sid]);
+    touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }

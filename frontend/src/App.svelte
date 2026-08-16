@@ -16,6 +16,7 @@
   import VehicleContextMenu from './components/VehicleContextMenu.svelte';
   import WorkspaceArea from './components/WorkspaceArea.svelte';
   import WorkspaceEditorModal from './components/WorkspaceEditorModal.svelte';
+  import NoticeToast from './components/NoticeToast.svelte';
   import { loadGroupOverrides } from './lib/classify';
   import { shortcutActionForEvent, type ShortcutAction } from './lib/keyboard-shortcuts';
   import { startPolling } from './lib/polling';
@@ -367,9 +368,7 @@
   <ConfirmDialog />
 {/if}
 
-{#if app.notice}
-  <div class="notice {app.notice.kind}" role="status">{app.notice.message}</div>
-{/if}
+{#key app.notice?.id}<NoticeToast />{/key}
 
 <Tooltip />
 
@@ -396,22 +395,6 @@
     margin: 1px 0;
   }
 
-  .notice {
-    position: fixed;
-    right: 14px;
-    bottom: 14px;
-    z-index: 100;
-    max-width: min(420px, calc(100vw - 28px));
-    padding: 9px 12px;
-    border: 1px solid var(--border-strong);
-    border-left: 3px solid var(--good);
-    border-radius: var(--radius-sm);
-    background: var(--panel-header);
-    box-shadow: var(--shadow);
-  }
-
-  .notice.error { border-left-color: var(--danger); }
-
   @media (max-width: 1100px) {
     .layout {
       display: grid;
@@ -435,11 +418,13 @@
 
   @media (max-width: 760px) {
     .layout:not(.single-column) {
-      grid-template-rows: 820px 680px;
+      grid-template-rows: minmax(70vh, 820px) minmax(65vh, 680px);
     }
 
     .layout {
       padding: 6px;
     }
+
+    .splitter-row { min-height: 12px; touch-action: none; }
   }
 </style>

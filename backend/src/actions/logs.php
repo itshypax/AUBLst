@@ -57,5 +57,6 @@ function action_log_viewed(PDO $pdo): void {
         . implode(',', array_fill(0, count($ids), '?')) . ')');
     $stmt->execute(array_merge([$sid], $ids));
     $updatedAt = $stmt->fetchColumn();
+    touch_session($pdo, $sid);
     respond_json(200, ['ok' => true, 'ids' => $ids, 'updated_at' => $updatedAt ?: null]);
 }

@@ -383,7 +383,7 @@ function shortestRoadPath(config: RoutingConfig, start: EdgeProjection, end: Edg
     { id: end.from.id, distance: (distances.get(end.from.id) ?? Number.POSITIVE_INFINITY) + end.edgeMeters * end.t },
     { id: end.to.id, distance: (distances.get(end.to.id) ?? Number.POSITIVE_INFINITY) + end.edgeMeters * (1 - end.t) },
   ];
-  let best = targets.reduce((left, right) => left.distance <= right.distance ? left : right);
+  const best = targets.reduce((left, right) => left.distance <= right.distance ? left : right);
   const startPoint = projectionPoint(start);
   const endPoint = projectionPoint(end);
   if (start.edge.id === end.edge.id) {

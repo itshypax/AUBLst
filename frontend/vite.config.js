@@ -17,7 +17,7 @@ function routingEditorPlugin() {
 
   function isLoopbackRequest(request) {
     const address = String(request.socket.remoteAddress ?? '').toLowerCase();
-    let hostname = '';
+    let hostname;
     try {
       hostname = new URL(`http://${request.headers.host ?? ''}`).hostname.toLowerCase();
     } catch {

@@ -18,8 +18,8 @@ async function post<T>(apiBase: string, action: string, body: Record<string, unk
     if (!data) throw new Error('Der Server hat keine gültige Antwort geliefert.');
     return data;
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw new Error('Der Server antwortet nicht.');
-    if (error instanceof TypeError) throw new Error('Der Server ist unter dieser Adresse nicht erreichbar.');
+    if (error instanceof DOMException && error.name === 'AbortError') throw new Error('Der Server antwortet nicht.', { cause: error });
+    if (error instanceof TypeError) throw new Error('Der Server ist unter dieser Adresse nicht erreichbar.', { cause: error });
     throw error;
   } finally {
     window.clearTimeout(timer);

@@ -6,10 +6,11 @@
   import { dismissibleDetails } from '../lib/dismissible-details';
   import { configureSounds, getDefaultSoundProfile, getSoundProfileOptions, loadSoundManifest, testSound } from '../lib/sounds';
   import { buildSpeechRequestEntries } from '../lib/speech-requests';
-  import { app, persistSoundSettings } from '../lib/state.svelte';
+  import { app, persistSoundSettings, showNotice } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import { userFacingError } from '../lib/user-facing-error';
   import type { LogRow } from '../lib/types';
+  import { desktopNotificationsAvailable, setDesktopNotifications } from '../lib/notifications';
 
   let { onResetLayout, onOpenWorkspaceEditor, onOpenShortcuts = () => (app.shortcutsOpen = true), workspaceName }: { onResetLayout: () => void; onOpenWorkspaceEditor: () => void; onOpenShortcuts?: () => void; workspaceName: string } = $props();
 
@@ -67,6 +68,12 @@
     configureSounds(true, app.soundVolume, app.soundProfile);
     soundMessage = (await testSound()) ? 'Ton abgespielt' : 'Browser blockiert die Wiedergabe';
     window.setTimeout(() => (soundMessage = ''), 2500);
+  }
+
+  async function toggleDesktopNotifications(): Promise<void> {
+    const message = await setDesktopNotifications(!app.desktopNotifications);
+    const accepted = message.includes('eingeschaltet') || message.includes('ausgeschaltet');
+    showNotice(message, accepted ? 'success' : 'error');
   }
 
   let clockBase = $state<{ minutes: number; realMs: number } | null>(null);
@@ -221,6 +228,11 @@
         </label>
         <button class="ghost icon-button" data-tooltip="Alarmton testen" aria-label="Alarmton testen" onclick={() => void runSoundTest()}><FaIcon icon={Play} size={15} /></button>
       </div>
+      {#if desktopNotificationsAvailable()}
+        <button class="ghost notification-toggle" aria-pressed={app.desktopNotifications} onclick={() => void toggleDesktopNotifications()}>
+          Desktop-Meldungen {app.desktopNotifications ? 'an' : 'aus'}
+        </button>
+      {/if}
       {#if soundMessage}<div class="feedback" aria-live="polite">{soundMessage}</div>{/if}
       {#if stateIssue || logIssue}
         <div class="connection-issues" aria-live="polite">
@@ -281,6 +293,7 @@
   .sound-row { display: flex; align-items: center; gap: 8px; }
   .sound-profile select { width: 100%; }
   .sound-toggle { min-width: 74px; }
+  .notification-toggle { justify-content: flex-start; }
   .volume { flex: 1; }
   .volume input { width: 100%; }
   .feedback { color: var(--text-dim); font-size: 12px; }

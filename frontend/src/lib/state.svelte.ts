@@ -52,6 +52,7 @@ export const app = $state({
   soundEnabled: true,
   soundVolume: 0.7,
   soundProfile: 'standard',
+  desktopNotifications: false,
   notice: null as { message: string; kind: 'success' | 'error'; id: number } | null,
 });
 
@@ -62,7 +63,11 @@ export function showNotice(message: string, kind: 'success' | 'error' = 'success
   app.notice = { message, kind, id };
   window.setTimeout(() => {
     if (app.notice?.id === id) app.notice = null;
-  }, 3500);
+  }, 4200);
+}
+
+export function closeNotice(): void {
+  app.notice = null;
 }
 
 export function askConfirm(message: string): Promise<boolean> {
@@ -116,6 +121,9 @@ export function initSettings(): void {
   const storedVolume = Number(localStorage.getItem('soundVolume'));
   app.soundVolume = Number.isFinite(storedVolume) ? Math.min(1, Math.max(0, storedVolume)) : 0.7;
   app.soundProfile = localStorage.getItem('soundProfile') ?? 'standard';
+  app.desktopNotifications = localStorage.getItem('desktopNotifications') === 'true'
+    && typeof Notification !== 'undefined'
+    && Notification.permission === 'granted';
 
   // Alte Versionen legten Zugangsdaten dauerhaft ab.
   localStorage.removeItem('sessionToken');

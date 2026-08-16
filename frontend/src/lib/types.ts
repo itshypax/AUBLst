@@ -136,6 +136,8 @@ export interface EventFeedback {
 export interface StatisticsEvent {
   id: number;
   name: string | null;
+  x?: number;
+  y?: number;
   status: 'active' | 'completed' | 'canceled';
   created_by: 'game' | 'frontend';
   created_at: string;
@@ -160,6 +162,8 @@ export interface StatisticsVehicleStatus {
 export interface SessionStatisticsResponse {
   session: {
     token: string;
+    mod_id?: string | null;
+    map_bounds?: MapBounds;
     created_at: string;
     generated_at: string;
   };

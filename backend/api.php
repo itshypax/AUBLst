@@ -15,6 +15,7 @@ require_once __DIR__ . '/src/actions/hospitals.php';
 require_once __DIR__ . '/src/actions/events.php';
 require_once __DIR__ . '/src/actions/commands.php';
 require_once __DIR__ . '/src/actions/logs.php';
+require_once __DIR__ . '/src/actions/system.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     if (!current_cors_request_allowed()) {
@@ -25,6 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 const ACTIONS = [
+    'capabilities'           => 'action_capabilities',
+    'stream'                 => 'action_stream',
+    'metrics_record'         => 'action_metrics_record',
     'session_create'         => 'action_session_create',
     'session_validate'       => 'action_session_validate',
     'session_statistics'     => 'action_session_statistics',

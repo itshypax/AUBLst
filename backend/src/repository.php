@@ -23,6 +23,22 @@ function ensure_mod_row(PDO $pdo, ?string $mod_id): void {
     $stmt->execute([$mod_id]);
 }
 
+function touch_session(PDO $pdo, $session_id): void {
+    $stmt = $pdo->prepare('UPDATE sessions SET revision = revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    $stmt->execute([$session_id]);
+}
+
+function record_anonymous_metric(PDO $pdo, string $name, float $value): void {
+    if (!defined('ENABLE_ANONYMOUS_METRICS') || !ENABLE_ANONYMOUS_METRICS) return;
+    $stmt = $pdo->prepare('INSERT INTO anonymous_metrics
+        (metric_day, metric_name, sample_count, value_sum, value_max)
+        VALUES (CURRENT_DATE, ?, 1, ?, ?)
+        ON DUPLICATE KEY UPDATE sample_count = sample_count + 1,
+            value_sum = value_sum + VALUES(value_sum),
+            value_max = GREATEST(value_max, VALUES(value_max))');
+    $stmt->execute([$name, $value, $value]);
+}
+
 function upsert_player(PDO $pdo, $session_id, array $player): void {
     $stmt = $pdo->prepare('INSERT INTO players (session_id, player_uid, name) VALUES (?, ?, ?)
         ON DUPLICATE KEY UPDATE name = VALUES(name), updated_at = CURRENT_TIMESTAMP');
@@ -285,14 +301,19 @@ function upsert_event(PDO $pdo, $session_id, array $e) {
         ]);
     }
 
+    $isNew = !$saved;
     if (isset($e['game_event_id'])) {
         $stmt = $pdo->prepare('SELECT * FROM events WHERE session_id = ? AND game_event_id = ?');
         $stmt->execute([$session_id, $e['game_event_id']]);
-        return $stmt->fetch();
+        $event = $stmt->fetch();
+        if ($isNew && $event) record_anonymous_metric($pdo, 'events_created', 1.0);
+        return $event;
     }
     $stmt = $pdo->prepare('SELECT * FROM events WHERE id = ?');
     $stmt->execute([$e['id'] ?? $pdo->lastInsertId()]);
-    return $stmt->fetch();
+    $event = $stmt->fetch();
+    if ($isNew && $event) record_anonymous_metric($pdo, 'events_created', 1.0);
+    return $event;
 }
 
 function upsert_note(PDO $pdo, $session_id, array $n) {

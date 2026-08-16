@@ -1,5 +1,5 @@
 import { eventCategory, type EventCategory } from './classify';
-import type { SessionStatisticsResponse } from './types';
+import type { MapBounds, SessionStatisticsResponse } from './types';
 
 export interface StatisticValue {
   key: string;
@@ -35,6 +35,8 @@ export interface SessionStatisticsModel {
   timeline: TimelineValue[];
   vehicles: StatisticValue[];
   vehicleUtilization: VehicleUtilizationValue[];
+  heatmapPoints: Array<{ x: number; y: number }>;
+  mapBounds: MapBounds;
 }
 
 const CATEGORY_META: Record<EventCategory, { label: string; color: string }> = {
@@ -184,6 +186,10 @@ export function buildSessionStatistics(data: SessionStatisticsResponse): Session
       .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, 'de', { numeric: true }))
       .slice(0, 8),
     vehicleUtilization,
+    heatmapPoints: data.events
+      .map((event) => ({ x: Number(event.x), y: Number(event.y) }))
+      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y)),
+    mapBounds: data.session.map_bounds ?? { min_x: 0, min_y: 0, max_x: 1000, max_y: 1000 },
   };
 }
 
