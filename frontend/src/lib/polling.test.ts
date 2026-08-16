@@ -2,9 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { app, resetSessionData } from './state.svelte';
 import type { LogRow } from './types';
 
-const mocks = vi.hoisted(() => ({ api: vi.fn(), apiGet: vi.fn(), playPhone: vi.fn(), playSoundCue: vi.fn(), playSoundCues: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  api: vi.fn(),
+  apiGet: vi.fn(),
+  fetchMapImage: vi.fn(),
+  playPhone: vi.fn(),
+  playSoundCue: vi.fn(),
+  playSoundCues: vi.fn(),
+}));
 
-vi.mock('./api', () => ({ api: mocks.api, apiGet: mocks.apiGet, fetchMapImage: vi.fn() }));
+vi.mock('./api', () => ({ api: mocks.api, apiGet: mocks.apiGet, fetchMapImage: mocks.fetchMapImage }));
 vi.mock('./sounds', () => ({
   getSoundAlertConfig: () => ({
     unassignedVehicleStatuses: [3, 4],
@@ -34,11 +41,48 @@ function row(id: number): LogRow {
 beforeEach(() => {
   mocks.api.mockReset().mockResolvedValue({ ok: true });
   mocks.apiGet.mockReset();
+  mocks.fetchMapImage.mockReset();
   mocks.playPhone.mockReset();
   mocks.playSoundCue.mockReset();
   mocks.playSoundCues.mockReset();
   resetSessionData();
   app.sessionToken = 'demo';
+});
+
+describe('Kartenabruf', () => {
+  it('wiederholt einen abgebrochenen Abruf bei unveränderter Mod-ID', async () => {
+    const state = {
+      session: {
+        token: 'demo',
+        mod_id: 'AUBMP',
+        map_bounds: { min_x: -16384, min_y: -16384, max_x: 16384, max_y: 16384 },
+      },
+      players: [],
+      vehicles: [],
+      hospitals: [],
+      events: [],
+      assignments: [],
+      hospital_reservations: [],
+      time: null,
+    };
+    const routing = {
+      coordinate_space: 'world',
+      meters_per_world_unit: 0.1,
+      grid_size_m: 50,
+      nodes: [],
+      edges: [],
+    };
+    mocks.apiGet.mockImplementation((action: string) => Promise.resolve(action === 'state' ? state : routing));
+    mocks.fetchMapImage.mockResolvedValue('blob:aubmp');
+    app.modId = 'AUBMP';
+    app.mapImageUrl = '';
+    const { refreshState } = await import('./polling');
+
+    await refreshState();
+
+    expect(mocks.fetchMapImage).toHaveBeenCalledOnce();
+    expect(app.mapImageUrl).toBe('blob:aubmp');
+  });
 });
 
 describe('Funk-Polling', () => {

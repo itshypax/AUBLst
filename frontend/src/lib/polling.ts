@@ -178,13 +178,14 @@ async function connectCurrentSession(): Promise<void> {
     return;
   }
   if (requestGeneration !== generation) return;
-  ensureRealtimeStream();
-
   const logRequest = pollLogs().finally(() => {
     if (requestGeneration === generation) scheduleLogs();
   });
   await refreshState();
-  if (requestGeneration === generation) scheduleState();
+  if (requestGeneration === generation) {
+    if (app.stateHealthy) ensureRealtimeStream();
+    scheduleState();
+  }
   void logRequest;
 }
 
@@ -244,8 +245,10 @@ async function applyState(data: StateResponse, playEventSounds: boolean, receive
   }
 
   const newMod = data.session.mod_id ?? null;
-  if (app.modId !== newMod) {
-    if (app.mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(app.mapImageUrl);
+  const modChanged = app.modId !== newMod;
+  const mapMissing = Boolean(newMod && !app.mapImageUrl);
+  if (modChanged || mapMissing) {
+    if (modChanged && app.mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(app.mapImageUrl);
     app.modId = newMod;
     if (newMod) {
       try {
