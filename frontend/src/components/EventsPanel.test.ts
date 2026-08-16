@@ -86,4 +86,25 @@ describe('Einsatzübersicht', () => {
     expect(screen.getByLabelText('Gefahrguteinsatz').closest('.row')?.classList.contains('hazard')).toBe(true);
     expect(screen.getByLabelText('Leitstellen-Einsatz').closest('.row')?.classList.contains('control-room')).toBe(true);
   });
+
+  it('zeigt Einsatznummer und Fahrzeugzahl ohne letzte Funkzeit', () => {
+    app.assignments = [{ event_id: 12, vehicle_id: 7 }];
+    app.logs = [{
+      id: 1,
+      type: 'vehicle',
+      entity_id: '7_HLF_1',
+      event_id: 12,
+      message: 'Status 3',
+      long_message: 'Einsatz übernommen',
+      state: 'active',
+      created_at: '2026-08-16 20:10:00',
+      updated_at: '2026-08-16 20:11:00',
+    }];
+    render(EventsPanel);
+
+    const row = screen.getByText('Unklare Rauchentwicklung').closest('.row');
+    expect(row?.textContent).toContain('#12 · 1 Fahrzeug');
+    expect(row?.textContent).not.toContain('Funk');
+    expect(row?.textContent).not.toContain('20:11');
+  });
 });

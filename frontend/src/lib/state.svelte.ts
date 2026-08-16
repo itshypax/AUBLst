@@ -44,7 +44,6 @@ export const app = $state({
   confirmDialog: null as { message: string; resolve: (ok: boolean) => void } | null,
   actionsOpen: false,
   sessionOverviewOpen: false,
-  speechQueueOpen: false,
   shortcutsOpen: false,
   hospitalAssignmentVehicleId: null as number | null,
   focusVehicleSearchSeq: 0,
@@ -206,7 +205,6 @@ export function resetSessionData(): void {
   app.contextMenu = null;
   app.actionsOpen = false;
   app.sessionOverviewOpen = false;
-  app.speechQueueOpen = false;
   app.shortcutsOpen = false;
   app.hospitalAssignmentVehicleId = null;
   app.focusVehicleSearchSeq = 0;

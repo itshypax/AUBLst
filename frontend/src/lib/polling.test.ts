@@ -121,6 +121,31 @@ describe('Funk-Polling', () => {
     expect(mocks.playSoundCues).toHaveBeenCalledWith(['speech-request']);
   });
 
+  it('spielt einen bestätigten Sprechwunsch nicht erneut ab', async () => {
+    const speechRequest = {
+      ...row(21),
+      occurrence_id: 101,
+      message: 'Sprechwunsch',
+      long_message: 'Florian Auenburg 1-HLF-1 mit Sprechwunsch',
+      acknowledged: 0,
+      updated_at: '2026-08-09 14:35:00.100000',
+    };
+    const acknowledged = {
+      ...speechRequest,
+      acknowledged: 1,
+      updated_at: '2026-08-09 14:35:01.100000',
+    };
+    mocks.apiGet.mockResolvedValueOnce({ logs: [speechRequest] }).mockResolvedValueOnce({ logs: [acknowledged] });
+    const { pollLogs, switchSession } = await import('./polling');
+    await switchSession('../backend/api.php', 'demo', '');
+
+    await pollLogs();
+    await pollLogs();
+
+    expect(app.logs.find((item) => item.id === 21)?.acknowledged).toBe(1);
+    expect(mocks.playSoundCues).not.toHaveBeenCalled();
+  });
+
   it('öffnet einen erledigten Sprechwunsch durch einen älteren Poll nicht erneut', async () => {
     const speechRequest = {
       ...row(21),
@@ -213,5 +238,22 @@ describe('Funk-Polling', () => {
       'inactive',
       'inactive',
     ]);
+  });
+
+  it('bestätigt alle Meldungsvarianten eines Sprechwunsches gemeinsam', async () => {
+    app.logs = [
+      { ...row(21), occurrence_id: 101, acknowledged: false },
+      { ...row(22), occurrence_id: 101, acknowledged: false },
+    ];
+    mocks.api.mockResolvedValueOnce({
+      ok: true,
+      ids: [21, 22],
+      updated_at: '2026-08-09 14:35:01.100000',
+    });
+    const { acknowledgeLog } = await import('./polling');
+
+    await acknowledgeLog(21);
+
+    expect(app.logs.map((item) => item.acknowledged)).toEqual([true, true]);
   });
 });

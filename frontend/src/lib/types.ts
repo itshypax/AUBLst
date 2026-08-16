@@ -102,6 +102,7 @@ export interface LogRow {
   occurrence_id?: number | null;
   long_message: string;
   state: 'active' | 'inactive' | 'disabled';
+  acknowledged?: boolean | number;
   created_at?: string;
   updated_at: string;
 }

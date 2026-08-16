@@ -52,7 +52,7 @@
   }
 
   function ageText(ev: EventItem): string {
-    if (!ev.created_at) return `Nr. ${ev.id}`;
+    if (!ev.created_at) return '';
     const elapsed = Math.max(0, now - new Date(ev.created_at.replace(' ', 'T')).getTime());
     const minutes = Math.floor(elapsed / 60_000);
     if (minutes < 1) return 'gerade angelegt';
@@ -64,10 +64,6 @@
     return app.assignments.filter((item) => Number(item.event_id) === id).length;
   }
 
-  function lastActivity(id: number): string {
-    const row = [...app.logs].reverse().find((item) => Number(item.event_id) === id);
-    return row?.updated_at?.slice(11, 16) ?? '';
-  }
 </script>
 
 <section class="panel">
@@ -89,14 +85,14 @@
       {@const Icon = isControlRoomEvent ? RadioTower : categoryIcon[cat]}
       {@const iconTitle = isControlRoomEvent ? 'Leitstellen-Einsatz' : categoryTitle[cat]}
       {@const isAvailableInGame = !isControlRoomEvent || (ev.game_event_id !== null && String(ev.game_event_id).trim() !== '')}
+      {@const age = ageText(ev)}
       <div class="row {cat}" role="group" class:control-room={isControlRoomEvent} class:highlighted={app.highlightedEventId === ev.id} class:open={app.assignEvent?.id === ev.id} onmouseenter={() => setHighlightedEvent(ev.id)} onmouseleave={() => setHighlightedEvent(null)}>
         <button class="event-open" onclick={() => openAssign(ev)}>
           <span class="cat {cat}" class:control-room={isControlRoomEvent} data-tooltip={iconTitle} aria-label={iconTitle}><FaIcon icon={Icon} size={16} /></span>
           <span class="info">
             <span class="name">{ev.name || 'Einsatz'}</span>
             <span class="meta">
-              {ageText(ev)} · {assignedCount(ev.id)} {assignedCount(ev.id) === 1 ? 'Fahrzeug' : 'Fahrzeuge'}
-              {#if lastActivity(ev.id)} · Funk {lastActivity(ev.id)}{/if}
+              {#if age}{age} · {/if}#{ev.id} · {assignedCount(ev.id)} {assignedCount(ev.id) === 1 ? 'Fahrzeug' : 'Fahrzeuge'}
               {#if isControlRoomEvent} · {isAvailableInGame ? 'Leitstelle' : 'wird ans Spiel übertragen'}{/if}
             </span>
           </span>

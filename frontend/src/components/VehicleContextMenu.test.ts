@@ -57,6 +57,22 @@ describe('Fahrzeugmenü', () => {
     expect(mocks.api).toHaveBeenCalledWith('events_reassign', { vehicle_id: 1, event_id: 1001 });
   });
 
+  it('hält lange Zieleinsätze innerhalb der festen Menübreite', async () => {
+    const user = userEvent.setup();
+    app.events = [
+      { id: 1000, game_event_id: '10', name: 'Wohnungsbrand', x: 0, y: 0, status: 'active', created_by: 'game' },
+      { id: 1001, game_event_id: '11', name: 'Verkehrsunfall mit mehreren beteiligten Fahrzeugen auf der Autobahn', x: 0, y: 0, status: 'active', created_by: 'game' },
+    ];
+    app.assignments = [{ event_id: 1000, vehicle_id: 1 }];
+    render(VehicleContextMenu);
+
+    await user.click(screen.getByRole('menuitem', { name: 'Anderem Einsatz zuordnen' }));
+
+    const target = screen.getByRole('menuitem', { name: /Verkehrsunfall mit mehreren/ });
+    expect(target.querySelector('span')?.textContent).toContain('Verkehrsunfall mit mehreren');
+    expect(target.querySelector('span')?.classList.contains('event-name')).toBe(true);
+  });
+
   it.each([4, 5, 7])('bietet einem RTW in Status %i die Klinikzuweisung an', (status) => {
     app.vehicles[0] = { ...app.vehicles[0], game_vehicle_id: '72_RTW_1', name: '72-RTW-1', type: 'RTW', status };
     render(VehicleContextMenu);

@@ -61,6 +61,7 @@ const ACTIONS = [
     'commands_pending'       => 'action_commands_pending',
     'commands_ack'           => 'action_commands_ack',
     'logs'                   => 'action_logs',
+    'log_acknowledge'        => 'action_log_acknowledge',
     'log_viewed'             => 'action_log_viewed',
 ];
 

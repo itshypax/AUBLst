@@ -21,6 +21,7 @@ interface PollingHandlers {
   onLeaderChange: (leader: boolean) => void;
   onState: (state: StateResponse, receivedAt: number) => void;
   onLogs: (rows: LogRow[], cursor: LogCursor, receivedAt: number) => void;
+  onLogAcknowledged: (id: number, updatedAt: string) => void;
   onLogDismissed: (id: number, updatedAt: string) => void;
   onSnapshot: (snapshot: PollingSnapshot) => void;
   snapshot: () => PollingSnapshot;
@@ -33,11 +34,13 @@ type PollingMessage =
   | { type: 'snapshot'; sender: string; scope: string; target: string; snapshot: PollingSnapshot }
   | { type: 'state'; sender: string; scope: string; state: StateResponse; receivedAt: number }
   | { type: 'logs'; sender: string; scope: string; rows: LogRow[]; cursor: LogCursor; receivedAt: number }
+  | { type: 'log-acknowledged'; sender: string; scope: string; id: number; updatedAt: string }
   | { type: 'log-dismissed'; sender: string; scope: string; id: number; updatedAt: string };
 
-const windowId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-  ? crypto.randomUUID()
-  : `window-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const windowId =
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `window-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 let channel: BroadcastChannel | null = null;
 let heartbeatTimer: number | null = null;
@@ -100,6 +103,10 @@ function onMessage(event: MessageEvent<PollingMessage>): void {
     handlers?.onLogDismissed(message.id, message.updatedAt);
     return;
   }
+  if (message.type === 'log-acknowledged') {
+    handlers?.onLogAcknowledged(message.id, message.updatedAt);
+    return;
+  }
   if (leader) return;
   if (message.type === 'snapshot' && (message.target === windowId || message.target === '*')) {
     handlers?.onSnapshot(message.snapshot);
@@ -118,7 +125,9 @@ export function startPollingSync(nextHandlers: PollingHandlers): () => void {
   handlers = nextHandlers;
   if (typeof BroadcastChannel === 'undefined') {
     leader = true;
-    return () => { handlers = null; };
+    return () => {
+      handlers = null;
+    };
   }
 
   channel = new BroadcastChannel(CHANNEL_NAME);
@@ -175,6 +184,11 @@ export function broadcastPollingLogs(rows: LogRow[], cursor: LogCursor, received
 export function broadcastLogDismissed(id: number, updatedAt: string): void {
   if (!channel || !scope) return;
   post({ type: 'log-dismissed', sender: windowId, scope, id, updatedAt });
+}
+
+export function broadcastLogAcknowledged(id: number, updatedAt: string): void {
+  if (!channel || !scope) return;
+  post({ type: 'log-acknowledged', sender: windowId, scope, id, updatedAt });
 }
 
 export function broadcastPollingSnapshot(): void {

@@ -188,6 +188,12 @@ function migration_definitions(): array {
                 PRIMARY KEY (metric_day, metric_name)
             ) ENGINE=InnoDB");
         },
+        '2026081602_speech_request_acknowledgement' => static function (PDO $pdo): void {
+            if (!database_column_exists($pdo, 'activity_logs', 'acknowledged')) {
+                $pdo->exec('ALTER TABLE activity_logs
+                    ADD COLUMN acknowledged TINYINT(1) NOT NULL DEFAULT 0 AFTER state');
+            }
+        },
     ];
 }
 

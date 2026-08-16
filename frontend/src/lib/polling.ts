@@ -7,6 +7,7 @@ import { getSoundAlertConfig, playPhone, playSoundCue, playSoundCues } from './s
 import type { LogRow, StateResponse } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 import {
+  broadcastLogAcknowledged,
   broadcastLogDismissed,
   broadcastPollingLogs,
   broadcastPollingSnapshot,
@@ -76,6 +77,20 @@ function isChangedLogVersion(row: LogRow): boolean {
   return !existing || existing.updated_at !== row.updated_at || existing.state !== row.state;
 }
 
+function isAlertableLogVersion(row: LogRow): boolean {
+  const existing = app.logs.find((item) => item.id === row.id);
+  if (!existing) return true;
+  if (!isChangedLogVersion(row)) return false;
+  const acknowledgementOnly =
+    existing.state === row.state &&
+    existing.message === row.message &&
+    existing.long_message === row.long_message &&
+    existing.event_id === row.event_id &&
+    existing.occurrence_id === row.occurrence_id &&
+    Boolean(existing.acknowledged) !== Boolean(row.acknowledged);
+  return !acknowledgementOnly;
+}
+
 function nextDelay(base: number, failures: number): number {
   if (document.hidden) return HIDDEN_INTERVAL;
   if (realtimeConnected && failures === 0) return HIDDEN_INTERVAL;
@@ -136,10 +151,13 @@ function scheduleConnectionRetry(): void {
   if (!isPollingLeader()) return;
   const scheduledGeneration = generation;
   clearTimeout(connectionTimer);
-  connectionTimer = window.setTimeout(() => {
-    if (scheduledGeneration !== generation || !app.sessionToken || app.stateHealthy) return;
-    void connectCurrentSession();
-  }, document.hidden ? HIDDEN_INTERVAL : STATE_INTERVAL);
+  connectionTimer = window.setTimeout(
+    () => {
+      if (scheduledGeneration !== generation || !app.sessionToken || app.stateHealthy) return;
+      void connectCurrentSession();
+    },
+    document.hidden ? HIDDEN_INTERVAL : STATE_INTERVAL,
+  );
 }
 
 function restartLoops(runImmediately: boolean): void {
@@ -217,7 +235,12 @@ export async function switchSession(apiBase: string, token: string, pin: string)
   }
 }
 
-async function applyState(data: StateResponse, playEventSounds: boolean, receivedAt = Date.now(), signal?: AbortSignal): Promise<void> {
+async function applyState(
+  data: StateResponse,
+  playEventSounds: boolean,
+  receivedAt = Date.now(),
+  signal?: AbortSignal,
+): Promise<void> {
   const applyGeneration = generation;
   app.mapBounds = data.session.map_bounds;
   app.players = data.players ?? [];
@@ -235,12 +258,16 @@ async function applyState(data: StateResponse, playEventSounds: boolean, receive
   lastState = data;
 
   if (playEventSounds) {
-    const alertCues = soundAlertTracker.update({
-      vehicles: app.vehicles,
-      assignments: app.assignments,
-      events: app.events,
-      logs: app.logs,
-    }, receivedAt, getSoundAlertConfig());
+    const alertCues = soundAlertTracker.update(
+      {
+        vehicles: app.vehicles,
+        assignments: app.assignments,
+        events: app.events,
+        logs: app.logs,
+      },
+      receivedAt,
+      getSoundAlertConfig(),
+    );
     if (alertCues.length) void playSoundCues(alertCues);
   }
 
@@ -334,13 +361,13 @@ export async function pollLogs(): Promise<void> {
       const data = await apiGet<{ logs: LogRow[] }>(
         'logs',
         { since: pageCursor.timestamp, since_id: pageCursor.id },
-        { signal: controller.signal }
+        { signal: controller.signal },
       );
       if (requestGeneration !== generation) return;
       const rows = data.logs ?? [];
       if (!rows.length) break;
       const applicableRows = applyDismissedLogState(rows);
-      const activeRows = applicableRows.filter((row) => row.state === 'active' && isChangedLogVersion(row));
+      const activeRows = applicableRows.filter((row) => row.state === 'active' && isAlertableLogVersion(row));
       app.logs = mergeLogRows(app.logs, applicableRows, MAX_LOG_ROWS);
       incomingIds.push(...activeRows.map((row) => row.id));
       incomingRows.push(...activeRows);
@@ -348,9 +375,10 @@ export async function pollLogs(): Promise<void> {
       pageCursor = advanceLogCursor(pageCursor, rows);
       const advanced = advanceLogCursor(nextCursor, rows);
       if (
-        advanced.timestamp > nextCursor.timestamp
-        || (advanced.timestamp === nextCursor.timestamp && advanced.id > nextCursor.id)
-      ) nextCursor = advanced;
+        advanced.timestamp > nextCursor.timestamp ||
+        (advanced.timestamp === nextCursor.timestamp && advanced.id > nextCursor.id)
+      )
+        nextCursor = advanced;
       if (rows.length < 100) break;
     }
     logCursor = nextCursor;
@@ -380,13 +408,38 @@ export async function pollLogs(): Promise<void> {
 }
 
 export async function dismissLog(id: number): Promise<void> {
-  const result = await api<{ ok: boolean; ids?: number[]; updated_at?: string | null }>('log_viewed', { mid: id }, { requireFresh: true });
+  const result = await api<{ ok: boolean; ids?: number[]; updated_at?: string | null }>(
+    'log_viewed',
+    { mid: id },
+    { requireFresh: true },
+  );
   const updatedAt = result.updated_at || app.logs.find((row) => row.id === id)?.updated_at || '';
   const dismissedIds = result.ids?.length ? result.ids : [id];
   for (const dismissedId of dismissedIds) {
     markLogDismissed(dismissedId, updatedAt);
     broadcastLogDismissed(dismissedId, updatedAt);
   }
+}
+
+export async function acknowledgeLog(id: number): Promise<void> {
+  const result = await api<{ ok: boolean; ids?: number[]; updated_at?: string | null }>(
+    'log_acknowledge',
+    { mid: id },
+    { requireFresh: true },
+  );
+  const updatedAt = result.updated_at || app.logs.find((row) => row.id === id)?.updated_at || '';
+  const acknowledgedIds = result.ids?.length ? result.ids : [id];
+  for (const acknowledgedId of acknowledgedIds) {
+    markLogAcknowledged(acknowledgedId, updatedAt);
+    broadcastLogAcknowledged(acknowledgedId, updatedAt);
+  }
+}
+
+function markLogAcknowledged(id: number, updatedAt: string): void {
+  app.logs = app.logs.map((row) =>
+    row.id === id ? { ...row, acknowledged: true, updated_at: updatedAt || row.updated_at } : row,
+  );
+  app.lastLogBatch = app.lastLogBatch.filter((item) => item !== id);
 }
 
 function markLogDismissed(id: number, updatedAt: string): void {
@@ -410,7 +463,9 @@ export function startPolling(): void {
       stopRealtimeStream();
       if (leader) restartLoops(true);
     },
-    onState: (state, receivedAt) => { void applyState(state, false, receivedAt); },
+    onState: (state, receivedAt) => {
+      void applyState(state, false, receivedAt);
+    },
     onLogs: (rows, cursor, receivedAt) => {
       app.logs = mergeLogRows(app.logs, applyDismissedLogState(rows), MAX_LOG_ROWS);
       logCursor = cursor;
@@ -419,8 +474,11 @@ export function startPolling(): void {
       app.logError = '';
       logsInitialized = true;
     },
+    onLogAcknowledged: markLogAcknowledged,
     onLogDismissed: markLogDismissed,
-    onSnapshot: (snapshot) => { void applyPollingSnapshot(snapshot); },
+    onSnapshot: (snapshot) => {
+      void applyPollingSnapshot(snapshot);
+    },
     snapshot: pollingSnapshot,
   });
   setPollingScope(uiSyncScope(app.apiBase, app.sessionToken));

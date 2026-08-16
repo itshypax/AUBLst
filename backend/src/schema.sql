@@ -222,6 +222,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   occurrence_id INT UNSIGNED NULL DEFAULT 0,
   long_message VARCHAR(512) NOT NULL,
   state ENUM('active','inactive','disabled') NOT NULL,
+  acknowledged TINYINT(1) NOT NULL DEFAULT 0,
   meta JSON NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),

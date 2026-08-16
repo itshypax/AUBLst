@@ -60,3 +60,39 @@ function action_log_viewed(PDO $pdo): void {
     touch_session($pdo, $sid);
     respond_json(200, ['ok' => true, 'ids' => $ids, 'updated_at' => $updatedAt ?: null]);
 }
+
+function action_log_acknowledge(PDO $pdo): void {
+    $data = get_json_input();
+    $mid = (int)($data['mid'] ?? 0);
+    $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
+    $sid = $session['id'];
+
+    $stmt = $pdo->prepare('SELECT id, occurrence_id FROM activity_logs WHERE session_id = ? AND id = ?');
+    $stmt->execute([$sid, $mid]);
+    $log = $stmt->fetch();
+    if (!$log) respond_json(404, ['error' => 'Log entry not found']);
+
+    $occurrenceId = (int)($log['occurrence_id'] ?? 0);
+    if ($occurrenceId > 0) {
+        $stmt = $pdo->prepare('SELECT id FROM activity_logs WHERE session_id = ? AND occurrence_id = ?');
+        $stmt->execute([$sid, $occurrenceId]);
+        $ids = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        $stmt = $pdo->prepare("UPDATE activity_logs
+            SET acknowledged = 1, updated_at = CURRENT_TIMESTAMP(6)
+            WHERE session_id = ? AND occurrence_id = ? AND state = 'active' AND acknowledged = 0");
+        $stmt->execute([$sid, $occurrenceId]);
+    } else {
+        $ids = [(int)$log['id']];
+        $stmt = $pdo->prepare("UPDATE activity_logs
+            SET acknowledged = 1, updated_at = CURRENT_TIMESTAMP(6)
+            WHERE session_id = ? AND id = ? AND state = 'active' AND acknowledged = 0");
+        $stmt->execute([$sid, $mid]);
+    }
+
+    $stmt = $pdo->prepare('SELECT MAX(updated_at) FROM activity_logs WHERE session_id = ? AND id IN ('
+        . implode(',', array_fill(0, count($ids), '?')) . ')');
+    $stmt->execute(array_merge([$sid], $ids));
+    $updatedAt = $stmt->fetchColumn();
+    touch_session($pdo, $sid);
+    respond_json(200, ['ok' => true, 'ids' => $ids, 'updated_at' => $updatedAt ?: null]);
+}

@@ -1,4 +1,12 @@
-export const PANEL_IDS = ['map', 'vehicles', 'events', 'current_event', 'logs', 'hospitals'] as const;
+export const PANEL_IDS = [
+  'map',
+  'vehicles',
+  'events',
+  'current_event',
+  'logs',
+  'speech_requests',
+  'hospitals',
+] as const;
 export const AREA_IDS = ['leftTop', 'leftBottom', 'rightTop', 'rightBottom'] as const;
 
 export type PanelId = (typeof PANEL_IDS)[number];
@@ -23,10 +31,15 @@ export const DEFAULT_WORKSPACES: WorkspaceLayout[] = [
   {
     id: 'standard',
     name: 'Standard',
-    areas: { leftTop: ['events', 'current_event'], leftBottom: ['logs', 'hospitals'], rightTop: ['vehicles'], rightBottom: ['map'] },
+    areas: {
+      leftTop: ['events', 'current_event'],
+      leftBottom: ['logs', 'speech_requests', 'hospitals'],
+      rightTop: ['vehicles'],
+      rightBottom: ['map'],
+    },
     directions: { leftTop: 'row', leftBottom: 'row', rightTop: 'row', rightBottom: 'row' },
     ratios: DEFAULT_RATIOS,
-    panelRatios: { leftTop: [0.34, 0.66], leftBottom: [0.5, 0.5], rightTop: [1], rightBottom: [1] },
+    panelRatios: { leftTop: [0.34, 0.66], leftBottom: [0.42, 0.22, 0.36], rightTop: [1], rightBottom: [1] },
   },
   {
     id: 'einsatzmonitor',
@@ -53,9 +66,12 @@ function clamp(value: unknown, fallback: number): number {
 
 function normalizePanelRatios(value: unknown, count: number, fallback: number[] = []): number[] {
   if (!count) return [];
-  const candidates = Array.isArray(value) && value.length === count
-    ? value.map(Number)
-    : fallback.length === count ? fallback : Array(count).fill(1);
+  const candidates =
+    Array.isArray(value) && value.length === count
+      ? value.map(Number)
+      : fallback.length === count
+        ? fallback
+        : Array(count).fill(1);
   const valid = candidates.every((ratio) => Number.isFinite(ratio) && ratio > 0);
   const ratios = valid ? candidates : Array(count).fill(1);
   const sum = ratios.reduce((total, ratio) => total + ratio, 0);
@@ -68,36 +84,57 @@ export function cloneWorkspace(layout: WorkspaceLayout): WorkspaceLayout {
     areas: Object.fromEntries(AREA_IDS.map((area) => [area, [...layout.areas[area]]])) as Record<AreaId, PanelId[]>,
     directions: { ...layout.directions },
     ratios: { ...layout.ratios },
-    panelRatios: Object.fromEntries(AREA_IDS.map((area) => [area, [...layout.panelRatios[area]]])) as Record<AreaId, number[]>,
+    panelRatios: Object.fromEntries(AREA_IDS.map((area) => [area, [...layout.panelRatios[area]]])) as Record<
+      AreaId,
+      number[]
+    >,
   };
 }
 
 function normalizeWorkspace(value: Partial<WorkspaceLayout>, fallback: WorkspaceLayout): WorkspaceLayout {
   const seen = new Set<PanelId>();
-  const legacyStandard = value.id === 'standard'
-    && !AREA_IDS.some((area) => value.areas?.[area]?.includes('current_event'));
-  const areas = Object.fromEntries(AREA_IDS.map((area) => {
-    const candidates = legacyStandard
-      ? fallback.areas[area]
-      : Array.isArray(value.areas?.[area]) ? value.areas[area] : fallback.areas[area];
-    const panels = candidates.filter((panel): panel is PanelId => PANEL_IDS.includes(panel as PanelId) && !seen.has(panel as PanelId));
-    panels.forEach((panel) => seen.add(panel));
-    return [area, panels];
-  })) as Record<AreaId, PanelId[]>;
+  const legacyStandard =
+    value.id === 'standard' && !AREA_IDS.some((area) => value.areas?.[area]?.includes('current_event'));
+  const areas = Object.fromEntries(
+    AREA_IDS.map((area) => {
+      const candidates = legacyStandard
+        ? fallback.areas[area]
+        : Array.isArray(value.areas?.[area])
+          ? value.areas[area]
+          : fallback.areas[area];
+      const panels = candidates.filter(
+        (panel): panel is PanelId => PANEL_IDS.includes(panel as PanelId) && !seen.has(panel as PanelId),
+      );
+      panels.forEach((panel) => seen.add(panel));
+      return [area, panels];
+    }),
+  ) as Record<AreaId, PanelId[]>;
+  if (value.id === 'standard' && !seen.has('speech_requests')) {
+    const logsArea = AREA_IDS.find((area) => areas[area].includes('logs')) ?? 'leftBottom';
+    const panels = [...areas[logsArea]];
+    const logsIndex = panels.indexOf('logs');
+    panels.splice(logsIndex + 1, 0, 'speech_requests');
+    areas[logsArea] = panels;
+    seen.add('speech_requests');
+  }
   return {
     id: typeof value.id === 'string' && value.id.trim() ? value.id.trim() : fallback.id,
     name: typeof value.name === 'string' && value.name.trim() ? value.name.trim().slice(0, 60) : fallback.name,
     areas,
-    directions: Object.fromEntries(AREA_IDS.map((area) => [area, value.directions?.[area] === 'column' ? 'column' : 'row'])) as Record<AreaId, AreaDirection>,
+    directions: Object.fromEntries(
+      AREA_IDS.map((area) => [area, value.directions?.[area] === 'column' ? 'column' : 'row']),
+    ) as Record<AreaId, AreaDirection>,
     ratios: {
       col: clamp(value.ratios?.col, fallback.ratios.col),
       left: clamp(value.ratios?.left, fallback.ratios.left),
       right: clamp(value.ratios?.right, fallback.ratios.right),
     },
-    panelRatios: Object.fromEntries(AREA_IDS.map((area) => [
-      area,
-      normalizePanelRatios(value.panelRatios?.[area], areas[area].length, fallback.panelRatios[area]),
-    ])) as Record<AreaId, number[]>,
+    panelRatios: Object.fromEntries(
+      AREA_IDS.map((area) => [
+        area,
+        normalizePanelRatios(value.panelRatios?.[area], areas[area].length, fallback.panelRatios[area]),
+      ]),
+    ) as Record<AreaId, number[]>,
   };
 }
 
@@ -106,7 +143,9 @@ export function loadWorkspaces(): WorkspaceLayout[] {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(WORKSPACE_STORAGE_KEY) ?? 'null');
     if (Array.isArray(parsed) && parsed.length) {
-      initial = parsed.slice(0, 20).map((item, index) => normalizeWorkspace(item, DEFAULT_WORKSPACES[index] ?? DEFAULT_WORKSPACES[0]));
+      initial = parsed
+        .slice(0, 20)
+        .map((item, index) => normalizeWorkspace(item, DEFAULT_WORKSPACES[index] ?? DEFAULT_WORKSPACES[0]));
     }
   } catch {
     // Ungültige Einstellungen werden durch die Startansichten ersetzt.
@@ -116,7 +155,9 @@ export function loadWorkspaces(): WorkspaceLayout[] {
     try {
       const parsed = JSON.parse(localStorage.getItem(WORKSPACE_STORAGE_KEY) ?? 'null');
       if (Array.isArray(parsed) && parsed.length) {
-        initial = parsed.slice(0, 20).map((item, index) => normalizeWorkspace(item, DEFAULT_WORKSPACES[index] ?? DEFAULT_WORKSPACES[0]));
+        initial = parsed
+          .slice(0, 20)
+          .map((item, index) => normalizeWorkspace(item, DEFAULT_WORKSPACES[index] ?? DEFAULT_WORKSPACES[0]));
       }
     } catch {
       // Bestehende browserweite Einstellungen werden einmalig übernommen.
@@ -127,11 +168,12 @@ export function loadWorkspaces(): WorkspaceLayout[] {
     initial = DEFAULT_WORKSPACES.map(cloneWorkspace);
     try {
       const legacy = JSON.parse(localStorage.getItem('panelLayout') ?? 'null');
-      if (legacy) initial[0].ratios = {
-        col: clamp(legacy.col, DEFAULT_RATIOS.col),
-        left: clamp(legacy.left, DEFAULT_RATIOS.left),
-        right: clamp(legacy.right, DEFAULT_RATIOS.right),
-      };
+      if (legacy)
+        initial[0].ratios = {
+          col: clamp(legacy.col, DEFAULT_RATIOS.col),
+          left: clamp(legacy.left, DEFAULT_RATIOS.left),
+          right: clamp(legacy.right, DEFAULT_RATIOS.right),
+        };
     } catch {
       // Die frühere Größenangabe ist optional.
     }
@@ -142,9 +184,8 @@ export function loadWorkspaces(): WorkspaceLayout[] {
     const fallback = DEFAULT_WORKSPACES.find((workspace) => workspace.id === transferred.id) ?? DEFAULT_WORKSPACES[0];
     const workspace = normalizeWorkspace(transferred, fallback);
     const index = initial.findIndex((item) => item.id === workspace.id);
-    initial = index === -1
-      ? [...initial, workspace]
-      : initial.map((item) => item.id === workspace.id ? workspace : item);
+    initial =
+      index === -1 ? [...initial, workspace] : initial.map((item) => (item.id === workspace.id ? workspace : item));
   }
 
   saveWorkspaces(initial);

@@ -11,14 +11,14 @@
 
   function locationFor(name: string | null): HospitalLocation | null {
     const normalized = (name ?? '').toLocaleLowerCase('de').replace(/[^a-zäöüß]/g, '');
-    if (normalized.includes('uniklinik') || normalized.includes('universitaetsklinik')) return { direction: 'Nordwest', onMap: true };
+    if (normalized.includes('uniklinik') || normalized.includes('universitaetsklinik'))
+      return { direction: 'Nordwest', onMap: true };
     if (normalized.includes('hanseklinik')) return { direction: 'Südost', onMap: true };
     if (normalized.includes('berg')) return { direction: 'West', onMap: false };
     if (normalized.includes('lichtenau')) return { direction: 'Ost', onMap: false };
     return null;
   }
 
-  // 0 Betten frei = rot, 1 = orange, sonst grün
   function level(available: number): 'ok' | 'low' | 'full' {
     const n = Number(available);
     if (n === 0) return 'full';
@@ -26,35 +26,40 @@
     return 'ok';
   }
 
-  function occupancy(available: number, total: number): number {
+  function capacityShare(value: number, total: number): number {
     const t = Number(total);
     if (!t) return 0;
-    return Math.min(100, Math.max(0, ((t - Number(available)) / t) * 100));
+    return Math.min(100, Math.max(0, (Number(value) / t) * 100));
   }
 
-
   function reservationCount(hospitalId: number, bedType: 'ward' | 'icu'): number {
-    return app.hospitalReservations.filter((item) =>
-      item.hospital_id === hospitalId
-      && item.bed_type === bedType
-      && reservationAffectsCapacity(item, app.vehicles),
+    return app.hospitalReservations.filter(
+      (item) =>
+        item.hospital_id === hospitalId && item.bed_type === bedType && reservationAffectsCapacity(item, app.vehicles),
     ).length;
+  }
+
+  function capacityTooltip(label: string, effective: number, total: number, reserved: number): string {
+    return `${label}: ${effective}/${total} frei${reserved > 0 ? ` · ${reserved} vorgemerkt` : ''}`;
   }
 </script>
 
 {#snippet bedCell(hospitalId: number, bedType: 'ward' | 'icu', label: string, available: number, total: number)}
   {@const reserved = reservationCount(hospitalId, bedType)}
   {@const effective = Math.max(0, Number(available) - reserved)}
-  <span class="bed" data-tooltip="{label}: {available} gemeldet · {reserved} vorgemerkt · {effective} verfügbar">
+  <div
+    class="bed {level(effective)}"
+    data-tooltip={capacityTooltip(label, effective, total, reserved)}
+  >
     <span class="bed-label">{label}</span>
-    <span class="bar">
-      <span class="fill {level(available)}" style="width: {occupancy(available, total)}%"></span>
+    <span class="capacity" aria-label={`${label}: ${effective} frei von ${total}, ${reserved} vorgemerkt`}>
+      <span class="available {level(effective)}" style="width: {capacityShare(effective, total)}%"></span>
       {#if reserved > 0}
-        <span class="reserved" style="left: {occupancy(available, total)}%; width: {Math.min(100 - occupancy(available, total), total ? reserved / total * 100 : 0)}%"></span>
+        <span class="reserved" style="width: {capacityShare(reserved, total)}%"></span>
       {/if}
     </span>
-    <span class="value {level(effective)}">{effective}/{total}</span>
-  </span>
+    <span class="value {level(effective)}"><strong>{effective}</strong> frei <small>von {total}</small></span>
+  </div>
 {/snippet}
 
 <section class="panel">
@@ -66,16 +71,20 @@
     {#each app.hospitals as h (h.id)}
       {@const location = locationFor(h.name)}
       <div class="hospital">
-        <span class="name" data-tooltip={h.name}>
+        <div class="name" data-tooltip={h.name}>
           <span class="hospital-name">{h.name || 'Krankenhaus'}</span>
           {#if location}
-            <span class="direction">{location.direction}</span>
-            {#if location.onMap}
-              <span class="map-location" data-tooltip="Auf der Karte" aria-label="Auf der Karte"><FaIcon icon={MapIcon} size={12} /></span>
-            {/if}
+            <span class="hospital-meta">
+              <span class="meta-tag direction">{location.direction}</span>
+              {#if location.onMap}
+                <span class="meta-tag map-location" data-tooltip="Auf der Karte" aria-label="Auf der Karte"
+                  ><FaIcon icon={MapIcon} size={11} /></span
+                >
+              {/if}
+            </span>
           {/if}
-        </span>
-        {@render bedCell(h.id, 'ward', 'Betten', h.ward_available, h.ward_total)}
+        </div>
+        {@render bedCell(h.id, 'ward', 'Normal', h.ward_available, h.ward_total)}
         {@render bedCell(h.id, 'icu', 'Intensiv', h.icu_available, h.icu_total)}
       </div>
     {/each}
@@ -103,14 +112,14 @@
 
   .name {
     display: flex;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
     font-weight: 600;
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
     grid-row: 1 / 3;
   }
 
@@ -118,87 +127,124 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
   }
 
-  .direction {
-    flex: 0 0 auto;
+  .hospital-meta {
+    display: flex;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .meta-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-height: 17px;
+    padding: 1px 5px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg-raised);
     color: var(--text-dim);
-    font-size: 11px;
+    font-size: 9px;
     font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   .map-location {
-    display: inline-flex;
-    flex: 0 0 auto;
-    color: var(--accent);
+    width: 17px;
+    justify-content: center;
+    padding-inline: 2px;
+    color: var(--accent-outline);
   }
 
   .bed {
-    display: inline-flex;
+    display: grid;
+    grid-template-columns: 43px minmax(38px, 64px) minmax(72px, auto);
     align-items: center;
-    gap: 5px;
-    flex: 0 0 auto;
+    gap: 3px 5px;
+    min-width: 0;
   }
 
   .bed-label {
     font-size: 10px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
     color: var(--text-dim);
   }
 
-  .bar {
-    width: 52px;
-    height: 7px;
-    border-radius: 4px;
+  .capacity {
+    height: 8px;
     background: var(--bg-raised);
     border: 1px solid var(--border);
+    border-radius: 2px;
     overflow: hidden;
-    display: inline-block;
-    position: relative;
+    display: flex;
   }
 
-  .fill {
-    display: block;
+  .bed.full .capacity {
+    border-color: rgba(232, 82, 74, 0.65);
+  }
+
+  .available {
+    display: inline-block;
     height: 100%;
-    border-radius: 3px;
     transition: width 0.4s ease;
   }
 
   .reserved {
-    position: absolute;
-    top: 0;
-    bottom: 0;
+    display: inline-block;
+    height: 100%;
+    flex: 0 0 auto;
     background: repeating-linear-gradient(135deg, rgba(210, 222, 235, 0.72) 0 2px, rgba(210, 222, 235, 0.14) 2px 4px);
     border-left: 1px solid rgba(210, 222, 235, 0.75);
   }
 
-  .fill.ok {
-    background: linear-gradient(90deg, var(--status-1-start), var(--status-1-end));
+  .available.ok {
+    background: var(--good);
   }
 
-  .fill.low {
-    background: linear-gradient(90deg, var(--status-3-start), var(--status-3-end));
+  .available.low {
+    background: var(--warn);
   }
 
-  .fill.full {
-    background: linear-gradient(90deg, var(--status-4-start), var(--status-4-end));
+  .available.full {
+    background: var(--danger);
   }
 
   .value {
     font-size: 11px;
     font-variant-numeric: tabular-nums;
     color: var(--text-dim);
-    min-width: 32px;
-    text-align: right;
+    white-space: nowrap;
   }
 
-  .value.low {
-    color: var(--warn);
+  .value strong {
+    color: var(--good-text);
   }
 
-  .value.full {
-    color: var(--danger);
-    font-weight: 700;
+  .value small {
+    color: var(--text-dim);
+    font-size: 9px;
+    font-weight: 400;
+  }
+
+  .value.low strong {
+    color: var(--warn-text);
+  }
+
+  .value.full strong {
+    color: var(--danger-text);
+  }
+
+  @media (max-width: 520px) {
+    .hospital {
+      grid-template-columns: minmax(64px, 0.8fr) minmax(150px, 1.2fr);
+      column-gap: 6px;
+    }
+
+    .bed {
+      grid-template-columns: 39px minmax(30px, 1fr) auto;
+    }
   }
 </style>

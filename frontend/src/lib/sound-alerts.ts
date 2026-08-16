@@ -19,15 +19,21 @@ function addCue(cues: SoundCue[], cue: SoundCue): void {
   if (!cues.includes(cue)) cues.push(cue);
 }
 
+const UNASSIGNED_VEHICLE_GRACE_MS = 10_000;
+
+interface UnassignedVehicleState {
+  status: number;
+  since: number;
+  announced: boolean;
+}
+
 export class SoundAlertTracker {
-  private initialized = false;
-  private unassignedVehicleStatuses = new Map<number, number>();
+  private unassignedVehicleStatuses = new Map<number, UnassignedVehicleState>();
   private cStatusSince = new Map<number, number>();
   private announcedCStatuses = new Set<number>();
   private announcedSpeechRequests = new Set<string>();
 
   reset(): void {
-    this.initialized = false;
     this.unassignedVehicleStatuses.clear();
     this.cStatusSince.clear();
     this.announcedCStatuses.clear();
@@ -50,14 +56,21 @@ export class SoundAlertTracker {
         && !warningExceptions.has(vehicle.game_vehicle_id.trim().toUpperCase()))
       .map((vehicle) => [vehicle.id, Number(vehicle.status)]));
 
-    if (this.initialized) {
-      for (const [id, status] of unassignedVehicleStatuses) {
-        if (this.unassignedVehicleStatuses.get(id) === status) continue;
+    const trackedUnassignedVehicles = new Map<number, UnassignedVehicleState>();
+    for (const [id, status] of unassignedVehicleStatuses) {
+      const previous = this.unassignedVehicleStatuses.get(id);
+      const tracked = previous?.status === status
+        ? previous
+        : { status, since: now, announced: false };
+
+      if (!tracked.announced && now - tracked.since >= UNASSIGNED_VEHICLE_GRACE_MS) {
         if (status === 3) addCue(cues, 'unassigned-vehicle-status-3');
         if (status === 4) addCue(cues, 'unassigned-vehicle-status-4');
+        tracked.announced = true;
       }
+      trackedUnassignedVehicles.set(id, tracked);
     }
-    this.unassignedVehicleStatuses = unassignedVehicleStatuses;
+    this.unassignedVehicleStatuses = trackedUnassignedVehicles;
 
     const vehiclesInC = new Set<number>();
     for (const vehicle of state.vehicles) {
@@ -103,7 +116,6 @@ export class SoundAlertTracker {
       if (!activeSpeechRequests.has(occurrence)) this.announcedSpeechRequests.delete(occurrence);
     }
 
-    this.initialized = true;
     return cues;
   }
 }

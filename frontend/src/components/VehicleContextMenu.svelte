@@ -123,7 +123,7 @@
         <div class="event-list" aria-label="Zieleinsatz">
           {#each reassignableEvents as event (event.id)}
             <button class="event-item" role="menuitem" disabled={reassigning || !canWrite()} onclick={() => void reassign(event.id)}>
-              <span>{event.name || 'Einsatz'}</span>
+              <span class="event-name">{event.name || 'Einsatz'}</span>
               <small>Nr. {event.id}</small>
             </button>
           {/each}
@@ -147,7 +147,9 @@
   .menu {
     position: fixed;
     z-index: 71;
-    min-width: 210px;
+    width: min(300px, calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+    box-sizing: border-box;
     background: var(--panel);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
@@ -211,6 +213,8 @@
 
   .event-item {
     width: 100%;
+    min-width: 0;
+    gap: 8px;
     justify-content: space-between;
     border: 0;
     background: transparent;
@@ -218,7 +222,9 @@
     text-align: left;
   }
 
-  .event-item span {
+  .event-item .event-name {
+    flex: 1 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

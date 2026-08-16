@@ -223,10 +223,17 @@ function upsert_message(PDO $pdo, $session_id, array $m) {
     }
 
     $state = $is_speech_request ? 'active' : check_options('state', $saved, $m, 'active');
+    $acknowledged = 0;
+    if ($is_speech_request && $occurrence_id > 0) {
+        $stmt = $pdo->prepare('SELECT COALESCE(MAX(acknowledged), 0) FROM activity_logs
+            WHERE session_id = ? AND occurrence_id = ?');
+        $stmt->execute([$session_id, $occurrence_id]);
+        $acknowledged = (int)$stmt->fetchColumn();
+    }
 
     $stmt = $pdo->prepare('INSERT INTO activity_logs
-        (session_id, type, entity_id, event_id, message, occurrence_id, long_message, meta, state)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (session_id, type, entity_id, event_id, message, occurrence_id, long_message, meta, state, acknowledged)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             updated_at = IF(
                 NOT (event_id <=> VALUES(event_id))
@@ -237,7 +244,8 @@ function upsert_message(PDO $pdo, $session_id, array $m) {
                 CURRENT_TIMESTAMP(6), updated_at
             ),
             event_id = VALUES(event_id), type = VALUES(type), long_message = VALUES(long_message),
-            meta = VALUES(meta), state = VALUES(state), id = LAST_INSERT_ID(id)');
+            meta = VALUES(meta), state = VALUES(state), acknowledged = GREATEST(acknowledged, VALUES(acknowledged)),
+            id = LAST_INSERT_ID(id)');
     $stmt->execute([
         $session_id,
         check_options('type', $event_data, $m, 'global'),
@@ -248,6 +256,7 @@ function upsert_message(PDO $pdo, $session_id, array $m) {
         check_options('long_message', $saved, $m, $message),
         json_encode($m),
         $state,
+        $acknowledged,
     ]);
 
     $stmt = $pdo->prepare('SELECT * FROM activity_logs WHERE id = ? AND session_id = ?');

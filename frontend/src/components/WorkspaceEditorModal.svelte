@@ -28,6 +28,7 @@
     events: 'Einsätze',
     current_event: 'Aktueller Einsatz',
     logs: 'Funk',
+    speech_requests: 'Sprechwünsche',
     hospitals: 'Krankenhäuser',
   };
   const areaLabels: Record<AreaId, string> = {

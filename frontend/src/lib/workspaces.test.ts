@@ -13,7 +13,7 @@ describe('Arbeitsansichten', () => {
 
     expect(standard.areas).toEqual({
       leftTop: ['events', 'current_event'],
-      leftBottom: ['logs', 'hospitals'],
+      leftBottom: ['logs', 'speech_requests', 'hospitals'],
       rightTop: ['vehicles'],
       rightBottom: ['map'],
     });
@@ -46,7 +46,20 @@ describe('Arbeitsansichten', () => {
     const [workspace] = loadWorkspaces();
 
     expect(workspace.panelRatios.leftTop).toEqual([0.34, 0.66]);
-    expect(workspace.panelRatios.leftBottom).toEqual([0.5, 0.5]);
+    expect(workspace.panelRatios.leftBottom).toEqual([0.42, 0.22, 0.36]);
+  });
+
+  it('setzt das Sprechwunsch-Panel in eine ältere Standardansicht ein', () => {
+    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
+      ...DEFAULT_WORKSPACES[0],
+      areas: { ...DEFAULT_WORKSPACES[0].areas, leftBottom: ['logs', 'hospitals'] },
+      panelRatios: { ...DEFAULT_WORKSPACES[0].panelRatios, leftBottom: [0.5, 0.5] },
+    }]));
+
+    const [workspace] = loadWorkspaces();
+
+    expect(workspace.areas.leftBottom).toEqual(['logs', 'speech_requests', 'hospitals']);
+    expect(workspace.panelRatios.leftBottom).toEqual([0.42, 0.22, 0.36]);
   });
 
   it('übernimmt bestehende browserweite Einstellungen einmalig in das aktuelle Fenster', () => {

@@ -1,11 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import FaIcon from './FaIcon.svelte';
-  import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Play, RadioTower, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
+  import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Play, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
   import { pollLogs, refreshState, switchSession } from '../lib/polling';
   import { dismissibleDetails } from '../lib/dismissible-details';
   import { configureSounds, getDefaultSoundProfile, getSoundProfileOptions, loadSoundManifest, testSound } from '../lib/sounds';
-  import { buildSpeechRequestEntries } from '../lib/speech-requests';
   import { app, persistSoundSettings, showNotice } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import { userFacingError } from '../lib/user-facing-error';
@@ -25,7 +24,6 @@
   const versionTooltip = appCommitDate
     ? `Commit ${appCommit} vom ${new Date(appCommitDate).toLocaleString('de-DE')}`
     : `Commit ${appCommit}`;
-  const speechRequestCount = $derived(buildSpeechRequestEntries(app.logs, app.vehicles, app.events, app.assignments).length);
 
   onMount(() => {
     void loadSoundManifest().then((profiles) => {
@@ -161,20 +159,6 @@
     <span>{connection.text}</span>
   </div>
 
-  {#if app.lastSuccessfulSync !== null}
-    <button
-      class="ghost icon-button speech-button"
-      class:active={app.speechQueueOpen}
-      data-tooltip={speechRequestCount ? `${speechRequestCount} offene Sprechwünsche` : 'Sprechwünsche'}
-      aria-label={speechRequestCount ? `Sprechwünsche öffnen, ${speechRequestCount} offen` : 'Sprechwünsche öffnen'}
-      aria-expanded={app.speechQueueOpen}
-      onclick={() => (app.speechQueueOpen = !app.speechQueueOpen)}
-    >
-      <FaIcon icon={RadioTower} size={16} />
-      {#if speechRequestCount}<span class="speech-count">{speechRequestCount}</span>{/if}
-    </button>
-  {/if}
-
   <button class="ghost icon-button" data-tooltip={`Arbeitsansicht: ${workspaceName}`} aria-label={`Arbeitsansicht ${workspaceName} bearbeiten`} onclick={onOpenWorkspaceEditor}>
     <FaIcon icon={LayoutGrid} size={16} />
   </button>
@@ -306,9 +290,6 @@
   .connection-alert span { color: inherit; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
   .reset-layout { justify-content: flex-start; border-top: 1px solid var(--border); border-radius: 0; padding-top: 10px; }
   .icon-button { width: 30px; height: 30px; padding: 0; justify-content: center; }
-  .speech-button { position: relative; }
-  .speech-button.active { background: var(--accent-soft); color: var(--text); }
-  .speech-count { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border: 2px solid var(--bg-raised); border-radius: 8px; background: var(--danger); color: #fff; font-size: 10px; line-height: 12px; text-align: center; }
   @media (max-width: 1100px) {
     .connection span { display: none; }
     .topbar { flex-wrap: wrap; }

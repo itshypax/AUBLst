@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  broadcastLogAcknowledged,
   broadcastLogDismissed,
   selectPollingLeader,
   setPollingScope,
@@ -51,11 +52,13 @@ describe('Polling-Koordination', () => {
   it('verteilt erledigte Logeinträge an alle Fenster derselben Sitzung', () => {
     vi.stubGlobal('BroadcastChannel', MockBroadcastChannel);
     const onLogDismissed = vi.fn();
+    const onLogAcknowledged = vi.fn();
     const scope = 'session-sprechwunsch-test';
     const stop = startPollingSync({
       onLeaderChange: vi.fn(),
       onState: vi.fn(),
       onLogs: vi.fn(),
+      onLogAcknowledged,
       onLogDismissed,
       onSnapshot: vi.fn(),
       snapshot: vi.fn(),
@@ -78,6 +81,22 @@ describe('Polling-Koordination', () => {
       updatedAt: '2026-08-15 20:11:00.654321',
     });
     expect(onLogDismissed).toHaveBeenCalledWith(34, '2026-08-15 20:11:00.654321');
+
+    broadcastLogAcknowledged(55, '2026-08-15 20:12:00.000001');
+    expect(MockBroadcastChannel.latest.posted).toContainEqual(expect.objectContaining({
+      type: 'log-acknowledged',
+      scope,
+      id: 55,
+    }));
+
+    MockBroadcastChannel.latest.receive({
+      type: 'log-acknowledged',
+      sender: 'anderes-fenster',
+      scope,
+      id: 56,
+      updatedAt: '2026-08-15 20:13:00.000001',
+    });
+    expect(onLogAcknowledged).toHaveBeenCalledWith(56, '2026-08-15 20:13:00.000001');
 
     stop();
   });

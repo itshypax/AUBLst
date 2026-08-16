@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "default_profile": "standard",
   "profiles": [
     {
@@ -32,7 +32,7 @@
       "cues": {
         "new-incident": {
           "file": "sounds/Jannik/anrufton2.wav",
-          "repeat": 2
+          "repeat": 1
         },
         "speech-request": "sounds/Jannik/sprechwunsch.m4a",
         "unassigned-vehicle-status-3": "sounds/Jannik/fahrzeug-3-ohne-einsatz.m4a",

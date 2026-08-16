@@ -2,13 +2,14 @@
   import FaIcon from './FaIcon.svelte';
   import { BellRing, ChevronDown, Clock3, MessageSquarePlus, MessageSquareText, Radio, RadioTower, Search, Trash2, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
-  import { alarmVehicleCount, hasMapPosition, isActionUnit, isHiddenUnit, vehicleDisplayName, vehicleDisplayNameForIdentifier } from '../lib/classify';
+  import { alarmVehicleCount, hasMapPosition, isActionUnit, isHiddenUnit, isHospitalTransportUnit, vehicleDisplayName, vehicleDisplayNameForIdentifier } from '../lib/classify';
+  import { reservationAffectsCapacity } from '../lib/hospital-reservations';
   import { refreshState } from '../lib/polling';
   import { createRouteCalculator, formatDistance } from '../lib/routing';
   import { buildSpeechRequestEntries } from '../lib/speech-requests';
   import { app, canWrite, openVehicleMenu, setDispatchVehicleIds, showNotice, toggleDispatchVehicle } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
-  import type { EventFeedback, StateResponse, Vehicle } from '../lib/types';
+  import type { EventFeedback, HospitalReservation, StateResponse, Vehicle } from '../lib/types';
   import EmptyState from './EmptyState.svelte';
   import StatusBadge from './StatusBadge.svelte';
 
@@ -21,6 +22,8 @@
   let busy = $state(false);
   let feedbackBusy = $state(false);
   let returning = $state<Set<number>>(new Set());
+  let alarmTransitionVehicleIds = $state<Set<number>>(new Set());
+  let alarmTransitionEventId = $state<number | null>(null);
   let errorMsg = $state('');
 
   const QUICK_UNITS = [
@@ -123,12 +126,46 @@
     return () => window.clearInterval(timer);
   });
 
+  $effect(() => {
+    const eventId = currentEventId;
+    const transitionEventId = alarmTransitionEventId;
+    const transitionVehicleIds = alarmTransitionVehicleIds;
+    const vehicles = app.vehicles;
+    if (!transitionVehicleIds.size) return;
+
+    if (eventId !== transitionEventId) {
+      alarmTransitionVehicleIds = new Set();
+      alarmTransitionEventId = null;
+      return;
+    }
+
+    const remaining = new Set([...transitionVehicleIds].filter((vehicleId) => {
+      const vehicle = vehicles.find((item) => item.id === vehicleId);
+      return vehicle && hasLeftCurrentEvent(vehicle);
+    }));
+    if (remaining.size !== transitionVehicleIds.size) {
+      alarmTransitionVehicleIds = remaining;
+      if (!remaining.size) alarmTransitionEventId = null;
+    }
+  });
+
   function displayName(vehicle: Vehicle): string {
     return vehicleDisplayName(vehicle);
   }
 
   function modesAssignedTo(vehicleId: number): string[] {
     return assignedModes.get(vehicleId) ?? [];
+  }
+
+  function hospitalReservationFor(vehicle: Vehicle): HospitalReservation | undefined {
+    if (!isHospitalTransportUnit(vehicle)) return undefined;
+    return app.hospitalReservations.find(
+      (reservation) => reservation.vehicle_id === vehicle.id && reservationAffectsCapacity(reservation, app.vehicles),
+    );
+  }
+
+  function hospitalDestination(reservation: HospitalReservation): string {
+    return `${reservation.hospital_name || 'Klinik'}${reservation.bed_type === 'icu' ? ' · Intensiv' : ''}`;
   }
 
   function hasLeftCurrentEvent(vehicle: Vehicle): boolean {
@@ -140,7 +177,12 @@
   }
 
   function canRepeatFromAssignedRow(vehicle: Vehicle): boolean {
-    return !isHiddenUnit(vehicle) && hasLeftCurrentEvent(vehicle);
+    return !alarmTransitionVehicleIds.has(vehicle.id) && !isHiddenUnit(vehicle) && hasLeftCurrentEvent(vehicle);
+  }
+
+  function bridgeAlarmTransition(eventId: number, vehicleIds: number[]): void {
+    alarmTransitionEventId = eventId;
+    alarmTransitionVehicleIds = new Set([...alarmTransitionVehicleIds, ...vehicleIds]);
   }
 
   function distanceText(vehicle: Vehicle): string {
@@ -221,6 +263,7 @@
         modes: chosenModes,
       });
       const count = stagedVehicleCount;
+      bridgeAlarmTransition(currentEvent.id, stagedVehicles.map((vehicle) => vehicle.id));
       setDispatchVehicleIds([]);
       await refreshState();
       showNotice(`${count} ${count === 1 ? 'Fahrzeug alarmiert' : 'Fahrzeuge alarmiert'}`);
@@ -346,11 +389,13 @@
         <div class="vehicle-rows">
           {#each assignedVehicles as vehicle (vehicle.id)}
             {@const previouslyAssigned = canRepeatFromAssignedRow(vehicle)}
+            {@const hospitalReservation = hospitalReservationFor(vehicle)}
+            {@const destination = hospitalReservation ? hospitalDestination(hospitalReservation) : ''}
             <div
               class="vehicle-row assigned"
               class:previous={previouslyAssigned}
               role="group"
-              aria-label={displayName(vehicle)}
+              aria-label={`${displayName(vehicle)}${destination ? `, Ziel ${destination}` : ''}`}
               oncontextmenu={(event) => {
                 if (previouslyAssigned) return;
                 event.preventDefault();
@@ -360,13 +405,19 @@
               {#if previouslyAssigned || isHiddenUnit(vehicle)}<span aria-hidden="true"></span>{:else}<StatusBadge value={vehicle.status} />{/if}
               {#if previouslyAssigned}
                 <button
-                  class="ghost vehicle-name previous-vehicle"
+                  class="ghost vehicle-name assigned-vehicle-name previous-vehicle"
                   data-tooltip="Erneut vormerken"
                   aria-label={`${displayName(vehicle)} erneut vormerken`}
                   onclick={() => stageVehicle(vehicle)}
-                >{displayName(vehicle)}{#each modesAssignedTo(vehicle.id) as mode}<span class="assigned-mode">{` (${mode})`}</span>{/each}</button>
+                >
+                  <span class="vehicle-title">{displayName(vehicle)}{#each modesAssignedTo(vehicle.id) as mode}<span class="assigned-mode">{` (${mode})`}</span>{/each}</span>
+                  {#if hospitalReservation}<span class="destination" class:intensive={hospitalReservation.bed_type === 'icu'}>→ {destination}</span>{/if}
+                </button>
               {:else}
-                <span class="vehicle-name">{displayName(vehicle)}{#each modesAssignedTo(vehicle.id) as mode}<span class="assigned-mode">{` (${mode})`}</span>{/each}</span>
+                <span class="vehicle-name assigned-vehicle-name">
+                  <span class="vehicle-title">{displayName(vehicle)}{#each modesAssignedTo(vehicle.id) as mode}<span class="assigned-mode">{` (${mode})`}</span>{/each}</span>
+                  {#if hospitalReservation}<span class="destination" class:intensive={hospitalReservation.bed_type === 'icu'}>→ {destination}</span>{/if}
+                </span>
               {/if}
               {#if Number(vehicle.status) === 3}
                 <button class="ghost row-action" data-tooltip="Einrücken lassen" aria-label={`${displayName(vehicle)} einrücken lassen`} disabled={returning.has(vehicle.id) || !canWrite()} onclick={() => void sendHome(vehicle)}><FaIcon icon={Undo2} size={14} /></button>
@@ -461,9 +512,13 @@
   .vehicle-row { min-height: 34px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
   .vehicle-row.staged { border-left: 2px solid var(--warn); background: rgba(240, 160, 60, .045); }
   .vehicle-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .assigned-vehicle-name { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+  .vehicle-title, .destination { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .destination { color: var(--accent); font-size: 10px; font-weight: 400; }
+  .destination.intensive { color: var(--danger-text); }
   .assigned-mode { color: var(--text-dim); font-weight: 400; }
   .vehicle-row.previous .vehicle-name { color: var(--text-dim); font-style: italic; font-weight: 500; }
-  button.previous-vehicle { justify-content: flex-start; padding: 0; border: 0; border-radius: 0; background: transparent; text-align: left; }
+  button.previous-vehicle { justify-content: flex-start; align-items: flex-start; padding: 0; border: 0; border-radius: 0; background: transparent; text-align: left; }
   button.previous-vehicle:hover:not(:disabled) { border: 0; background: transparent; color: var(--text); }
   .vehicle-name.with-mode { display: flex; align-items: center; gap: 5px; }
   .vehicle-name.with-mode > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

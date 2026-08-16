@@ -2,7 +2,6 @@ export type ShortcutAction =
   | 'toggle-help'
   | 'focus-vehicle-search'
   | 'fit-map'
-  | 'toggle-speech-requests'
   | 'open-actions'
   | 'open-overview'
   | 'workspace-1'
@@ -23,7 +22,6 @@ export const SHORTCUTS: ShortcutDefinition[] = [
   { action: 'workspace-3', keys: ['3'], label: 'Dritte Arbeitsansicht öffnen', group: 'Navigation' },
   { action: 'focus-vehicle-search', keys: ['F'], label: 'Fahrzeugsuche fokussieren', group: 'Leitstelle' },
   { action: 'fit-map', keys: ['M'], label: 'Karte einpassen', group: 'Leitstelle' },
-  { action: 'toggle-speech-requests', keys: ['S'], label: 'Sprechwünsche öffnen oder schließen', group: 'Leitstelle' },
   { action: 'open-actions', keys: ['A'], label: 'Aktionen öffnen', group: 'Leitstelle' },
   { action: 'open-overview', keys: ['O'], label: 'Einsatzakte und Statistik öffnen', group: 'Leitstelle' },
 ];
@@ -42,7 +40,6 @@ export function shortcutActionForEvent(event: KeyboardEvent): ShortcutAction | n
   const actions: Record<string, ShortcutAction> = {
     f: 'focus-vehicle-search',
     m: 'fit-map',
-    s: 'toggle-speech-requests',
     a: 'open-actions',
     o: 'open-overview',
     '1': 'workspace-1',

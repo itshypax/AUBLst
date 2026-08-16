@@ -9,7 +9,6 @@
   import RoutingEditorPage from './components/RoutingEditorPage.svelte';
   import SessionGate from './components/SessionGate.svelte';
   import ShortcutPanel from './components/ShortcutPanel.svelte';
-  import SpeechRequestsQueue from './components/SpeechRequestsQueue.svelte';
   import SessionOverviewModal from './components/SessionOverviewModal.svelte';
   import Topbar from './components/Topbar.svelte';
   import Tooltip from './components/Tooltip.svelte';
@@ -205,7 +204,6 @@
     if (app.lastSuccessfulSync === null) return;
     if (action === 'focus-vehicle-search') app.focusVehicleSearchSeq += 1;
     else if (action === 'fit-map') app.fitMapSeq += 1;
-    else if (action === 'toggle-speech-requests') app.speechQueueOpen = !app.speechQueueOpen;
     else if (action === 'open-actions') app.actionsOpen = true;
     else if (action === 'open-overview') app.sessionOverviewOpen = true;
   }
@@ -359,9 +357,6 @@
   <ConfirmDialog />
 {/if}
 
-{#if app.speechQueueOpen && app.lastSuccessfulSync !== null}
-  <SpeechRequestsQueue />
-{/if}
 {/if}
 
 {#if routingEditorRequested && app.confirmDialog}

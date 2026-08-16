@@ -5,6 +5,7 @@
   import HospitalsPanel from './HospitalsPanel.svelte';
   import LogPanel from './LogPanel.svelte';
   import MapPanel from './MapPanel.svelte';
+  import SpeechRequestsPanel from './SpeechRequestsPanel.svelte';
   import VehiclesPanel from './VehiclesPanel.svelte';
 
   let { panels, direction, ratios, onRatiosChange }: {
@@ -104,6 +105,8 @@
       <CurrentEventPanel />
     {:else if panel === 'logs'}
       <LogPanel />
+    {:else if panel === 'speech_requests'}
+      <SpeechRequestsPanel />
     {:else if panel === 'hospitals'}
       <HospitalsPanel />
     {/if}

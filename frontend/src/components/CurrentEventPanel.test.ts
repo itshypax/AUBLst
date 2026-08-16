@@ -1,10 +1,11 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app, resetSessionData } from '../lib/state.svelte';
 import CurrentEventPanel from './CurrentEventPanel.svelte';
 
-const mocks = vi.hoisted(() => ({ api: vi.fn() }));
+const mocks = vi.hoisted(() => ({ api: vi.fn(), refreshState: vi.fn() }));
 vi.mock('../lib/api', () => ({ api: mocks.api }));
+vi.mock('../lib/polling', () => ({ refreshState: mocks.refreshState }));
 
 beforeEach(() => {
   resetSessionData();
@@ -36,6 +37,7 @@ beforeEach(() => {
     updated_at: '2026-08-11 20:00:00',
   }];
   mocks.api.mockReset().mockResolvedValue({ feedback: [] });
+  mocks.refreshState.mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => cleanup());
@@ -166,6 +168,34 @@ describe('Aktueller Einsatz', () => {
     expect(screen.getByRole('button', { name: '4-RTW-B entfernen' })).toBeTruthy();
   });
 
+  it('zeigt ein frisch alarmiertes Fahrzeug während der Spielübernahme normal mit seinem letzten Status', async () => {
+    app.assignments = [];
+    app.vehicles = [{ ...app.vehicles[0], status: 2 }];
+    app.dispatchVehicleIds = [4];
+    mocks.api.mockImplementation(async (action: string) => {
+      if (action === 'state') return { vehicles: app.vehicles };
+      if (action === 'events_get_feedback') return { feedback: [] };
+      return {};
+    });
+    mocks.refreshState.mockImplementation(async () => {
+      app.assignments = [{ event_id: 1030, vehicle_id: 4 }];
+    });
+
+    const { container } = render(CurrentEventPanel);
+    await fireEvent.click(screen.getByRole('button', { name: 'Alarmieren (1)' }));
+
+    await waitFor(() => expect(container.querySelector('.vehicle-row.assigned')).not.toBeNull());
+    const assignedRow = container.querySelector('.vehicle-row.assigned');
+    expect(assignedRow?.classList.contains('previous')).toBe(false);
+    expect(assignedRow?.querySelector('.status-badge')?.textContent).toContain('2');
+    expect(screen.queryByRole('button', { name: '4-RTW-B erneut vormerken' })).toBeNull();
+
+    app.vehicles = [{ ...app.vehicles[0], status: 3 }];
+    await waitFor(() => expect(assignedRow?.querySelector('.status-badge')?.textContent).toContain('3'));
+    app.vehicles = [{ ...app.vehicles[0], status: 1 }];
+    await waitFor(() => expect(container.querySelector('.vehicle-row.assigned.previous')).not.toBeNull());
+  });
+
   it('öffnet für ein aktives Einsatzfahrzeug das gemeinsame Fahrzeugmenü', async () => {
     const { container } = render(CurrentEventPanel);
     const row = container.querySelector('.vehicle-row.assigned');
@@ -204,6 +234,29 @@ describe('Aktueller Einsatz', () => {
     const { container } = render(CurrentEventPanel);
 
     expect(container.querySelector('.vehicle-row.assigned')?.textContent).toContain('1-WLF-1 (AB-Rüst)');
+  });
+
+  it('zeigt das Klinikziel eines zugeordneten RTW unter dem Fahrzeugnamen', () => {
+    app.vehicles = [{ ...app.vehicles[0], status: 4 }];
+    app.hospitalReservations = [{
+      id: 11,
+      vehicle_id: 4,
+      hospital_id: 2,
+      bed_type: 'ward',
+      status: 'reserved',
+      created_at: '2026-08-16 20:00:00',
+      updated_at: '2026-08-16 20:00:00',
+      arrived_at: null,
+      game_vehicle_id: '4_RTW_B',
+      vehicle_name: '4-RTW-B',
+      hospital_name: 'Uniklinik',
+    }];
+
+    const { container } = render(CurrentEventPanel);
+
+    const destination = screen.getByText('→ Uniklinik');
+    expect(destination.classList.contains('destination')).toBe(true);
+    expect(container.querySelector('.vehicle-row.assigned')?.getAttribute('aria-label')).toBe('4-RTW-B, Ziel Uniklinik');
   });
 
   it('zeigt getrennte Alarmierungen derselben Einheit einzeln an', () => {
