@@ -42,18 +42,41 @@ function action_stream(PDO $pdo): void {
 
     ignore_user_abort(true);
     set_time_limit(30);
+    // Shared hosting often enables PHP or compression buffers that ignore a
+    // plain flush(). Disable what PHP lets us change and drain active buffers.
+    @ini_set('zlib.output_compression', '0');
+    @ini_set('output_buffering', '0');
+    @ini_set('implicit_flush', '1');
     header('Content-Type: text/event-stream; charset=utf-8');
     header('Cache-Control: no-cache, no-transform');
     header('X-Accel-Buffering: no');
     header('X-Content-Type-Options: nosniff');
     send_cors_headers();
 
+    while (ob_get_level() > 0) {
+        if (!@ob_end_flush()) {
+            @ob_flush();
+            break;
+        }
+    }
+    ob_implicit_flush(true);
+
+    $sendFrame = static function (string $frame): void {
+        echo $frame;
+        // Some shared-hosting proxies release a response only after 4 KiB.
+        // SSE clients ignore comment lines, so padding keeps every frame live.
+        $paddingLength = max(0, 4096 - strlen($frame));
+        if ($paddingLength > 0) {
+            echo ': ' . str_repeat(' ', $paddingLength) . "\n\n";
+        }
+        if (ob_get_level() > 0) @ob_flush();
+        flush();
+    };
+
     $revisionQuery = $pdo->prepare('SELECT revision FROM sessions WHERE id = ?');
     $deadline = microtime(true) + 25.0;
     $nextHeartbeat = 0.0;
-    echo "retry: 1500\n\n";
-    if (ob_get_level() > 0) @ob_flush();
-    flush();
+    $sendFrame("retry: 1500\n\n");
 
     while (!connection_aborted() && microtime(true) < $deadline) {
         $revisionQuery->execute([$sid]);
@@ -61,16 +84,16 @@ function action_stream(PDO $pdo): void {
         if ($revision === false) break;
         $revision = (int)$revision;
         if ($revision !== $lastRevision) {
-            echo "event: change\n";
-            echo 'data: ' . json_encode(['revision' => $revision]) . "\n\n";
+            $sendFrame(
+                "event: change\n"
+                . 'data: ' . json_encode(['revision' => $revision]) . "\n\n"
+            );
             $lastRevision = $revision;
             $nextHeartbeat = microtime(true) + 10.0;
         } elseif (microtime(true) >= $nextHeartbeat) {
-            echo ": heartbeat\n\n";
+            $sendFrame(": heartbeat\n\n");
             $nextHeartbeat = microtime(true) + 10.0;
         }
-        if (ob_get_level() > 0) @ob_flush();
-        flush();
         usleep(500000);
     }
     exit;

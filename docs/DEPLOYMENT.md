@@ -31,6 +31,29 @@ Nach dem Upload prüfen:
 3. Ein zweites Browserfenster erhält einen neuen Einsatz ohne manuelles Neuladen.
 4. `backend/config.local.php` ist nicht öffentlich abrufbar und enthält einen eingeschränkten DB-Benutzer.
 
+### SSE auf Webhosting testen
+
+`capabilities` zeigt nur, dass EMDispatch den Stream eingeschaltet hat. Ob der
+Webserver ihn unverzüglich überträgt, lässt sich mit einem gültigen
+Sitzungscode prüfen:
+
+```powershell
+$body = '{"session_token":"a1b2","last_revision":-1}'
+curl.exe --silent --show-error --no-buffer --http1.1 --max-time 15 `
+  -H 'Accept: text/event-stream' `
+  -H 'Content-Type: application/json' `
+  --data-raw $body `
+  'https://example.org/backend/api.php?action=stream'
+```
+
+`retry:` und das erste `event: change` müssen sofort erscheinen. Nach etwa zehn
+Sekunden folgt ein `: heartbeat`. Kommt bis zum Abbruch kein Byte an, puffert
+PHP oder ein vorgeschalteter Webserver die Antwort. EMDispatch versucht beim
+Start, übliche PHP- und 4-KiB-Proxy-Puffer zu leeren. Bleibt das Problem nach
+einem erneuten Upload bestehen, muss der Hoster die Pufferung für
+`text/event-stream` abschalten; das Frontend nutzt bis dahin automatisch
+Polling.
+
 ## Anonyme Metriken
 
 Die Tagesaggregate sind standardmäßig aktiv. Sie liegen in der Tabelle
