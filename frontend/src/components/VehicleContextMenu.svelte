@@ -1,11 +1,12 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
-  import { Crosshair, Hospital, Route, Undo2 } from '../lib/fontawesome-icons';
+  import { Crosshair, Hospital, Route, ShieldCheck, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
-  import { isHospitalTransportUnit } from '../lib/classify';
+  import { isHospitalTransportUnit, mainTab } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
   import { app, assignedEventForVehicle, canWrite, closeVehicleMenu, focusVehicle, showNotice } from '../lib/state.svelte';
+  import type { IncidentLeaderRole } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
 
   const menu = app.contextMenu!;
@@ -15,12 +16,19 @@
   const hospitalReservation = $derived(vehicle ? app.hospitalReservations.find((item) => item.vehicle_id === vehicle.id && item.status === 'reserved') : undefined);
   const canManageHospital = $derived(Boolean(vehicle && isTransportUnit && ([4, 5, 7].includes(Number(vehicle.status)) || hospitalReservation)));
   const currentEvent = $derived(vehicle ? assignedEventForVehicle(vehicle.id) : undefined);
+  const leaderEvent = $derived(menu.eventId === undefined ? undefined : app.events.find((event) => event.id === menu.eventId && event.status === 'active'));
+  const leaderAssignment = $derived(vehicle && leaderEvent ? app.assignments.find((assignment) => Number(assignment.event_id) === leaderEvent.id && Number(assignment.vehicle_id) === vehicle.id) : undefined);
+  const eligibleLeaderRole = $derived.by((): IncidentLeaderRole | null => {
+    if (!vehicle || !leaderAssignment || ![3, 4].includes(Number(vehicle.status))) return null;
+    return mainTab(vehicle) === 'rescue' ? 'medical' : 'fire';
+  });
   const reassignableEvents = $derived(app.events.filter((event) => event.status === 'active' && event.id !== currentEvent?.id));
 
   let el: HTMLDivElement | undefined = $state();
   let pos = $state({ x: menu.x, y: menu.y });
   let choosingEvent = $state(false);
   let reassigning = $state(false);
+  let changingLeader = $state(false);
 
   $effect(() => {
     if (!vehicle) {
@@ -72,6 +80,36 @@
     }
   }
 
+  function leaderActionLabel(role: IncidentLeaderRole): string {
+    if (role === 'fire') return leaderAssignment?.leader_role === role ? 'Einsatzleiter FW entfernen' : 'Als Einsatzleiter FW setzen';
+    if (leaderAssignment?.leader_role !== role) return 'Als Einsatzleiter RD setzen';
+    return leaderAssignment.leader_source === 'manual'
+      ? 'Einsatzleiter RD automatisch bestimmen'
+      : 'Einsatzleiter RD manuell festlegen';
+  }
+
+  async function setLeader(role: IncidentLeaderRole): Promise<void> {
+    if (!vehicle || !leaderEvent || changingLeader) return;
+    changingLeader = true;
+    const resetRole = leaderAssignment?.leader_role === role
+      && (role === 'fire' || leaderAssignment.leader_source === 'manual');
+    try {
+      await api('events_set_leader', {
+        event_id: leaderEvent.id,
+        vehicle_id: resetRole ? null : vehicle.id,
+        role,
+      });
+      showNotice(role === 'fire'
+        ? (resetRole ? 'Einsatzleiter FW entfernt' : `${vehicle.name || vehicle.game_vehicle_id} ist Einsatzleiter FW`)
+        : (resetRole ? 'Einsatzleiter RD wird wieder automatisch bestimmt' : `${vehicle.name || vehicle.game_vehicle_id} ist Einsatzleiter RD`));
+      closeVehicleMenu();
+      await refreshState();
+    } catch (err) {
+      app.lastError = (err as Error).message;
+      changingLeader = false;
+    }
+  }
+
   function onKeydown(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
       closeVehicleMenu();
@@ -112,6 +150,12 @@
       <button class="item" role="menuitem" disabled={!canWrite()} onclick={assignHospital}>
         <FaIcon icon={Hospital} size={14} />
         {hospitalReservation ? 'Klinikzuweisung ändern' : 'Klinik zuweisen'}
+      </button>
+    {/if}
+    {#if eligibleLeaderRole}
+      <button class="item" role="menuitem" disabled={!canWrite() || changingLeader} onclick={() => void setLeader(eligibleLeaderRole)}>
+        <FaIcon icon={ShieldCheck} size={14} />
+        {leaderActionLabel(eligibleLeaderRole)}
       </button>
     {/if}
     {#if Number(vehicle.status) >= 3 && Number(vehicle.status) <= 4}

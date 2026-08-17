@@ -50,6 +50,7 @@ const ACTIONS = [
     'events_assign'          => 'action_events_assign',
     'events_reassign'        => 'action_events_reassign',
     'events_get_vehicles'    => 'action_events_get_vehicles',
+    'events_set_leader'      => 'action_events_set_leader',
     'events_get_logs'        => 'action_events_get_logs',
     'events_unassign'        => 'action_events_unassign',
     'events_get_note'        => 'action_events_get_note',

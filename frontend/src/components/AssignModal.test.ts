@@ -255,6 +255,24 @@ describe('Alarmierungsdialog', () => {
     expect(container.querySelector('.block .chip')?.textContent).toContain('Streifenwagen (1) (2)');
   });
 
+  it('öffnet für ein alarmiertes Fahrzeug das einsatzbezogene Rechtsklickmenü', async () => {
+    app.vehicles = [{ ...vehicle, status: 4 }];
+    mocks.api.mockImplementation(async (action: string) => {
+      if (action === 'events_get_vehicles') {
+        return { vehicles: [{ id: 1, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', status: 4 }] };
+      }
+      if (action === 'events_get_feedback') return { feedback: [] };
+      if (action === 'events_get_logs') return { logs: [] };
+      return { ok: true };
+    });
+    render(AssignModal);
+    const assignedVehicle = await screen.findByText('1-HLF-1');
+
+    await fireEvent.contextMenu(assignedVehicle, { clientX: 120, clientY: 80 });
+
+    expect(app.contextMenu).toEqual({ vehicleId: 1, eventId: 101, x: 120, y: 80 });
+  });
+
   it('alarmiert weitere Einheiten unabhaengig von Status und Zuordnung', async () => {
     const user = userEvent.setup();
     const abschleppwagen = {

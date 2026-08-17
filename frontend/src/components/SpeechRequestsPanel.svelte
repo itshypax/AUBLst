@@ -42,6 +42,11 @@
     if (entry.event) openAssign(entry.event);
   }
 
+  function openRequest(entry: SpeechRequestEntry): void {
+    openEvent(entry);
+    if (entry.vehicle) focusVehicle(entry.vehicle);
+  }
+
   async function acknowledge(entry: SpeechRequestEntry): Promise<void> {
     if (isAcknowledged(entry) || acknowledging.has(entry.key) || !canWrite()) return;
     acknowledging = new Set(acknowledging).add(entry.key);
@@ -74,7 +79,7 @@
     if (clickTimer !== null) window.clearTimeout(clickTimer);
     clickTimer = window.setTimeout(() => {
       clickTimer = null;
-      openEvent(entry);
+      openRequest(entry);
       void acknowledge(entry);
     }, 220);
   }
@@ -82,14 +87,14 @@
   function doubleClick(entry: SpeechRequestEntry): void {
     if (clickTimer !== null) window.clearTimeout(clickTimer);
     clickTimer = null;
-    openEvent(entry);
+    openRequest(entry);
     void complete(entry);
   }
 
   function onRowKeydown(event: KeyboardEvent, entry: SpeechRequestEntry): void {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
-    openEvent(entry);
+    openRequest(entry);
     void acknowledge(entry);
   }
 
@@ -114,7 +119,7 @@
   }
 
   function menuOpenEvent(entry: SpeechRequestEntry): void {
-    openEvent(entry);
+    openRequest(entry);
     void acknowledge(entry);
     menu = null;
   }

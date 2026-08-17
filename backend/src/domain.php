@@ -41,3 +41,43 @@ function hospital_reservation_can_be_created(array $vehicle, bool $hasReservatio
 function hospital_reservation_should_clear($status): bool {
     return in_array((int)$status, [1, 2], true);
 }
+
+function vehicle_has_incident_type(array $vehicle, string $type): bool {
+    $text = strtoupper(implode(' ', array_filter([
+        $vehicle['game_vehicle_id'] ?? null,
+        $vehicle['name'] ?? null,
+        $vehicle['type'] ?? null,
+    ])));
+    return preg_match('/(^|[^A-Z])' . preg_quote(strtoupper($type), '/') . '([^A-Z]|$)/', $text) === 1;
+}
+
+function is_rescue_incident_vehicle(array $vehicle): bool {
+    foreach (['RTW', 'KTW', 'NKTW', 'GRTW', 'ITW', 'NEF', 'NAW', 'RTH', 'ITH', 'GWSAN', 'GWRH'] as $type) {
+        if (vehicle_has_incident_type($vehicle, $type)) return true;
+    }
+    return false;
+}
+
+function select_medical_incident_leader(array $vehicles): ?int {
+    $rtwCount = count(array_filter(
+        $vehicles,
+        static fn(array $vehicle): bool => vehicle_has_incident_type($vehicle, 'RTW')
+    ));
+    $eligible = array_values(array_filter($vehicles, static function (array $vehicle): bool {
+        return in_array((int)($vehicle['status'] ?? -1), [3, 4], true)
+            && !empty($vehicle['first_status_4_at']);
+    }));
+    usort($eligible, static function (array $left, array $right): int {
+        return strcmp((string)$left['first_status_4_at'], (string)$right['first_status_4_at'])
+            ?: ((int)$left['id'] <=> (int)$right['id']);
+    });
+
+    foreach ($eligible as $vehicle) {
+        if (vehicle_has_incident_type($vehicle, 'NEF')) return (int)$vehicle['id'];
+    }
+    if ($rtwCount < 3) return null;
+    foreach ($eligible as $vehicle) {
+        if (vehicle_has_incident_type($vehicle, 'RTW')) return (int)$vehicle['id'];
+    }
+    return null;
+}

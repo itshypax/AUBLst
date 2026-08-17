@@ -81,6 +81,51 @@ test_case('Sprechwunschvarianten werden als Status 5 erkannt', static function (
     expect_true(!message_is_speech_request(['message' => 'S4', 'long_message' => 'Ankunft']));
 });
 
+test_case('Einsatzleiter RD wird ab drei RTW nach der ersten Ankunft bestimmt', static function (): void {
+    $vehicles = [
+        ['id' => 1, 'game_vehicle_id' => '1_RTW_A', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:02:00'],
+        ['id' => 2, 'game_vehicle_id' => '2_RTW_A', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:04:00'],
+        ['id' => 3, 'game_vehicle_id' => '3_RTW_A', 'status' => 3, 'first_status_4_at' => null],
+    ];
+    expect_same(1, select_medical_incident_leader($vehicles));
+    expect_same(null, select_medical_incident_leader(array_slice($vehicles, 0, 2)));
+});
+
+test_case('Das erste eingetroffene NEF übernimmt den Einsatzleiter RD', static function (): void {
+    $vehicles = [
+        ['id' => 1, 'game_vehicle_id' => '1_RTW_A', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:02:00'],
+        ['id' => 2, 'game_vehicle_id' => '2_RTW_A', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:04:00'],
+        ['id' => 3, 'game_vehicle_id' => '3_RTW_A', 'status' => 3, 'first_status_4_at' => null],
+        ['id' => 4, 'game_vehicle_id' => '4_NEF_A', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:06:00'],
+        ['id' => 5, 'game_vehicle_id' => '2_NEF_A', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:08:00'],
+    ];
+    expect_same(4, select_medical_incident_leader($vehicles));
+    $vehicles[3]['status'] = 7;
+    expect_same(5, select_medical_incident_leader($vehicles));
+    $vehicles[4]['status'] = 1;
+    expect_same(1, select_medical_incident_leader($vehicles));
+});
+
+test_case('Einsatzleiterwechsel werden als Rückmeldung formuliert', static function (): void {
+    expect_same(
+        'Einsatzleiter FW bestimmt: 1-HLF-1',
+        event_leader_feedback_text('fire', null, '1-HLF-1')
+    );
+    expect_same(
+        'Einsatzleiter RD gewechselt: 1-RTW-1 → 4-NEF-A',
+        event_leader_feedback_text('medical', '1-RTW-1', '4-NEF-A')
+    );
+    expect_same(
+        'Einsatzleiter RD automatisch bestimmt: 1-RTW-1',
+        event_leader_feedback_text('medical', null, '1-RTW-1', true)
+    );
+    expect_same(
+        'Einsatzleiter FW aufgehoben: 1-HLF-1',
+        event_leader_feedback_text('fire', '1-HLF-1', null)
+    );
+    expect_same(null, event_leader_feedback_text('fire', '1-HLF-1', '1-HLF-1'));
+});
+
 test_case('Straßennetz verwirft ungültige Kanten', static function (): void {
     $routing = normalize_routing_config([
         'meters_per_world_unit' => 0.1,

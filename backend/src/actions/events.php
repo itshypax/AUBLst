@@ -232,11 +232,15 @@ function action_events_get_vehicles(PDO $pdo): void {
     $event_id = $data['event_id'] ?? null;
     if (!$event_id) respond_json(400, ['error' => 'Missing event_id']);
 
-    $stmt = $pdo->prepare('SELECT vehicles.id, name, game_vehicle_id, vehicles.status as status, h.mode
+    if (reconcile_event_leaders($pdo, $sid)) touch_session($pdo, $sid);
+    $stmt = $pdo->prepare('SELECT vehicles.id, name, game_vehicle_id, vehicles.status as status, h.mode,
+            leaders.role AS leader_role, leaders.source AS leader_source
         FROM assignments
         JOIN vehicles ON vehicles.session_id = assignments.session_id AND vehicles.id = assignments.vehicle_id
         LEFT JOIN alarm_history h ON h.session_id = assignments.session_id
             AND h.event_id = assignments.event_id AND h.vehicle_id = assignments.vehicle_id AND h.mode IS NOT NULL
+        LEFT JOIN event_leaders leaders ON leaders.session_id = assignments.session_id
+            AND leaders.event_id = assignments.event_id AND leaders.vehicle_id = assignments.vehicle_id
         WHERE assignments.event_id = ? AND assignments.session_id = ?
         ORDER BY vehicles.id, h.id');
     $stmt->execute([$event_id, $sid]);
@@ -250,6 +254,8 @@ function action_events_get_vehicles(PDO $pdo): void {
                 'game_vehicle_id' => $row['game_vehicle_id'],
                 'status' => (int)$row['status'],
                 'alarm_modes' => [],
+                'leader_role' => $row['leader_role'],
+                'leader_source' => $row['leader_source'],
             ];
         }
         if ($row['mode'] !== null && trim((string)$row['mode']) !== '') {
@@ -257,6 +263,81 @@ function action_events_get_vehicles(PDO $pdo): void {
         }
     }
     respond_json(200, ['ok' => true, 'vehicles' => array_values($vehicles)]);
+}
+
+function action_events_set_leader(PDO $pdo): void {
+    $data = get_json_input();
+    $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
+    $sid = $session['id'];
+    $event_id = (int)($data['event_id'] ?? 0);
+    $vehicle_id = isset($data['vehicle_id']) ? (int)$data['vehicle_id'] : null;
+    $role = (string)($data['role'] ?? 'fire');
+
+    if (!$event_id) respond_json(400, ['error' => 'event_id wird benötigt.']);
+    if (!in_array($role, ['fire', 'medical'], true)) respond_json(400, ['error' => 'Unbekannte Einsatzleiterrolle.']);
+    $event = $pdo->prepare("SELECT id FROM events WHERE id = ? AND session_id = ? AND status = 'active'");
+    $event->execute([$event_id, $sid]);
+    if (!$event->fetchColumn()) respond_json(404, ['error' => 'Der Einsatz ist nicht mehr aktiv.']);
+
+    $pdo->beginTransaction();
+    $current = $pdo->prepare('SELECT vehicle_id FROM event_leaders
+        WHERE session_id = ? AND event_id = ? AND role = ? FOR UPDATE');
+    $current->execute([$sid, $event_id, $role]);
+    $previous_vehicle_id = $current->fetchColumn();
+    $previous_vehicle_id = $previous_vehicle_id !== false ? (int)$previous_vehicle_id : null;
+
+    if ($vehicle_id !== null && $vehicle_id > 0) {
+        $vehicle = $pdo->prepare('SELECT v.id, v.game_vehicle_id, v.name, v.type, v.status
+            FROM assignments a
+            JOIN vehicles v ON v.session_id = a.session_id AND v.id = a.vehicle_id
+            WHERE a.session_id = ? AND a.event_id = ? AND a.vehicle_id = ? FOR UPDATE');
+        $vehicle->execute([$sid, $event_id, $vehicle_id]);
+        $selected = $vehicle->fetch();
+        if (!$selected) {
+            $pdo->rollBack();
+            respond_json(404, ['error' => 'Das Fahrzeug ist diesem Einsatz nicht mehr zugeordnet.']);
+        }
+        if (!in_array((int)$selected['status'], [3, 4], true)) {
+            $pdo->rollBack();
+            respond_json(409, ['error' => 'Ein Einsatzleiter muss Status 3 oder 4 haben.']);
+        }
+        $is_rescue = is_rescue_incident_vehicle($selected);
+        if ($role === 'fire' && $is_rescue) {
+            $pdo->rollBack();
+            respond_json(409, ['error' => 'Einsatzleiter FW kann nur an ein Feuerwehrfahrzeug vergeben werden.']);
+        }
+        if ($role === 'medical' && !$is_rescue) {
+            $pdo->rollBack();
+            respond_json(409, ['error' => 'Einsatzleiter RD kann nur an ein Rettungsdienstfahrzeug vergeben werden.']);
+        }
+    }
+
+    $clear = $pdo->prepare('DELETE FROM event_leaders
+        WHERE session_id = ? AND event_id = ? AND role = ?');
+    $clear->execute([$sid, $event_id, $role]);
+    if ($vehicle_id !== null && $vehicle_id > 0) {
+        $insert = $pdo->prepare("INSERT INTO event_leaders (session_id, event_id, vehicle_id, role, source)
+            VALUES (?, ?, ?, ?, 'manual')");
+        $insert->execute([$sid, $event_id, $vehicle_id, $role]);
+    } elseif ($role === 'medical') {
+        reconcile_event_leaders($pdo, $sid, false);
+    }
+
+    $current->execute([$sid, $event_id, $role]);
+    $next_vehicle_id = $current->fetchColumn();
+    $next_vehicle_id = $next_vehicle_id !== false ? (int)$next_vehicle_id : null;
+    record_event_leader_change(
+        $pdo,
+        $sid,
+        $event_id,
+        $role,
+        $previous_vehicle_id,
+        $next_vehicle_id,
+        $role === 'medical' && ($vehicle_id === null || $vehicle_id <= 0)
+    );
+    touch_session($pdo, $sid);
+    $pdo->commit();
+    respond_json(200, ['ok' => true]);
 }
 
 function action_events_unassign(PDO $pdo): void {

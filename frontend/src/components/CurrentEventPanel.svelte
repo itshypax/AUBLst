@@ -41,6 +41,10 @@
   const assignedVehicles = $derived(app.vehicles.filter((vehicle) =>
     assignedIds.has(vehicle.id) && !(canStageAgain(vehicle) && app.dispatchVehicleIds.includes(vehicle.id))
   ));
+  const fireLeader = $derived(app.assignments.find((item) => Number(item.event_id) === currentEventId && item.leader_role === 'fire'));
+  const medicalLeader = $derived(app.assignments.find((item) => Number(item.event_id) === currentEventId && item.leader_role === 'medical'));
+  const fireLeaderVehicle = $derived(app.vehicles.find((vehicle) => vehicle.id === Number(fireLeader?.vehicle_id)));
+  const medicalLeaderVehicle = $derived(app.vehicles.find((vehicle) => vehicle.id === Number(medicalLeader?.vehicle_id)));
   const stagedVehicles = $derived(app.dispatchVehicleIds
     .map((id) => app.vehicles.find((vehicle) => vehicle.id === id))
     .filter((vehicle): vehicle is Vehicle => vehicle !== undefined)
@@ -155,6 +159,10 @@
 
   function modesAssignedTo(vehicleId: number): string[] {
     return assignedModes.get(vehicleId) ?? [];
+  }
+
+  function leaderRoleFor(vehicleId: number): 'fire' | 'medical' | null {
+    return app.assignments.find((item) => Number(item.event_id) === currentEventId && Number(item.vehicle_id) === vehicleId)?.leader_role ?? null;
   }
 
   function hospitalReservationFor(vehicle: Vehicle): HospitalReservation | undefined {
@@ -329,6 +337,11 @@
       </button>
     </div>
 
+    <div class="incident-command" aria-label="Einsatzleitung">
+      <span class="incident-leader"><i class="leader-dot fire" aria-hidden="true"></i><span class="leader-label">Einsatzleiter FW</span><span class="leader-name">{fireLeaderVehicle ? displayName(fireLeaderVehicle) : 'nicht bestimmt'}</span></span>
+      <span class="incident-leader"><i class="leader-dot rescue" aria-hidden="true"></i><span class="leader-label">Einsatzleiter RD</span><span class="leader-name">{medicalLeaderVehicle ? displayName(medicalLeaderVehicle) : 'nicht bestimmt'}</span></span>
+    </div>
+
     <div class="dispatch-toolbar">
       <div bind:this={vehicleCombobox} class="vehicle-combobox" onfocusout={onComboboxFocusout}>
         <label>
@@ -399,7 +412,7 @@
               oncontextmenu={(event) => {
                 if (previouslyAssigned) return;
                 event.preventDefault();
-                openVehicleMenu(vehicle.id, event.clientX, event.clientY);
+                if (currentEvent) openVehicleMenu(vehicle.id, event.clientX, event.clientY, currentEvent.id);
               }}
             >
               {#if previouslyAssigned || isHiddenUnit(vehicle)}<span aria-hidden="true"></span>{:else}<StatusBadge value={vehicle.status} />{/if}
@@ -419,9 +432,14 @@
                   {#if hospitalReservation}<span class="destination" class:intensive={hospitalReservation.bed_type === 'icu'}>→ {destination}</span>{/if}
                 </span>
               {/if}
-              {#if Number(vehicle.status) === 3}
-                <button class="ghost row-action" data-tooltip="Einrücken lassen" aria-label={`${displayName(vehicle)} einrücken lassen`} disabled={returning.has(vehicle.id) || !canWrite()} onclick={() => void sendHome(vehicle)}><FaIcon icon={Undo2} size={14} /></button>
-              {:else}<span></span>{/if}
+              <div class="row-actions">
+                {#if Number(vehicle.status) === 3}
+                  <button class="ghost row-action" data-tooltip="Einrücken lassen" aria-label={`${displayName(vehicle)} einrücken lassen`} disabled={returning.has(vehicle.id) || !canWrite()} onclick={() => void sendHome(vehicle)}><FaIcon icon={Undo2} size={14} /></button>
+                {/if}
+                {#if leaderRoleFor(vehicle.id)}
+                  <span class="leader-badge"><i class:fire={leaderRoleFor(vehicle.id) === 'fire'} class:rescue={leaderRoleFor(vehicle.id) === 'medical'} class="leader-dot" aria-hidden="true"></i>{leaderRoleFor(vehicle.id) === 'fire' ? 'EL-FW' : 'EL-RD'}</span>
+                {/if}
+              </div>
             </div>
           {/each}
           {#each stagedVehicles as vehicle (vehicle.id)}
@@ -487,6 +505,13 @@
   .event-meta { display: flex; align-items: center; gap: 9px; min-width: 0; color: var(--text-dim); font-size: 11px; }
   .event-meta > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .event-time { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+  .incident-command { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 5px 8px; border-bottom: 1px solid var(--border); font-size: 11px; }
+  .incident-leader { display: inline-flex; min-width: 0; align-items: center; gap: 5px; }
+  .leader-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }
+  .leader-dot.fire { background: var(--danger); }
+  .leader-dot.rescue { background: var(--warn); }
+  .leader-label { color: var(--text-dim); }
+  .leader-name { color: var(--text); font-weight: 600; }
   .alarm { min-height: 30px; }
   .dispatch-toolbar { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-bottom: 1px solid var(--border); }
   .vehicle-combobox { position: relative; flex: 1; min-width: 150px; }
@@ -506,7 +531,7 @@
   .dispatch-content { display: grid; grid-template-columns: minmax(220px, 1.1fr) minmax(180px, .9fr); flex: 1 1 auto; min-height: 0; }
   .vehicle-pane, .feedback-pane { min-width: 0; min-height: 0; }
   .vehicle-pane { display: flex; flex-direction: column; }
-  .table-head, .vehicle-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) 28px; align-items: center; gap: 6px; }
+  .table-head, .vehicle-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) minmax(28px, auto); align-items: center; gap: 6px; }
   .table-head { padding: 5px 8px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: 10px; font-weight: 600; }
   .vehicle-rows { min-height: 0; overflow: auto; }
   .vehicle-row { min-height: 34px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
@@ -524,6 +549,9 @@
   .vehicle-name.with-mode > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .vehicle-name select { min-width: 0; max-width: 100px; padding: 2px 4px; font-size: 10px; }
   .row-action { justify-self: end; }
+  .row-actions { display: flex; justify-content: flex-end; align-items: center; gap: 3px; }
+  .leader-badge { display: inline-flex; align-items: center; gap: 4px; min-height: 20px; padding: 2px 5px; border: 1px solid var(--border-strong); border-radius: 3px; background: var(--bg-raised); color: var(--text); font-size: 9px; font-weight: 600; line-height: 1; white-space: nowrap; }
+  .leader-badge .leader-dot { width: 5px; height: 5px; }
   .feedback-pane { display: flex; flex-direction: column; border-left: 1px solid var(--border); background: rgba(255, 255, 255, .012); }
   .feedback-head { display: flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: 10px; font-weight: 600; }
   .timeline { flex: 1 1 auto; min-height: 70px; overflow: auto; }

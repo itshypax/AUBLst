@@ -39,7 +39,7 @@ export const app = $state({
   currentEventHostedRemotely: false,
   dispatchVehicleIds: [] as number[],
   createEventPos: null as { x: number; y: number } | null,
-  contextMenu: null as { x: number; y: number; vehicleId: number } | null,
+  contextMenu: null as { x: number; y: number; vehicleId: number; eventId?: number } | null,
   focusPoint: null as { x: number; y: number; seq: number } | null,
   confirmDialog: null as { message: string; resolve: (ok: boolean) => void } | null,
   actionsOpen: false,
@@ -103,8 +103,8 @@ export function assignedEventForVehicle(vehicleId: number): EventItem | undefine
   return app.events.find((event) => event.id === Number(assignment.event_id) && event.status === 'active');
 }
 
-export function openVehicleMenu(vehicleId: number, x: number, y: number): void {
-  app.contextMenu = { x, y, vehicleId };
+export function openVehicleMenu(vehicleId: number, x: number, y: number, eventId?: number): void {
+  app.contextMenu = { x, y, vehicleId, ...(eventId === undefined ? {} : { eventId }) };
 }
 
 export function closeVehicleMenu(): void {

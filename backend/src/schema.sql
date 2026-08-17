@@ -142,6 +142,23 @@ CREATE TABLE IF NOT EXISTS assignments (
   CONSTRAINT fk_asg_player FOREIGN KEY (assigned_player_id) REFERENCES players(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS event_leaders (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  session_id INT NOT NULL,
+  event_id INT NOT NULL,
+  vehicle_id INT NOT NULL,
+  role ENUM('fire','medical') NOT NULL,
+  source ENUM('automatic','manual') NOT NULL DEFAULT 'manual',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_event_leader_role (event_id, role),
+  UNIQUE KEY uniq_event_leader_vehicle (event_id, vehicle_id),
+  INDEX idx_event_leader_session (session_id, event_id),
+  CONSTRAINT fk_event_leader_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_event_leader_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+  CONSTRAINT fk_event_leader_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS notes (
   id INT AUTO_INCREMENT PRIMARY KEY,
   session_id INT NOT NULL,

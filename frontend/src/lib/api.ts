@@ -6,6 +6,7 @@ const WRITE_ACTIONS = new Set([
   'events_assign',
   'events_reassign',
   'events_unassign',
+  'events_set_leader',
   'events_set_note',
   'vehicles_assign_player',
   'vehicles_alarm',

@@ -26,10 +26,15 @@ function action_state(PDO $pdo): void {
     $events->execute([$sid]);
     $events = $events->fetchAll();
 
-    $assignments = $pdo->prepare('SELECT a.event_id, a.vehicle_id, h.mode
+    if (reconcile_event_leaders($pdo, $sid)) touch_session($pdo, $sid);
+
+    $assignments = $pdo->prepare('SELECT a.event_id, a.vehicle_id, h.mode, leaders.role AS leader_role,
+            leaders.source AS leader_source
         FROM assignments a
         LEFT JOIN alarm_history h ON h.session_id = a.session_id
             AND h.event_id = a.event_id AND h.vehicle_id = a.vehicle_id AND h.mode IS NOT NULL
+        LEFT JOIN event_leaders leaders ON leaders.session_id = a.session_id
+            AND leaders.event_id = a.event_id AND leaders.vehicle_id = a.vehicle_id
         WHERE a.session_id = ? ORDER BY a.event_id, a.vehicle_id, h.id');
     $assignments->execute([$sid]);
     $assignmentRows = $assignments->fetchAll();
@@ -41,6 +46,8 @@ function action_state(PDO $pdo): void {
                 'event_id' => (int)$row['event_id'],
                 'vehicle_id' => (int)$row['vehicle_id'],
                 'alarm_modes' => [],
+                'leader_role' => $row['leader_role'],
+                'leader_source' => $row['leader_source'],
             ];
         }
         if ($row['mode'] !== null && trim((string)$row['mode']) !== '') {

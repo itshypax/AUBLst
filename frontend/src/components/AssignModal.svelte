@@ -7,7 +7,7 @@
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
   import { createRouteCalculator, formatDistance, type RouteDistance } from '../lib/routing';
-  import { app, canWrite, clearCurrentEvent, showNotice } from '../lib/state.svelte';
+  import { app, canWrite, clearCurrentEvent, openVehicleMenu, showNotice } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import type { AssignedVehicle, EventFeedback, LogRow, StateResponse, Vehicle } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
@@ -38,6 +38,8 @@
   let returning = $state<Set<number>>(new Set());
   let preflightUnavailable = $state<Set<number>>(new Set());
   const selectedPlayer = $derived(players.find((player) => String(player.id) === playerId));
+  const fireLeader = $derived(assigned?.find((vehicle) => vehicle.leader_role === 'fire'));
+  const medicalLeader = $derived(assigned?.find((vehicle) => vehicle.leader_role === 'medical'));
 
   interface TimelineEntry {
     id: string;
@@ -371,6 +373,11 @@
       <button class="ghost" data-tooltip="Schließen" aria-label="Schließen" disabled={busy} onclick={() => void close()}><FaIcon icon={X} size={18} /></button>
     </header>
 
+    <div class="incident-command" aria-label="Einsatzleitung">
+      <span class="incident-leader"><i class="leader-dot fire" aria-hidden="true"></i><span class="leader-label">Einsatzleiter FW</span><span class="leader-name">{fireLeader?.name || fireLeader?.game_vehicle_id || 'nicht bestimmt'}</span></span>
+      <span class="incident-leader"><i class="leader-dot rescue" aria-hidden="true"></i><span class="leader-label">Einsatzleiter RD</span><span class="leader-name">{medicalLeader?.name || medicalLeader?.game_vehicle_id || 'nicht bestimmt'}</span></span>
+    </div>
+
     <div class="body">
       <aside class="notes">
         <span class="block-label">Rückmeldungen</span>
@@ -406,7 +413,10 @@
             <span class="block-label">Bereits alarmiert</span>
             <div class="chips">
               {#each assigned as a (a.id)}
-                <span class="chip">
+                <span class="chip" role="group" aria-label={a.name || a.game_vehicle_id} oncontextmenu={(event) => {
+                  event.preventDefault();
+                  openVehicleMenu(a.id, event.clientX, event.clientY, eventId);
+                }}>
                   {#if !isHiddenUnit(a)}<StatusBadge value={a.status} />{/if}
                   {a.name || a.game_vehicle_id}{#each a.alarm_modes ?? [] as mode}<span class="assigned-mode">{` (${mode})`}</span>{/each}
                   {#if Number(a.status) === 3}
@@ -676,6 +686,14 @@
     flex-direction: column;
     gap: 6px;
   }
+
+  .incident-command { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 6px 16px; border-bottom: 1px solid var(--border); font-size: 11px; }
+  .incident-leader { display: inline-flex; min-width: 0; align-items: center; gap: 5px; }
+  .leader-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }
+  .leader-dot.fire { background: var(--danger); }
+  .leader-dot.rescue { background: var(--warn); }
+  .leader-label { color: var(--text-dim); }
+  .leader-name { color: var(--text); font-weight: 600; }
 
   .chips {
     display: flex;

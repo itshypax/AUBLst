@@ -116,6 +116,141 @@ function unassign_vehicle(PDO $pdo, $session_id, $vehicle_id): int {
     return $stmt->rowCount();
 }
 
+function event_leader_feedback_text(
+    string $role,
+    ?string $previous_vehicle,
+    ?string $next_vehicle,
+    bool $automatic = false
+): ?string {
+    if ($previous_vehicle === $next_vehicle) return null;
+
+    $leader = $role === 'medical' ? 'Einsatzleiter RD' : 'Einsatzleiter FW';
+    $mode = $automatic ? 'automatisch ' : '';
+    if ($previous_vehicle === null && $next_vehicle !== null) {
+        return $leader . ' ' . $mode . 'bestimmt: ' . $next_vehicle;
+    }
+    if ($previous_vehicle !== null && $next_vehicle === null) {
+        return $leader . ' ' . $mode . 'aufgehoben: ' . $previous_vehicle;
+    }
+    if ($previous_vehicle !== null && $next_vehicle !== null) {
+        return $leader . ' ' . $mode . 'gewechselt: ' . $previous_vehicle . ' → ' . $next_vehicle;
+    }
+    return null;
+}
+
+function event_leader_vehicle_label(PDO $pdo, $session_id, ?int $vehicle_id): ?string {
+    if ($vehicle_id === null) return null;
+    $stmt = $pdo->prepare('SELECT name, game_vehicle_id FROM vehicles WHERE session_id = ? AND id = ?');
+    $stmt->execute([$session_id, $vehicle_id]);
+    $vehicle = $stmt->fetch();
+    if (!$vehicle) return 'Fahrzeug #' . $vehicle_id;
+    $name = trim((string)($vehicle['name'] ?? ''));
+    return $name !== '' ? $name : (string)$vehicle['game_vehicle_id'];
+}
+
+function record_event_leader_change(
+    PDO $pdo,
+    $session_id,
+    int $event_id,
+    string $role,
+    ?int $previous_vehicle_id,
+    ?int $next_vehicle_id,
+    bool $automatic = false
+): void {
+    if ($previous_vehicle_id === $next_vehicle_id) return;
+    $content = event_leader_feedback_text(
+        $role,
+        event_leader_vehicle_label($pdo, $session_id, $previous_vehicle_id),
+        event_leader_vehicle_label($pdo, $session_id, $next_vehicle_id),
+        $automatic
+    );
+    if ($content === null) return;
+    $stmt = $pdo->prepare('INSERT INTO event_feedback (session_id, event_id, content) VALUES (?, ?, ?)');
+    $stmt->execute([$session_id, $event_id, $content]);
+}
+
+function reconcile_event_leaders(PDO $pdo, $session_id, bool $record_feedback = true): bool {
+    $changed = false;
+    $invalid = $pdo->prepare('SELECT leaders.event_id, leaders.role, leaders.vehicle_id, e.status AS event_status
+        FROM event_leaders leaders
+        LEFT JOIN assignments a ON a.session_id = leaders.session_id
+            AND a.event_id = leaders.event_id AND a.vehicle_id = leaders.vehicle_id
+        LEFT JOIN vehicles v ON v.session_id = leaders.session_id AND v.id = leaders.vehicle_id
+        LEFT JOIN events e ON e.session_id = leaders.session_id AND e.id = leaders.event_id
+        WHERE leaders.session_id = ?
+          AND (a.id IS NULL OR v.status NOT IN (3, 4) OR e.status <> \'active\')');
+    $invalid->execute([$session_id]);
+    $invalidLeaders = $invalid->fetchAll();
+
+    $stmt = $pdo->prepare('DELETE leaders FROM event_leaders leaders
+        LEFT JOIN assignments a ON a.session_id = leaders.session_id
+            AND a.event_id = leaders.event_id AND a.vehicle_id = leaders.vehicle_id
+        LEFT JOIN vehicles v ON v.session_id = leaders.session_id AND v.id = leaders.vehicle_id
+        LEFT JOIN events e ON e.session_id = leaders.session_id AND e.id = leaders.event_id
+        WHERE leaders.session_id = ?
+          AND (a.id IS NULL OR v.status NOT IN (3, 4) OR e.status <> \'active\')');
+    $stmt->execute([$session_id]);
+    $changed = $stmt->rowCount() > 0;
+
+    $previousMedical = [];
+    foreach ($invalidLeaders as $leader) {
+        if (($leader['event_status'] ?? null) !== 'active') continue;
+        $eventId = (int)$leader['event_id'];
+        $vehicleId = (int)$leader['vehicle_id'];
+        if ($leader['role'] === 'medical') {
+            $previousMedical[$eventId] = $vehicleId;
+        } elseif ($record_feedback) {
+            record_event_leader_change($pdo, $session_id, $eventId, 'fire', $vehicleId, null);
+        }
+    }
+
+    $events = $pdo->prepare("SELECT id FROM events WHERE session_id = ? AND status = 'active'");
+    $events->execute([$session_id]);
+    $vehicles = $pdo->prepare('SELECT v.id, v.game_vehicle_id, v.name, v.type, v.status,
+            COALESCE(
+                MIN(CASE WHEN h.status = 4 AND h.created_at >= a.created_at THEN h.created_at END),
+                CASE WHEN v.status = 4 THEN a.created_at END
+            ) AS first_status_4_at
+        FROM assignments a
+        JOIN vehicles v ON v.session_id = a.session_id AND v.id = a.vehicle_id
+        LEFT JOIN vehicle_status_history h ON h.session_id = a.session_id AND h.vehicle_id = a.vehicle_id
+        WHERE a.session_id = ? AND a.event_id = ?
+        GROUP BY v.id, v.game_vehicle_id, v.name, v.type, v.status, a.created_at');
+    $current = $pdo->prepare("SELECT vehicle_id, source FROM event_leaders
+        WHERE session_id = ? AND event_id = ? AND role = 'medical'");
+    $clear = $pdo->prepare("DELETE FROM event_leaders
+        WHERE session_id = ? AND event_id = ? AND role = 'medical'");
+    $insert = $pdo->prepare("INSERT INTO event_leaders (session_id, event_id, vehicle_id, role, source)
+        VALUES (?, ?, ?, 'medical', 'automatic')");
+
+    foreach ($events->fetchAll(PDO::FETCH_COLUMN) as $event_id) {
+        $current->execute([$session_id, $event_id]);
+        $currentLeader = $current->fetch();
+        if ($currentLeader && $currentLeader['source'] === 'manual') continue;
+        $selected = $currentLeader
+            ? (int)$currentLeader['vehicle_id']
+            : ($previousMedical[(int)$event_id] ?? null);
+        $vehicles->execute([$session_id, $event_id]);
+        $candidate = select_medical_incident_leader($vehicles->fetchAll());
+        if ($selected === $candidate) continue;
+        $clear->execute([$session_id, $event_id]);
+        if ($candidate !== null) $insert->execute([$session_id, $event_id, $candidate]);
+        if ($record_feedback) {
+            record_event_leader_change(
+                $pdo,
+                $session_id,
+                (int)$event_id,
+                'medical',
+                $selected,
+                $candidate,
+                true
+            );
+        }
+        $changed = true;
+    }
+    return $changed;
+}
+
 function get_vehicle_by_game_id(PDO $pdo, $session_id, $game_vehicle_id) {
     $stmt = $pdo->prepare('SELECT * FROM vehicles WHERE session_id = ? AND game_vehicle_id = ?');
     $stmt->execute([$session_id, $game_vehicle_id]);

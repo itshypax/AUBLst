@@ -387,7 +387,7 @@
   }
 
   .group-header.rescue {
-    border-left: 3px solid var(--good);
+    border-left: 3px solid var(--warn);
   }
 
   .row {

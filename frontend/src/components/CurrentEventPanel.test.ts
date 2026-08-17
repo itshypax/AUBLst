@@ -129,6 +129,33 @@ describe('Aktueller Einsatz', () => {
     expect(container.querySelector('.vehicle-row.staged')).not.toBeNull();
   });
 
+  it('zeigt beide Einsatzleiter ausgeschrieben unter den Einsatzdaten', () => {
+    app.vehicles = [
+      { id: 1, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', type: 'HLF', modes: null, x: 0, y: 0, status: 3, assigned_player_id: null },
+      { id: 2, game_vehicle_id: '1_RTW_A', name: '1-RTW-A', type: 'RTW', modes: null, x: 0, y: 0, status: 4, assigned_player_id: null },
+    ];
+    app.assignments = [
+      { event_id: 1030, vehicle_id: 1, leader_role: 'fire' },
+      { event_id: 1030, vehicle_id: 2, leader_role: 'medical' },
+    ];
+    const { container } = render(CurrentEventPanel);
+
+    const command = screen.getByLabelText('Einsatzleitung');
+    expect(command.textContent).toContain('Einsatzleiter FW1-HLF-1');
+    expect(command.textContent).toContain('Einsatzleiter RD1-RTW-A');
+    expect(command.querySelector('.leader-dot.fire')).toBeTruthy();
+    expect(command.querySelector('.leader-dot.rescue')).toBeTruthy();
+    const rows = Array.from(container.querySelectorAll<HTMLElement>('.vehicle-row.assigned'));
+    const fireBadge = rows.find((row) => row.textContent?.includes('1-HLF-1'))?.querySelector('.leader-badge');
+    const rescueBadge = rows.find((row) => row.textContent?.includes('1-RTW-A'))?.querySelector('.leader-badge');
+    expect(fireBadge?.textContent).toContain('EL-FW');
+    expect(fireBadge?.querySelector('.leader-dot.fire')).toBeTruthy();
+    expect(fireBadge?.parentElement?.lastElementChild).toBe(fireBadge);
+    expect(rescueBadge?.textContent).toContain('EL-RD');
+    expect(rescueBadge?.querySelector('.leader-dot.rescue')).toBeTruthy();
+    expect(container.querySelector('.leader-toggle')).toBeNull();
+  });
+
   it('merkt Polizei, Bestatter und Abschlepper über die Schnellwahl vor', async () => {
     app.logs = [];
     app.assignments = [];
@@ -203,7 +230,7 @@ describe('Aktueller Einsatz', () => {
 
     await fireEvent.contextMenu(row!, { clientX: 140, clientY: 85 });
 
-    expect(app.contextMenu).toEqual({ vehicleId: 4, x: 140, y: 85 });
+    expect(app.contextMenu).toEqual({ vehicleId: 4, eventId: 1030, x: 140, y: 85 });
   });
 
   it('öffnet für eine frühere kursive Beteiligung kein Fahrzeugmenü', async () => {

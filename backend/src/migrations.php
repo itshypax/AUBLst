@@ -194,6 +194,32 @@ function migration_definitions(): array {
                     ADD COLUMN acknowledged TINYINT(1) NOT NULL DEFAULT 0 AFTER state');
             }
         },
+        '2026081801_event_leaders' => static function (PDO $pdo): void {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS event_leaders (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                session_id INT NOT NULL,
+                event_id INT NOT NULL,
+                vehicle_id INT NOT NULL,
+                role ENUM('fire','medical') NOT NULL,
+                source ENUM('automatic','manual') NOT NULL DEFAULT 'manual',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_event_leader_role (event_id, role),
+                UNIQUE KEY uniq_event_leader_vehicle (event_id, vehicle_id),
+                INDEX idx_event_leader_session (session_id, event_id),
+                CONSTRAINT fk_event_leader_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                CONSTRAINT fk_event_leader_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+                CONSTRAINT fk_event_leader_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+        },
+        '2026081802_event_leader_source' => static function (PDO $pdo): void {
+            if (!database_column_exists($pdo, 'event_leaders', 'source')) {
+                $pdo->exec("ALTER TABLE event_leaders
+                    ADD COLUMN source ENUM('automatic','manual') NOT NULL DEFAULT 'automatic' AFTER role");
+                $pdo->exec("ALTER TABLE event_leaders
+                    MODIFY source ENUM('automatic','manual') NOT NULL DEFAULT 'manual'");
+            }
+        },
     ];
 }
 

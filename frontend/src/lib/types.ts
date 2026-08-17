@@ -113,6 +113,8 @@ export interface AssignedVehicle {
   game_vehicle_id: string;
   status: number;
   alarm_modes?: string[];
+  leader_role?: IncidentLeaderRole | null;
+  leader_source?: IncidentLeaderSource | null;
 }
 
 export interface EventNote {
@@ -125,7 +127,12 @@ export interface Assignment {
   event_id: number;
   vehicle_id: number;
   alarm_modes?: string[];
+  leader_role?: IncidentLeaderRole | null;
+  leader_source?: IncidentLeaderSource | null;
 }
+
+export type IncidentLeaderRole = 'fire' | 'medical';
+export type IncidentLeaderSource = 'automatic' | 'manual';
 
 export interface EventFeedback {
   id: number;

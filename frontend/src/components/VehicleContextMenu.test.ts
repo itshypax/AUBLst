@@ -41,6 +41,55 @@ describe('Fahrzeugmenü', () => {
     expect(screen.queryByRole('menuitem', { name: /Status \d setzen/ })).toBeNull();
   });
 
+  it('zeigt die Einsatzleiteraktionen nicht in der Fahrzeugübersicht', () => {
+    app.events = [{ id: 1000, game_event_id: '10', name: 'Wohnungsbrand', x: 0, y: 0, status: 'active', created_by: 'game' }];
+    app.assignments = [{ event_id: 1000, vehicle_id: 1 }];
+    render(VehicleContextMenu);
+
+    expect(screen.queryByRole('menuitem', { name: /Einsatzleiter FW|Einsatzleiter RD/ })).toBeNull();
+  });
+
+  it('setzt den Einsatzleiter FW aus dem einsatzbezogenen Rechtsklickmenü', async () => {
+    const user = userEvent.setup();
+    app.events = [{ id: 1000, game_event_id: '10', name: 'Wohnungsbrand', x: 0, y: 0, status: 'active', created_by: 'game' }];
+    app.assignments = [{ event_id: 1000, vehicle_id: 1 }];
+    app.contextMenu = { x: 20, y: 20, vehicleId: 1, eventId: 1000 };
+    mocks.api.mockResolvedValue({ ok: true });
+    render(VehicleContextMenu);
+
+    await user.click(screen.getByRole('menuitem', { name: 'Als Einsatzleiter FW setzen' }));
+
+    expect(mocks.api).toHaveBeenCalledWith('events_set_leader', { event_id: 1000, vehicle_id: 1, role: 'fire' });
+  });
+
+  it('übersteuert die automatische Auswahl des Einsatzleiters RD manuell', async () => {
+    const user = userEvent.setup();
+    app.vehicles[0] = { ...app.vehicles[0], game_vehicle_id: '72_RTW_1', name: '72-RTW-1', type: 'RTW' };
+    app.events = [{ id: 1000, game_event_id: '10', name: 'MANV', x: 0, y: 0, status: 'active', created_by: 'game' }];
+    app.assignments = [{ event_id: 1000, vehicle_id: 1, leader_role: 'medical', leader_source: 'automatic' }];
+    app.contextMenu = { x: 20, y: 20, vehicleId: 1, eventId: 1000 };
+    mocks.api.mockResolvedValue({ ok: true });
+    render(VehicleContextMenu);
+
+    await user.click(screen.getByRole('menuitem', { name: 'Einsatzleiter RD manuell festlegen' }));
+
+    expect(mocks.api).toHaveBeenCalledWith('events_set_leader', { event_id: 1000, vehicle_id: 1, role: 'medical' });
+  });
+
+  it('schaltet den manuellen Einsatzleiter RD zurück auf Automatik', async () => {
+    const user = userEvent.setup();
+    app.vehicles[0] = { ...app.vehicles[0], game_vehicle_id: '72_RTW_1', name: '72-RTW-1', type: 'RTW' };
+    app.events = [{ id: 1000, game_event_id: '10', name: 'MANV', x: 0, y: 0, status: 'active', created_by: 'game' }];
+    app.assignments = [{ event_id: 1000, vehicle_id: 1, leader_role: 'medical', leader_source: 'manual' }];
+    app.contextMenu = { x: 20, y: 20, vehicleId: 1, eventId: 1000 };
+    mocks.api.mockResolvedValue({ ok: true });
+    render(VehicleContextMenu);
+
+    await user.click(screen.getByRole('menuitem', { name: 'Einsatzleiter RD automatisch bestimmen' }));
+
+    expect(mocks.api).toHaveBeenCalledWith('events_set_leader', { event_id: 1000, vehicle_id: null, role: 'medical' });
+  });
+
   it('ordnet ein Fahrzeug lokal einem anderen Einsatz zu', async () => {
     const user = userEvent.setup();
     app.events = [

@@ -25,6 +25,15 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Klinikziele in der Fahrzeugübersicht', () => {
+  it('kennzeichnet Rettungswachen mit einer orangenen Linie', async () => {
+    const user = userEvent.setup();
+    render(VehiclesPanel);
+    await user.click(screen.getByRole('tab', { name: /Rettungsdienst/ }));
+
+    const header = screen.getByText('Rettungswache 72').closest('.group-header');
+    expect(header?.classList.contains('rescue')).toBe(true);
+  });
+
   it('bietet Fahrzeugaktionen nicht mehr über einen Drei-Punkte-Knopf an', async () => {
     const user = userEvent.setup();
     render(VehiclesPanel);

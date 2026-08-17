@@ -74,7 +74,22 @@ describe('Sprechwunsch-Tabelle', () => {
     await vi.advanceTimersByTimeAsync(220);
 
     expect(app.assignEvent?.id).toBe(1030);
+    expect(app.highlightedVehicleId).toBe(4);
+    expect(app.focusPoint).toMatchObject({ x: 0, y: 0 });
     expect(mocks.acknowledgeLog).toHaveBeenCalledWith(21);
+  });
+
+  it('fokussiert auch einen Sprechwunsch ohne Einsatzbezug auf der Karte', async () => {
+    app.assignments = [];
+    app.logs = [{ ...app.logs[0], event_id: null }];
+    render(SpeechRequestsPanel);
+
+    await fireEvent.click(screen.getByText('4-RTW-B'));
+    await vi.advanceTimersByTimeAsync(220);
+
+    expect(app.assignEvent).toBeNull();
+    expect(app.highlightedVehicleId).toBe(4);
+    expect(app.focusPoint).toMatchObject({ x: 0, y: 0 });
   });
 
   it('erledigt einen Sprechwunsch mit Doppelklick', async () => {
