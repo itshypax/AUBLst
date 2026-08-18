@@ -81,27 +81,25 @@
   }
 
   function leaderActionLabel(role: IncidentLeaderRole): string {
-    if (role === 'fire') return leaderAssignment?.leader_role === role ? 'Einsatzleiter FW entfernen' : 'Als Einsatzleiter FW setzen';
-    if (leaderAssignment?.leader_role !== role) return 'Als Einsatzleiter RD setzen';
+    if (leaderAssignment?.leader_role !== role) return role === 'fire' ? 'Als Einsatzleiter FW setzen' : 'Als Einsatzleiter RD setzen';
     return leaderAssignment.leader_source === 'manual'
-      ? 'Einsatzleiter RD automatisch bestimmen'
-      : 'Einsatzleiter RD manuell festlegen';
+      ? `Einsatzleiter ${role === 'fire' ? 'FW' : 'RD'} automatisch bestimmen`
+      : `Einsatzleiter ${role === 'fire' ? 'FW' : 'RD'} manuell festlegen`;
   }
 
   async function setLeader(role: IncidentLeaderRole): Promise<void> {
     if (!vehicle || !leaderEvent || changingLeader) return;
     changingLeader = true;
-    const resetRole = leaderAssignment?.leader_role === role
-      && (role === 'fire' || leaderAssignment.leader_source === 'manual');
+    const resetRole = leaderAssignment?.leader_role === role && leaderAssignment.leader_source === 'manual';
     try {
       await api('events_set_leader', {
         event_id: leaderEvent.id,
         vehicle_id: resetRole ? null : vehicle.id,
         role,
       });
-      showNotice(role === 'fire'
-        ? (resetRole ? 'Einsatzleiter FW entfernt' : `${vehicle.name || vehicle.game_vehicle_id} ist Einsatzleiter FW`)
-        : (resetRole ? 'Einsatzleiter RD wird wieder automatisch bestimmt' : `${vehicle.name || vehicle.game_vehicle_id} ist Einsatzleiter RD`));
+      showNotice(resetRole
+        ? `Einsatzleiter ${role === 'fire' ? 'FW' : 'RD'} wird wieder automatisch bestimmt`
+        : `${vehicle.name || vehicle.game_vehicle_id} ist Einsatzleiter ${role === 'fire' ? 'FW' : 'RD'}`);
       closeVehicleMenu();
       await refreshState();
     } catch (err) {

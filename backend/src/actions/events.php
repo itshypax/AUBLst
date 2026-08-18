@@ -319,7 +319,7 @@ function action_events_set_leader(PDO $pdo): void {
         $insert = $pdo->prepare("INSERT INTO event_leaders (session_id, event_id, vehicle_id, role, source)
             VALUES (?, ?, ?, ?, 'manual')");
         $insert->execute([$sid, $event_id, $vehicle_id, $role]);
-    } elseif ($role === 'medical') {
+    } else {
         reconcile_event_leaders($pdo, $sid, false);
     }
 
@@ -333,7 +333,7 @@ function action_events_set_leader(PDO $pdo): void {
         $role,
         $previous_vehicle_id,
         $next_vehicle_id,
-        $role === 'medical' && ($vehicle_id === null || $vehicle_id <= 0)
+        $vehicle_id === null || $vehicle_id <= 0
     );
     touch_session($pdo, $sid);
     $pdo->commit();

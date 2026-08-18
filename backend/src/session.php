@@ -72,6 +72,11 @@ function require_session(PDO $pdo, ?string $token, ?string $pin = null, bool $en
         if (!$pinMatches) {
             guard_auth_rate_limit($pdo, true, $token);
             record_auth_failure($pdo, true, $token);
+            error_log(sprintf(
+                '[aublst] auth failure: falsche PIN fuer Session %s von %s',
+                $token,
+                $_SERVER['REMOTE_ADDR'] ?? 'local'
+            ));
             respond_json(401, ['error' => 'Unauthorized! The correct pin is required to execute this action.']);
         }
         clear_auth_failures($pdo, true, $token);

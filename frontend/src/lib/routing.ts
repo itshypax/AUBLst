@@ -278,16 +278,12 @@ export function nearestRoadSnap(point: Point, config: RoutingConfig): RoadSnap |
   return projection ? publicSnap(projection) : null;
 }
 
-function distancesFromProjection(config: RoutingConfig, origin: EdgeProjection): Map<string, number> {
-  const graph = validGraph(config);
-  const distances = new Map<string, number>([
-    [origin.from.id, origin.edgeMeters * origin.t],
-    [origin.to.id, origin.edgeMeters * (1 - origin.t)],
-  ]);
-  const visited = new Set<string>();
-  const heap: Array<{ id: string; distance: number }> = [];
+type DistanceEntry = { id: string; distance: number };
 
-  function push(item: { id: string; distance: number }): void {
+function createDistanceHeap(): { push(item: DistanceEntry): void; pop(): DistanceEntry | null; size(): number } {
+  const heap: DistanceEntry[] = [];
+
+  function push(item: DistanceEntry): void {
     heap.push(item);
     let index = heap.length - 1;
     while (index > 0) {
@@ -299,7 +295,7 @@ function distancesFromProjection(config: RoutingConfig, origin: EdgeProjection):
     heap[index] = item;
   }
 
-  function pop(): { id: string; distance: number } | null {
+  function pop(): DistanceEntry | null {
     if (!heap.length) return null;
     const first = heap[0];
     const last = heap.pop()!;
@@ -319,10 +315,22 @@ function distancesFromProjection(config: RoutingConfig, origin: EdgeProjection):
     return first;
   }
 
-  for (const [id, distance] of distances) push({ id, distance });
+  return { push, pop, size: () => heap.length };
+}
 
-  while (heap.length) {
-    const current = pop()!;
+function distancesFromProjection(config: RoutingConfig, origin: EdgeProjection): Map<string, number> {
+  const graph = validGraph(config);
+  const distances = new Map<string, number>([
+    [origin.from.id, origin.edgeMeters * origin.t],
+    [origin.to.id, origin.edgeMeters * (1 - origin.t)],
+  ]);
+  const visited = new Set<string>();
+  const heap = createDistanceHeap();
+
+  for (const [id, distance] of distances) heap.push({ id, distance });
+
+  while (heap.size()) {
+    const current = heap.pop()!;
     const currentId = current.id;
     const currentDistance = current.distance;
     if (visited.has(currentId) || currentDistance !== distances.get(currentId)) continue;
@@ -331,7 +339,7 @@ function distancesFromProjection(config: RoutingConfig, origin: EdgeProjection):
       const candidate = currentDistance + neighbor.length;
       if (candidate < (distances.get(neighbor.id) ?? Number.POSITIVE_INFINITY)) {
         distances.set(neighbor.id, candidate);
-        push({ id: neighbor.id, distance: candidate });
+        heap.push({ id: neighbor.id, distance: candidate });
       }
     }
   }
@@ -354,20 +362,19 @@ function shortestRoadPath(config: RoutingConfig, start: EdgeProjection, end: Edg
   const distances = new Map<string, number>();
   const previous = new Map<string, string>();
   const visited = new Set<string>();
-  const queue: Array<{ id: string; distance: number }> = [];
+  const heap = createDistanceHeap();
 
   function seed(id: string, distance: number): void {
     if (distance >= (distances.get(id) ?? Number.POSITIVE_INFINITY)) return;
     distances.set(id, distance);
-    queue.push({ id, distance });
+    heap.push({ id, distance });
   }
 
   seed(start.from.id, start.edgeMeters * start.t);
   seed(start.to.id, start.edgeMeters * (1 - start.t));
 
-  while (queue.length) {
-    queue.sort((left, right) => right.distance - left.distance);
-    const current = queue.pop()!;
+  while (heap.size()) {
+    const current = heap.pop()!;
     if (visited.has(current.id) || current.distance !== distances.get(current.id)) continue;
     visited.add(current.id);
     for (const neighbor of graph.adjacency.get(current.id) ?? []) {
@@ -375,7 +382,7 @@ function shortestRoadPath(config: RoutingConfig, start: EdgeProjection, end: Edg
       if (candidate >= (distances.get(neighbor.id) ?? Number.POSITIVE_INFINITY)) continue;
       distances.set(neighbor.id, candidate);
       previous.set(neighbor.id, current.id);
-      queue.push({ id: neighbor.id, distance: candidate });
+      heap.push({ id: neighbor.id, distance: candidate });
     }
   }
 

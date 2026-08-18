@@ -62,6 +62,20 @@ describe('Fahrzeugmenü', () => {
     expect(mocks.api).toHaveBeenCalledWith('events_set_leader', { event_id: 1000, vehicle_id: 1, role: 'fire' });
   });
 
+  it('schaltet den manuellen Einsatzleiter FW zurück auf Automatik', async () => {
+    const user = userEvent.setup();
+    app.vehicles[0] = { ...app.vehicles[0], game_vehicle_id: '2_ELW_1', name: '2-ELW-1', type: 'ELW' };
+    app.events = [{ id: 1000, game_event_id: '10', name: 'Wohnungsbrand', x: 0, y: 0, status: 'active', created_by: 'game' }];
+    app.assignments = [{ event_id: 1000, vehicle_id: 1, leader_role: 'fire', leader_source: 'manual' }];
+    app.contextMenu = { x: 20, y: 20, vehicleId: 1, eventId: 1000 };
+    mocks.api.mockResolvedValue({ ok: true });
+    render(VehicleContextMenu);
+
+    await user.click(screen.getByRole('menuitem', { name: 'Einsatzleiter FW automatisch bestimmen' }));
+
+    expect(mocks.api).toHaveBeenCalledWith('events_set_leader', { event_id: 1000, vehicle_id: null, role: 'fire' });
+  });
+
   it('übersteuert die automatische Auswahl des Einsatzleiters RD manuell', async () => {
     const user = userEvent.setup();
     app.vehicles[0] = { ...app.vehicles[0], game_vehicle_id: '72_RTW_1', name: '72-RTW-1', type: 'RTW' };

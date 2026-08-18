@@ -81,3 +81,33 @@ function select_medical_incident_leader(array $vehicles): ?int {
     }
     return null;
 }
+
+function normalized_incident_vehicle_id(array $vehicle): string {
+    $identifier = trim((string)($vehicle['game_vehicle_id'] ?? ''));
+    if ($identifier === '') $identifier = trim((string)($vehicle['name'] ?? ''));
+    return trim((string)preg_replace('/[^A-Z0-9]+/', '_', strtoupper($identifier)), '_');
+}
+
+function select_fire_incident_leader(array $vehicles): ?int {
+    $eligible = array_values(array_filter($vehicles, static function (array $vehicle): bool {
+        return in_array((int)($vehicle['status'] ?? -1), [3, 4], true)
+            && !empty($vehicle['first_status_4_at']);
+    }));
+    usort($eligible, static function (array $left, array $right): int {
+        return strcmp((string)$left['first_status_4_at'], (string)$right['first_status_4_at'])
+            ?: ((int)$left['id'] <=> (int)$right['id']);
+    });
+
+    foreach (['1_KDOW_1', '4_ELW_1'] as $commandVehicleId) {
+        foreach ($eligible as $vehicle) {
+            if (normalized_incident_vehicle_id($vehicle) === $commandVehicleId) return (int)$vehicle['id'];
+        }
+    }
+    foreach ($eligible as $vehicle) {
+        if (vehicle_has_incident_type($vehicle, 'ELW')) return (int)$vehicle['id'];
+    }
+    foreach ($eligible as $vehicle) {
+        if (vehicle_has_incident_type($vehicle, 'HLF')) return (int)$vehicle['id'];
+    }
+    return null;
+}

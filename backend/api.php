@@ -75,9 +75,22 @@ try {
     $pdo = pdo_conn();
     $handler = ACTIONS[$action];
     $handler($pdo);
-} catch (Exception $e) {
+} catch (Throwable $e) {
     if (isset($pdo) && $pdo->inTransaction()) {
-        $pdo->rollBack();
+        try {
+            $pdo->rollBack();
+        } catch (Throwable $rollbackError) {
+            error_log('[aublst] rollback failed: ' . $rollbackError->getMessage());
+        }
     }
-    respond_json(500, ['error' => $e->getMessage()]);
+    // Details nur ins Server-Log - PDO-Fehlertexte enthalten Query-Fragmente
+    error_log(sprintf(
+        '[aublst] action=%s %s: %s in %s:%d',
+        $action ?? '-',
+        get_class($e),
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine()
+    ));
+    respond_json(500, ['error' => 'Internal server error']);
 }

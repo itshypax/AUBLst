@@ -192,16 +192,13 @@ function reconcile_event_leaders(PDO $pdo, $session_id, bool $record_feedback = 
     $stmt->execute([$session_id]);
     $changed = $stmt->rowCount() > 0;
 
-    $previousMedical = [];
+    $previousLeaders = ['fire' => [], 'medical' => []];
     foreach ($invalidLeaders as $leader) {
         if (($leader['event_status'] ?? null) !== 'active') continue;
         $eventId = (int)$leader['event_id'];
         $vehicleId = (int)$leader['vehicle_id'];
-        if ($leader['role'] === 'medical') {
-            $previousMedical[$eventId] = $vehicleId;
-        } elseif ($record_feedback) {
-            record_event_leader_change($pdo, $session_id, $eventId, 'fire', $vehicleId, null);
-        }
+        $role = (string)$leader['role'];
+        if (isset($previousLeaders[$role])) $previousLeaders[$role][$eventId] = $vehicleId;
     }
 
     $events = $pdo->prepare("SELECT id FROM events WHERE session_id = ? AND status = 'active'");
@@ -216,37 +213,44 @@ function reconcile_event_leaders(PDO $pdo, $session_id, bool $record_feedback = 
         LEFT JOIN vehicle_status_history h ON h.session_id = a.session_id AND h.vehicle_id = a.vehicle_id
         WHERE a.session_id = ? AND a.event_id = ?
         GROUP BY v.id, v.game_vehicle_id, v.name, v.type, v.status, a.created_at');
-    $current = $pdo->prepare("SELECT vehicle_id, source FROM event_leaders
-        WHERE session_id = ? AND event_id = ? AND role = 'medical'");
-    $clear = $pdo->prepare("DELETE FROM event_leaders
-        WHERE session_id = ? AND event_id = ? AND role = 'medical'");
+    $current = $pdo->prepare('SELECT vehicle_id, source FROM event_leaders
+        WHERE session_id = ? AND event_id = ? AND role = ?');
+    $clear = $pdo->prepare('DELETE FROM event_leaders
+        WHERE session_id = ? AND event_id = ? AND role = ?');
     $insert = $pdo->prepare("INSERT INTO event_leaders (session_id, event_id, vehicle_id, role, source)
-        VALUES (?, ?, ?, 'medical', 'automatic')");
+        VALUES (?, ?, ?, ?, 'automatic')");
 
     foreach ($events->fetchAll(PDO::FETCH_COLUMN) as $event_id) {
-        $current->execute([$session_id, $event_id]);
-        $currentLeader = $current->fetch();
-        if ($currentLeader && $currentLeader['source'] === 'manual') continue;
-        $selected = $currentLeader
-            ? (int)$currentLeader['vehicle_id']
-            : ($previousMedical[(int)$event_id] ?? null);
         $vehicles->execute([$session_id, $event_id]);
-        $candidate = select_medical_incident_leader($vehicles->fetchAll());
-        if ($selected === $candidate) continue;
-        $clear->execute([$session_id, $event_id]);
-        if ($candidate !== null) $insert->execute([$session_id, $event_id, $candidate]);
-        if ($record_feedback) {
-            record_event_leader_change(
-                $pdo,
-                $session_id,
-                (int)$event_id,
-                'medical',
-                $selected,
-                $candidate,
-                true
-            );
+        $assignedVehicles = $vehicles->fetchAll();
+        $candidates = [
+            'fire' => select_fire_incident_leader($assignedVehicles),
+            'medical' => select_medical_incident_leader($assignedVehicles),
+        ];
+
+        foreach ($candidates as $role => $candidate) {
+            $current->execute([$session_id, $event_id, $role]);
+            $currentLeader = $current->fetch();
+            if ($currentLeader && $currentLeader['source'] === 'manual') continue;
+            $selected = $currentLeader
+                ? (int)$currentLeader['vehicle_id']
+                : ($previousLeaders[$role][(int)$event_id] ?? null);
+            if ($selected === $candidate) continue;
+            $clear->execute([$session_id, $event_id, $role]);
+            if ($candidate !== null) $insert->execute([$session_id, $event_id, $candidate, $role]);
+            if ($record_feedback) {
+                record_event_leader_change(
+                    $pdo,
+                    $session_id,
+                    (int)$event_id,
+                    $role,
+                    $selected,
+                    $candidate,
+                    true
+                );
+            }
+            $changed = true;
         }
-        $changed = true;
     }
     return $changed;
 }

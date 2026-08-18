@@ -106,6 +106,39 @@ test_case('Das erste eingetroffene NEF übernimmt den Einsatzleiter RD', static 
     expect_same(1, select_medical_incident_leader($vehicles));
 });
 
+test_case('Einsatzleiter FW folgt der Reihenfolge HLF, ELW, B-Dienst und A-Dienst', static function (): void {
+    $vehicles = [
+        ['id' => 1, 'game_vehicle_id' => '2_HLF_1', 'type' => 'HLF', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:02:00'],
+        ['id' => 2, 'game_vehicle_id' => '3_HLF_1', 'type' => 'HLF', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:04:00'],
+    ];
+    expect_same(1, select_fire_incident_leader($vehicles));
+
+    $vehicles[] = ['id' => 3, 'game_vehicle_id' => '2_ELW_1', 'type' => 'ELW', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:06:00'];
+    expect_same(3, select_fire_incident_leader($vehicles));
+
+    $vehicles[] = ['id' => 4, 'game_vehicle_id' => '4_ELW_1', 'type' => 'ELW', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:08:00'];
+    expect_same(4, select_fire_incident_leader($vehicles));
+
+    $vehicles[] = ['id' => 5, 'game_vehicle_id' => '1_KDOW_1', 'type' => 'KDOW', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:10:00'];
+    expect_same(5, select_fire_incident_leader($vehicles));
+
+    $vehicles[4]['status'] = 7;
+    expect_same(4, select_fire_incident_leader($vehicles));
+    $vehicles[3]['status'] = 1;
+    expect_same(3, select_fire_incident_leader($vehicles));
+    $vehicles[2]['status'] = 1;
+    expect_same(1, select_fire_incident_leader($vehicles));
+});
+
+test_case('Einsatzleiter FW wird erst nach Status 4 automatisch bestimmt', static function (): void {
+    expect_same(null, select_fire_incident_leader([
+        ['id' => 1, 'game_vehicle_id' => '2-HLF-1', 'type' => 'HLF', 'status' => 3, 'first_status_4_at' => null],
+        ['id' => 2, 'game_vehicle_id' => '2-ELW-1', 'type' => 'ELW', 'status' => 3, 'first_status_4_at' => null],
+        ['id' => 3, 'game_vehicle_id' => '4-ELW-1', 'type' => 'ELW', 'status' => 3, 'first_status_4_at' => null],
+        ['id' => 4, 'game_vehicle_id' => '1-KDOW-1', 'type' => 'KDOW', 'status' => 3, 'first_status_4_at' => null],
+    ]));
+});
+
 test_case('Einsatzleiterwechsel werden als Rückmeldung formuliert', static function (): void {
     expect_same(
         'Einsatzleiter FW bestimmt: 1-HLF-1',
