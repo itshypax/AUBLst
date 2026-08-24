@@ -1,6 +1,6 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
-  import { Hospital as HospitalIcon, Map as MapIcon } from '../lib/fontawesome-icons';
+  import { Map as MapIcon } from '../lib/fontawesome-icons';
   import { reservationAffectsCapacity } from '../lib/hospital-reservations';
   import { app } from '../lib/state.svelte';
 
@@ -64,7 +64,6 @@
 
 <section class="panel">
   <div class="panel-header">
-    <span class="icon"><FaIcon icon={HospitalIcon} size={14} /></span>
     <h2>Krankenhäuser</h2>
   </div>
   <div class="panel-body">

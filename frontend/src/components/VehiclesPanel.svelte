@@ -1,6 +1,6 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
-  import { Check, Hospital, Play, Plus, Search, TrafficCone, TriangleAlert, Truck, Undo2 } from '../lib/fontawesome-icons';
+  import { Check, Hospital, Play, Plus, Search, TrafficCone, TriangleAlert, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
   import { actionUnits, hasLoeschzug, isHiddenUnit, isHospitalTransportUnit, loeschzugFor, stationColumns, stationGroups, tabLabel, vehicleDisplayName, vehicleTypeLabel, type MainTab, type StationGroup } from '../lib/classify';
   import { refreshState } from '../lib/polling';
@@ -154,7 +154,6 @@
 
 <section class="panel">
   <div class="panel-header">
-    <span class="icon"><FaIcon icon={Truck} size={14} /></span>
     <h2>Fahrzeuge</h2>
     <span class="spacer"></span>
     <label class="vehicle-search">
@@ -450,14 +449,15 @@
     margin-left: 8px;
     font-size: 12px;
     border-radius: var(--radius-sm);
-    border-color: var(--status-3-border);
-    background: rgba(240, 160, 60, 0.1);
-    color: #ffd9a8;
+    border-color: var(--attention-border);
+    background: var(--attention-bg);
+    color: var(--attention-text);
   }
 
   .actions-btn:hover:not(:disabled) {
-    background: rgba(240, 160, 60, 0.22);
-    border-color: var(--status-3-start);
+    background: var(--attention-bg-hover);
+    border-color: var(--attention-border);
+    color: var(--attention-text);
   }
 
   @media (max-width: 700px) {

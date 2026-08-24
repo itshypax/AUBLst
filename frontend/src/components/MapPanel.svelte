@@ -1,12 +1,12 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
-  import { Check, Construction, Crosshair, Eraser, Grid3X3, Map as MapIcon, Route, Save, ShieldCheck, Trash2, Undo2, Unlink, Upload, X } from '../lib/fontawesome-icons';
+  import { Check, Construction, Crosshair, Eraser, Grid3X3, Route, Save, ShieldCheck, Trash2, Undo2, Unlink, Upload, X } from '../lib/fontawesome-icons';
   import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { eventCategory, station, type EventCategory } from '../lib/classify';
   import { dismissibleDetails } from '../lib/dismissible-details';
   import { canvasToWorld, imageDrawRect, toScreen, worldToCanvas, type MapView, type Point } from '../lib/mapview';
-  import { cloneRoutingConfig, formatDistance, nearestRoadSnap, parseRoutingConfig, roadRoutePreview, validateRoutingNetwork, type RoadEdge, type RoadKind, type RoadNode, type RoadRoutePreview, type RoadSnap, type RoutingConfig, type RoutingNetworkReport } from '../lib/routing';
+  import { cloneRoutingConfig, formatDistance, nearestRoadSnap, parseRoutingConfig, roadRoutePreview, validateRoutingNetwork, type BmaZone, type RoadEdge, type RoadKind, type RoadNode, type RoadRoutePreview, type RoadSnap, type RoutingConfig, type RoutingNetworkReport } from '../lib/routing';
   import { app, askConfirm, assignedEventForVehicle, canWrite, openAssign, openVehicleMenu, setHighlightedEvent, setHighlightedVehicle, showNotice } from '../lib/state.svelte';
   import { statusCode, statusDisplay } from '../lib/status';
   import { loadVehicleIconManifest, vehicleIconPath, type VehicleIconManifest } from '../lib/vehicleIcons';
@@ -41,7 +41,7 @@
   let hiddenStations = $state<Set<string>>(new Set());
   let canvasSize = $state({ w: 0, h: 0 });
   let editorOpen = $state(false);
-  type EditorMode = RoadKind | 'erase' | 'unlink' | 'test';
+  type EditorMode = RoadKind | 'erase' | 'unlink' | 'test' | 'bma';
   let editorMode = $state<EditorMode>('road');
   let editorGraph = $state<RoutingConfig>(cloneRoutingConfig(app.routing));
   let editorHistory = $state<RoutingConfig[]>([]);
@@ -60,6 +60,9 @@
   let editorDirty = $state(false);
   let editorSaving = $state(false);
   let editorError = $state('');
+  let bmaDraftName = $state('');
+  let bmaDraftPoints = $state<Point[]>([]);
+  let editingBmaZoneId = $state<string | null>(null);
   let routeTestStart = $state<Point | null>(null);
   let routeTestEnd = $state<Point | null>(null);
   let routeTestStartSnap = $state<RoadSnap | null>(null);
@@ -70,7 +73,7 @@
   const editorAvailable = $derived(import.meta.env.DEV && localHostname && (Boolean(standaloneModId) || new URLSearchParams(location.search).get('routing_editor') === '1'));
   let standaloneEditorOpened = false;
   const stations = $derived([...new Set(app.vehicles.map(station))].sort((a, b) => a.localeCompare(b, 'de', { numeric: true })));
-  const visibleEvents = $derived(showEvents ? app.events.filter((event) => !hiddenCategories.has(eventCategory(event.name))) : []);
+  const visibleEvents = $derived(showEvents ? app.events.filter((event) => event.status === 'active' && !hiddenCategories.has(eventCategory(event.name))) : []);
   const visibleVehicles = $derived(showVehicles ? app.vehicles.filter((vehicle) => !hiddenStatuses.has(Number(vehicle.status)) && !hiddenStations.has(station(vehicle))) : []);
   const hoverEvent = $derived(visibleEvents.find((event) => event.id === hoverEventId) ?? null);
   const tooltipEvent = $derived(hoverEvent ?? visibleEvents.find((event) => event.id === app.highlightedEventId) ?? null);
@@ -334,6 +337,9 @@
     showEditorGrid = true;
     editorDirty = false;
     editorError = '';
+    bmaDraftName = '';
+    bmaDraftPoints = [];
+    editingBmaZoneId = null;
     editorMode = 'road';
     resetRouteTest();
     networkReport = null;
@@ -377,6 +383,72 @@
     editorCursorWorld = null;
     editorSnapTarget = null;
     if (mode !== 'test') resetRouteTest();
+    scheduleRender();
+  }
+
+  function addBmaPoint(pos: Point): void {
+    bmaDraftPoints = [...bmaDraftPoints, canvasToWorld(pos, app.mapBounds, view())];
+    scheduleRender();
+  }
+
+  function undoBmaPoint(): void {
+    if (!bmaDraftPoints.length) return;
+    bmaDraftPoints = bmaDraftPoints.slice(0, -1);
+    scheduleRender();
+  }
+
+  function cancelBmaEdit(): void {
+    editingBmaZoneId = null;
+    bmaDraftName = '';
+    bmaDraftPoints = [];
+    editorError = '';
+    scheduleRender();
+  }
+
+  function editBmaZone(zone: BmaZone): void {
+    editorMode = 'bma';
+    editingBmaZoneId = zone.id;
+    bmaDraftName = zone.name;
+    bmaDraftPoints = zone.points.map((point) => ({ ...point }));
+    editorActiveNodeId = null;
+    editorSnapTarget = null;
+    editorError = '';
+    scheduleRender();
+  }
+
+  function saveBmaZone(): void {
+    const name = bmaDraftName.trim();
+    if (!name) {
+      editorError = 'Bitte zuerst eine Bezeichnung für die BMA-Zone eingeben.';
+      return;
+    }
+    if (bmaDraftPoints.length < 3) {
+      editorError = 'Eine BMA-Zone benötigt mindestens drei Punkte.';
+      return;
+    }
+    recordEditorHistory();
+    const zone = {
+      id: editingBmaZoneId ?? `bma_${Date.now().toString(36)}_${(++routeIdCounter).toString(36)}`,
+      name,
+      points: bmaDraftPoints.map((point) => ({ ...point })),
+    };
+    editorGraph = {
+      ...editorGraph,
+      bma_zones: editingBmaZoneId
+        ? (editorGraph.bma_zones ?? []).map((entry) => entry.id === editingBmaZoneId ? zone : entry)
+        : [...(editorGraph.bma_zones ?? []), zone],
+    };
+    cancelBmaEdit();
+    editorDirty = true;
+    scheduleRender();
+  }
+
+  async function removeBmaZone(id: string, name: string): Promise<void> {
+    if (!await askConfirm(`BMA-Zone „${name}“ löschen?`)) return;
+    recordEditorHistory();
+    editorGraph = { ...editorGraph, bma_zones: (editorGraph.bma_zones ?? []).filter((zone) => zone.id !== id) };
+    if (editingBmaZoneId === id) cancelBmaEdit();
+    editorDirty = true;
     scheduleRender();
   }
 
@@ -594,6 +666,10 @@
   }
 
   function editAt(pos: Point): void {
+    if (editorMode === 'bma') {
+      addBmaPoint(pos);
+      return;
+    }
     if (editorMode === 'test') {
       const point = canvasToWorld(pos, app.mapBounds, view());
       if (!routeTestStart || routeTestEnd) {
@@ -717,6 +793,7 @@
         grid_size_m: editorGraph.grid_size_m,
         nodes: editorGraph.nodes,
         edges: editorGraph.edges,
+        bma_zones: editorGraph.bma_zones ?? [],
       };
       let saved: RoutingConfig;
       if (standaloneModId) {
@@ -850,8 +927,14 @@
         scheduleRender();
         return;
       }
-      editorSnapTarget = editorSnapAt(pos);
-      editorCursorWorld = editorSnapTarget?.world ?? canvasToWorld(pos, app.mapBounds, view());
+      if (editorMode === 'bma') {
+        editorHoverNodeId = null;
+        editorSnapTarget = null;
+        editorCursorWorld = canvasToWorld(pos, app.mapBounds, view());
+      } else {
+        editorSnapTarget = editorSnapAt(pos);
+        editorCursorWorld = editorSnapTarget?.world ?? canvasToWorld(pos, app.mapBounds, view());
+      }
       scheduleRender();
       return;
     }
@@ -888,8 +971,13 @@
       }
       editorDragNodeId = null;
       editorDragHistoryRecorded = false;
-      editorSnapTarget = editorSnapAt(pos);
-      editorCursorWorld = editorSnapTarget?.world ?? canvasToWorld(pos, app.mapBounds, view());
+      if (editorMode === 'bma') {
+        editorSnapTarget = null;
+        editorCursorWorld = canvasToWorld(pos, app.mapBounds, view());
+      } else {
+        editorSnapTarget = editorSnapAt(pos);
+        editorCursorWorld = editorSnapTarget?.world ?? canvasToWorld(pos, app.mapBounds, view());
+      }
       panning = false;
       dragged = false;
       scheduleRender();
@@ -959,7 +1047,8 @@
   function onContextMenu(e: MouseEvent): void {
     e.preventDefault();
     if (editorOpen) {
-      if (editorMode === 'test') resetRouteTest();
+      if (editorMode === 'bma') undoBmaPoint();
+      else if (editorMode === 'test') resetRouteTest();
       else finishEditorLine();
       scheduleRender();
       return;
@@ -1075,6 +1164,45 @@
       ctx.save();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
+      for (const zone of editorGraph.bma_zones ?? []) {
+        if (zone.id === editingBmaZoneId) continue;
+        if (zone.points.length < 3) continue;
+        ctx.beginPath();
+        zone.points.forEach((point, index) => {
+          const canvasPoint = worldToCanvas(point, app.mapBounds, v);
+          if (index === 0) ctx.moveTo(canvasPoint.x, canvasPoint.y);
+          else ctx.lineTo(canvasPoint.x, canvasPoint.y);
+        });
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(232, 82, 74, 0.16)';
+        ctx.strokeStyle = '#e8524a';
+        ctx.lineWidth = 2 / zoom;
+        ctx.fill();
+        ctx.stroke();
+        const center = zone.points.reduce((sum, point) => ({ x: sum.x + point.x / zone.points.length, y: sum.y + point.y / zone.points.length }), { x: 0, y: 0 });
+        const label = worldToCanvas(center, app.mapBounds, v);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${12 / zoom}px Segoe UI`;
+        ctx.textAlign = 'center';
+        ctx.fillText(zone.name, label.x, label.y);
+      }
+      if (bmaDraftPoints.length) {
+        ctx.beginPath();
+        bmaDraftPoints.forEach((point, index) => {
+          const canvasPoint = worldToCanvas(point, app.mapBounds, v);
+          if (index === 0) ctx.moveTo(canvasPoint.x, canvasPoint.y);
+          else ctx.lineTo(canvasPoint.x, canvasPoint.y);
+        });
+        if (editorCursorWorld) {
+          const cursor = worldToCanvas(editorCursorWorld, app.mapBounds, v);
+          ctx.lineTo(cursor.x, cursor.y);
+        }
+        ctx.strokeStyle = '#ff8580';
+        ctx.lineWidth = 2 / zoom;
+        ctx.setLineDash([5 / zoom, 4 / zoom]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
       for (const edge of editorGraph.edges) {
         const from = nodes.get(edge.from);
         const to = nodes.get(edge.to);
@@ -1303,10 +1431,9 @@
 
 <section class="panel map-panel">
   <div class="panel-header">
-    <span class="icon"><FaIcon icon={MapIcon} size={14} /></span>
     <h2>{standaloneModId ? `Straßeneditor · ${standaloneModId}` : 'Karte'}</h2>
     <span class="spacer"></span>
-    <span class="hint">{standaloneModId ? 'Die Linien sind nur im Editor sichtbar' : 'Scrollen: Zoom · Verschieben-Schalter: Pfeiltasten'}</span>
+    {#if standaloneModId}<span class="hint">Die Linien sind nur im Editor sichtbar</span>{/if}
   </div>
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
@@ -1354,9 +1481,30 @@
           <button class:active={editorMode === 'bridge'} aria-pressed={editorMode === 'bridge'} onclick={() => setEditorMode('bridge')}><FaIcon icon={Construction} size={14} /> Brücke</button>
           <button class:active={editorMode === 'unlink'} aria-pressed={editorMode === 'unlink'} onclick={() => setEditorMode('unlink')}><FaIcon icon={Unlink} size={14} /> Verbindung</button>
           <button class:active={editorMode === 'erase'} aria-pressed={editorMode === 'erase'} onclick={() => setEditorMode('erase')}><FaIcon icon={Eraser} size={14} /> Punkt</button>
+          <button class:active={editorMode === 'bma'} aria-pressed={editorMode === 'bma'} onclick={() => setEditorMode('bma')}>BMA-Zone</button>
           {#if standaloneModId}<button class:active={editorMode === 'test'} aria-pressed={editorMode === 'test'} onclick={() => setEditorMode('test')}><FaIcon icon={Crosshair} size={14} /> Test</button>{/if}
         </div>
-        {#if editorMode === 'test'}
+        {#if editorMode === 'bma'}
+          <p>{editingBmaZoneId ? 'Bezeichnung oder Fläche ändern und erneut speichern.' : 'Bezeichnung eingeben und die Zone mit mindestens drei Punkten auf der Karte umranden.'} Rechtsklick nimmt den letzten Punkt zurück.</p>
+          <div class="bma-editor-fields">
+            <input type="text" maxlength="120" bind:value={bmaDraftName} placeholder="Bezeichnung, z. B. Rathaus" />
+            <span>{bmaDraftPoints.length} Punkte</span>
+            <button disabled={bmaDraftPoints.length < 3 || !bmaDraftName.trim()} onclick={saveBmaZone}>{editingBmaZoneId ? 'Änderungen speichern' : 'Zone speichern'}</button>
+            <button class="ghost" disabled={!bmaDraftPoints.length} onclick={() => { bmaDraftPoints = []; scheduleRender(); }}>Neu zeichnen</button>
+            {#if editingBmaZoneId}<button class="ghost" onclick={cancelBmaEdit}>Abbrechen</button>{/if}
+          </div>
+          {#if editorGraph.bma_zones?.length}
+            <div class="bma-zone-list">
+              {#each editorGraph.bma_zones as zone (zone.id)}
+                <span class="bma-zone-name" class:editing={zone.id === editingBmaZoneId}>{zone.name}</span>
+                <span class="bma-zone-actions">
+                  <button class="ghost" disabled={zone.id === editingBmaZoneId} onclick={() => editBmaZone(zone)}>Bearbeiten</button>
+                  <button class="ghost" aria-label={`${zone.name} löschen`} onclick={() => void removeBmaZone(zone.id, zone.name)}><FaIcon icon={Trash2} size={13} /></button>
+                </span>
+              {/each}
+            </div>
+          {/if}
+        {:else if editorMode === 'test'}
           <p>Klicke zuerst den Start und danach das Ziel. Weiß gestrichelt ist der Anschluss zur nächsten Straße, Orange ist die berechnete Route.</p>
           {#if routeTestPreview}
             <div class="route-test-result" class:fallback={routeTestPreview.fallback}>
@@ -1529,7 +1677,7 @@
   .map-wrapper.editor-active.node-hover { cursor: move; }
   .map-wrapper.editor-active.panning { cursor: grabbing; }
 
-  .route-editor { position: absolute; top: 10px; left: 10px; z-index: 7; width: min(430px, calc(100% - 74px)); max-height: calc(100% - 20px); overflow: auto; border: 1px solid var(--border-strong); background: rgba(21, 22, 25, 0.98); box-shadow: var(--shadow); cursor: default; }
+  .route-editor { --text: #e9eaec; --text-dim: #aeb1b7; --bg-raised: #24262a; --border: #34373c; --border-strong: #565a61; --accent-soft: rgba(255, 255, 255, 0.08); --accent-outline: #b8d0ff; --danger-text: #ff8580; --warn-text: #ffc36b; position: absolute; top: 10px; left: 10px; z-index: 7; width: min(430px, calc(100% - 74px)); max-height: calc(100% - 20px); overflow: auto; border: 1px solid var(--border-strong); background: rgba(21, 22, 25, 0.98); color: var(--text); box-shadow: var(--shadow); cursor: default; }
   .route-editor-head { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 10px; border-bottom: 1px solid var(--border); }
   .route-editor-head strong { font-size: 12px; }
   .route-editor-head span { flex: 1; color: var(--text-dim); font-size: 11px; }
@@ -1617,6 +1765,14 @@
 
   .status-help { margin-left: auto; position: relative; }
   .status-help summary { cursor: pointer; color: var(--text-dim); }
+  .bma-editor-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+  .bma-editor-fields input { grid-column: 1 / -1; }
+  .bma-editor-fields > span { color: var(--text-dim); font-size: 11px; }
+  .bma-zone-list { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; padding-top: 8px; border-top: 1px solid var(--border); }
+  .bma-zone-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+  .bma-zone-name.editing { color: var(--accent-outline); font-weight: 650; }
+  .bma-zone-actions { display: inline-flex; gap: 4px; }
+  .bma-zone-actions button { padding: 3px 6px; font-size: 11px; }
   .status-help summary:hover, .status-help summary:focus-visible { color: var(--text); }
   .status-popover { position: absolute; right: 0; bottom: calc(100% + 8px); width: 210px; padding: 8px; background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow); display: grid; gap: 5px; z-index: 8; }
   .status-popover > span { display: flex; align-items: center; gap: 8px; color: var(--text); }

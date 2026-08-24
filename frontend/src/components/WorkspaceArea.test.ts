@@ -28,4 +28,19 @@ describe('Größenregler innerhalb einer Arbeitsfläche', () => {
     expect(onRatiosChange).toHaveBeenCalledOnce();
     expect(onRatiosChange.mock.calls[0][0]).toHaveLength(3);
   });
+
+  it('ordnet vier Fenster verschachtelt ohne lineare Trennlinien an', () => {
+    const { container } = render(WorkspaceArea, {
+      props: {
+        panels: ['events', 'bmas', 'speech_requests', 'current_event'],
+        direction: 'mosaic',
+        ratios: [0.25, 0.25, 0.25, 0.25],
+        onRatiosChange: vi.fn(),
+      },
+    });
+
+    expect(container.querySelector('.workspace-area.mosaic')).not.toBeNull();
+    expect(container.querySelectorAll('.mosaic-cell')).toHaveLength(4);
+    expect(screen.queryByRole('slider')).toBeNull();
+  });
 });

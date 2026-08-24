@@ -117,6 +117,14 @@ export interface AssignedVehicle {
   leader_source?: IncidentLeaderSource | null;
 }
 
+export interface VehicleStatusChange {
+  id: number;
+  game_vehicle_id: string;
+  vehicle_name: string | null;
+  status: number;
+  created_at: string;
+}
+
 export interface EventNote {
   id: number;
   event_id: number;
@@ -193,5 +201,6 @@ export interface StateResponse {
   events: EventItem[];
   assignments?: Assignment[];
   hospital_reservations?: HospitalReservation[];
+  status_history?: VehicleStatusChange[];
   time: ClockTime | null;
 }

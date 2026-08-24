@@ -14,7 +14,8 @@ export type SoundCue =
   | 'tram-released'
   | 'train-blocked'
   | 'train-released'
-  | 'incident-completed';
+  | 'incident-completed'
+  | 'bma-alarm';
 
 export interface SoundProfileOption {
   id: string;
@@ -72,6 +73,7 @@ export const SOUND_CUES: ReadonlyArray<{ id: SoundCue; label: string }> = [
   { id: 'train-blocked', label: 'Zugverkehr gesperrt' },
   { id: 'train-released', label: 'Zugverkehr freigegeben' },
   { id: 'incident-completed', label: 'Einsatz abgeschlossen' },
+  { id: 'bma-alarm', label: 'Brandmeldeanlage ausgelöst' },
 ];
 
 const cueIds = new Set<SoundCue>(SOUND_CUES.map((cue) => cue.id));

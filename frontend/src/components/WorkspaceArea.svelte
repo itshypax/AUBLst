@@ -7,6 +7,7 @@
   import MapPanel from './MapPanel.svelte';
   import SpeechRequestsPanel from './SpeechRequestsPanel.svelte';
   import VehiclesPanel from './VehiclesPanel.svelte';
+  import BmaPanel from './BmaPanel.svelte';
 
   let { panels, direction, ratios, onRatiosChange }: {
     panels: PanelId[];
@@ -17,6 +18,7 @@
 
   let panelRatios = $state<number[]>([]);
   let drag = $state<{ index: number; start: number; size: number; before: number; after: number } | null>(null);
+  let effectiveDirection = $derived(direction === 'mosaic' && panels.length === 4 ? 'mosaic' : direction === 'column' ? 'column' : 'row');
 
   $effect(() => {
     if (drag) return;
@@ -26,11 +28,12 @@
   });
 
   function tracks(): string {
+    if (effectiveDirection === 'mosaic') return '';
     const parts = panels.flatMap((_, index) => [
       `minmax(0, ${panelRatios[index] ?? 1}fr)`,
       ...(index < panels.length - 1 ? ['6px'] : []),
     ]);
-    const property = direction === 'row' ? 'grid-template-columns' : 'grid-template-rows';
+    const property = effectiveDirection === 'row' ? 'grid-template-columns' : 'grid-template-rows';
     return `${property}: ${parts.join(' ')};`;
   }
 
@@ -40,8 +43,8 @@
     const rect = container.getBoundingClientRect();
     drag = {
       index,
-      start: direction === 'row' ? event.clientX : event.clientY,
-      size: direction === 'row' ? rect.width : rect.height,
+      start: effectiveDirection === 'row' ? event.clientX : event.clientY,
+      size: effectiveDirection === 'row' ? rect.width : rect.height,
       before: panelRatios[index],
       after: panelRatios[index + 1],
     };
@@ -60,7 +63,7 @@
 
   function onPointerMove(event: PointerEvent): void {
     if (!drag) return;
-    const position = direction === 'row' ? event.clientX : event.clientY;
+    const position = effectiveDirection === 'row' ? event.clientX : event.clientY;
     const before = drag.before + (position - drag.start) / drag.size;
     resizePair(drag.index, before, drag.before + drag.after - before);
   }
@@ -86,47 +89,62 @@
     resizePair(index, pair / 2, pair / 2);
     onRatiosChange([...panelRatios]);
   }
+
 </script>
+
+{#snippet renderPanel(panel: PanelId)}
+  {#if panel === 'map'}
+    <MapPanel />
+  {:else if panel === 'vehicles'}
+    <VehiclesPanel />
+  {:else if panel === 'events'}
+    <EventsPanel />
+  {:else if panel === 'current_event'}
+    <CurrentEventPanel />
+  {:else if panel === 'logs'}
+    <LogPanel />
+  {:else if panel === 'speech_requests'}
+    <SpeechRequestsPanel />
+  {:else if panel === 'hospitals'}
+    <HospitalsPanel />
+  {:else if panel === 'bmas'}
+    <BmaPanel />
+  {/if}
+{/snippet}
 
 <svelte:window onpointermove={onPointerMove} onpointerup={endDrag} />
 
 <div
-  class="workspace-area {direction}"
+  class="workspace-area {effectiveDirection}"
   style={tracks()}
 >
-  {#each panels as panel, index (panel)}
-    {#if panel === 'map'}
-      <MapPanel />
-    {:else if panel === 'vehicles'}
-      <VehiclesPanel />
-    {:else if panel === 'events'}
-      <EventsPanel />
-    {:else if panel === 'current_event'}
-      <CurrentEventPanel />
-    {:else if panel === 'logs'}
-      <LogPanel />
-    {:else if panel === 'speech_requests'}
-      <SpeechRequestsPanel />
-    {:else if panel === 'hospitals'}
-      <HospitalsPanel />
-    {/if}
-    {#if index < panels.length - 1}
-      <div
-        class={direction === 'row' ? 'splitter-col' : 'splitter-row'}
-        class:active={drag?.index === index}
-        onpointerdown={(event) => startDrag(index, event)}
-        onkeydown={(event) => onSeparatorKey(index, event)}
-        ondblclick={() => resetPair(index)}
-        role="slider"
-        aria-orientation={direction === 'row' ? 'vertical' : 'horizontal'}
-        aria-label={`Größe zwischen ${panel} und ${panels[index + 1]} ändern`}
-        aria-valuemin="8"
-        aria-valuemax="92"
-        aria-valuenow={Math.round((panelRatios[index] / (panelRatios[index] + panelRatios[index + 1])) * 100)}
-        tabindex="0"
-      ></div>
-    {/if}
-  {/each}
+  {#if effectiveDirection === 'mosaic'}
+    {#each panels as panel (panel)}
+      <div class="mosaic-cell">
+        {@render renderPanel(panel)}
+      </div>
+    {/each}
+  {:else}
+    {#each panels as panel, index (panel)}
+      {@render renderPanel(panel)}
+      {#if index < panels.length - 1}
+        <div
+          class={effectiveDirection === 'row' ? 'splitter-col' : 'splitter-row'}
+          class:active={drag?.index === index}
+          onpointerdown={(event) => startDrag(index, event)}
+          onkeydown={(event) => onSeparatorKey(index, event)}
+          ondblclick={() => resetPair(index)}
+          role="slider"
+          aria-orientation={effectiveDirection === 'row' ? 'vertical' : 'horizontal'}
+          aria-label={`Größe zwischen ${panel} und ${panels[index + 1]} ändern`}
+          aria-valuemin="8"
+          aria-valuemax="92"
+          aria-valuenow={Math.round((panelRatios[index] / (panelRatios[index] + panelRatios[index + 1])) * 100)}
+          tabindex="0"
+        ></div>
+      {/if}
+    {/each}
+  {/if}
 </div>
 
 <style>
@@ -143,6 +161,29 @@
 
   .workspace-area.row {
     grid-template-rows: minmax(0, 1fr);
+  }
+
+  .workspace-area.mosaic {
+    grid-template-columns: minmax(0, 0.22fr) minmax(0, 0.22fr) minmax(0, 0.56fr);
+    grid-template-rows: minmax(0, 0.58fr) minmax(0, 0.42fr);
+    gap: 6px;
+  }
+
+  .mosaic-cell {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .mosaic-cell:nth-child(1) { grid-column: 1 / 3; grid-row: 1; }
+  .mosaic-cell:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .mosaic-cell:nth-child(3) { grid-column: 2; grid-row: 2; }
+  .mosaic-cell:nth-child(4) { grid-column: 3; grid-row: 1 / 3; }
+
+  .mosaic-cell :global(.panel) {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
   }
 
 </style>

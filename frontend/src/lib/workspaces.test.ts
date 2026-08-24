@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_WORKSPACES, loadWorkspaces, saveWorkspaces, WORKSPACE_STORAGE_KEY, workspaceUrl, type WorkspaceLayout } from './workspaces';
+import { DEFAULT_WORKSPACES, loadWorkspaces, resetWorkspaceLayout, saveWorkspaces, WORKSPACE_STORAGE_KEY, workspaceUrl, type WorkspaceLayout } from './workspaces';
 
 beforeEach(() => {
   localStorage.clear();
@@ -12,19 +12,42 @@ describe('Arbeitsansichten', () => {
     const [standard] = loadWorkspaces();
 
     expect(standard.areas).toEqual({
-      leftTop: ['events', 'current_event'],
-      leftBottom: ['logs', 'speech_requests', 'hospitals'],
+      leftTop: ['events', 'bmas', 'speech_requests', 'current_event'],
+      leftBottom: ['hospitals', 'logs'],
       rightTop: ['vehicles'],
       rightBottom: ['map'],
     });
+    expect(standard.directions.leftTop).toBe('mosaic');
   });
 
   it('speichert Arbeitsansichten nur im aktuellen Fenster', () => {
     saveWorkspaces(DEFAULT_WORKSPACES);
 
-    expect(JSON.parse(sessionStorage.getItem(WORKSPACE_STORAGE_KEY) ?? '[]')).toHaveLength(3);
+    expect(JSON.parse(sessionStorage.getItem(WORKSPACE_STORAGE_KEY) ?? '[]')).toHaveLength(4);
     expect(localStorage.getItem(WORKSPACE_STORAGE_KEY)).toBeNull();
-    expect(loadWorkspaces().map((workspace) => workspace.id)).toEqual(['standard', 'einsatzmonitor', 'funkmonitor']);
+    expect(loadWorkspaces().map((workspace) => workspace.id)).toEqual(['standard', 'einsatzmonitor', 'funkmonitor', 'leitstelle']);
+  });
+
+  it('lässt den aktuellen Einsatz in der kompakten Ansicht über die volle rechte Höhe laufen', () => {
+    const compact = loadWorkspaces().find((workspace) => workspace.id === 'leitstelle');
+
+    expect(compact?.areas).toEqual({
+      leftTop: ['events'],
+      leftBottom: ['bmas', 'speech_requests'],
+      rightTop: ['current_event'],
+      rightBottom: [],
+    });
+  });
+
+  it('stellt die ältere kompakte Ansicht auf das durchgehende Einsatzfenster um', () => {
+    const current = DEFAULT_WORKSPACES.find((workspace) => workspace.id === 'leitstelle')!;
+    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
+      ...current,
+      areas: { ...current.areas, rightBottom: ['hospitals', 'logs'] },
+      panelRatios: { ...current.panelRatios, rightBottom: [0.64, 0.36] },
+    }]));
+
+    expect(loadWorkspaces()[0].areas.rightBottom).toEqual([]);
   });
 
   it('entfernt doppelt eingetragene Panels beim Laden', () => {
@@ -34,7 +57,7 @@ describe('Arbeitsansichten', () => {
     }]));
 
     const [workspace] = loadWorkspaces();
-    expect(workspace.areas.leftTop).toEqual(['events', 'current_event']);
+    expect(workspace.areas.leftTop).toEqual(['events', 'bmas', 'speech_requests', 'current_event']);
     expect(workspace.areas.rightTop).toEqual(['vehicles']);
   });
 
@@ -45,8 +68,8 @@ describe('Arbeitsansichten', () => {
 
     const [workspace] = loadWorkspaces();
 
-    expect(workspace.panelRatios.leftTop).toEqual([0.34, 0.66]);
-    expect(workspace.panelRatios.leftBottom).toEqual([0.42, 0.22, 0.36]);
+    expect(workspace.panelRatios.leftTop).toEqual([0.25, 0.25, 0.25, 0.25]);
+    expect(workspace.panelRatios.leftBottom).toEqual([0.5, 0.5]);
   });
 
   it('setzt das Sprechwunsch-Panel in eine ältere Standardansicht ein', () => {
@@ -58,8 +81,64 @@ describe('Arbeitsansichten', () => {
 
     const [workspace] = loadWorkspaces();
 
-    expect(workspace.areas.leftBottom).toEqual(['logs', 'speech_requests', 'hospitals']);
-    expect(workspace.panelRatios.leftBottom).toEqual([0.42, 0.22, 0.36]);
+    expect(workspace.areas.leftTop).toEqual(['events', 'bmas', 'speech_requests', 'current_event']);
+    expect(workspace.areas.leftBottom).toEqual(['hospitals', 'logs']);
+    expect(workspace.panelRatios.leftBottom).toEqual([0.5, 0.5]);
+  });
+
+  it('übernimmt die neue Anordnung in eine bisherige Standardansicht', () => {
+    const current = DEFAULT_WORKSPACES[0];
+    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
+      ...current,
+      areas: {
+        leftTop: ['events', 'current_event'],
+        leftBottom: ['logs', 'speech_requests', 'bmas', 'hospitals'],
+        rightTop: ['vehicles'],
+        rightBottom: ['map'],
+      },
+      directions: { leftTop: 'row', leftBottom: 'row', rightTop: 'row', rightBottom: 'row' },
+    }]));
+
+    const [workspace] = loadWorkspaces();
+
+    expect(workspace.areas).toEqual(current.areas);
+    expect(workspace.directions.leftTop).toBe('mosaic');
+  });
+
+  it('stellt die untere Reihenfolge im Standardlayout auf Krankenhäuser und FMS-LOG um', () => {
+    const current = DEFAULT_WORKSPACES[0];
+    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
+      ...current,
+      areas: { ...current.areas, leftBottom: ['logs', 'hospitals'] },
+    }]));
+
+    const [workspace] = loadWorkspaces();
+
+    expect(workspace.areas.leftBottom).toEqual(['hospitals', 'logs']);
+  });
+
+  it('verwirft die verschachtelte Anordnung ohne genau vier Fenster', () => {
+    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
+      ...DEFAULT_WORKSPACES[1],
+      directions: { ...DEFAULT_WORKSPACES[1].directions, leftTop: 'mosaic' },
+    }]));
+
+    expect(loadWorkspaces()[0].directions.leftTop).toBe('row');
+  });
+
+  it('setzt eine geänderte Ansicht vollständig auf ihre Vorlage zurück', () => {
+    const changed: WorkspaceLayout = {
+      ...DEFAULT_WORKSPACES[0],
+      name: 'Meine Standardansicht',
+      areas: { ...DEFAULT_WORKSPACES[0].areas, leftTop: ['map'], rightBottom: [] },
+      directions: { ...DEFAULT_WORKSPACES[0].directions, leftTop: 'row' },
+      ratios: { col: 0.3, left: 0.3, right: 0.3 },
+      panelRatios: { ...DEFAULT_WORKSPACES[0].panelRatios, leftTop: [1], rightBottom: [] },
+    };
+
+    const reset = resetWorkspaceLayout(changed);
+
+    expect(reset).toEqual({ ...DEFAULT_WORKSPACES[0], name: 'Meine Standardansicht' });
   });
 
   it('übernimmt bestehende browserweite Einstellungen einmalig in das aktuelle Fenster', () => {
@@ -78,6 +157,7 @@ describe('Arbeitsansichten', () => {
       id: 'lagekarte',
       name: 'Lagekarte',
       areas: { ...DEFAULT_WORKSPACES[0].areas, leftTop: ['map'], rightBottom: [] },
+      directions: { ...DEFAULT_WORKSPACES[0].directions, leftTop: 'row' },
       panelRatios: { ...DEFAULT_WORKSPACES[0].panelRatios, leftTop: [1], rightBottom: [] },
     };
     saveWorkspaces(DEFAULT_WORKSPACES);

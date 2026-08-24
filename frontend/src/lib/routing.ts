@@ -14,6 +14,12 @@ export interface RoadEdge {
   kind: RoadKind;
 }
 
+export interface BmaZone {
+  id: string;
+  name: string;
+  points: Point[];
+}
+
 export interface RoutingConfig {
   coordinate_space?: 'world' | 'normalized';
   meters_per_world_unit: number;
@@ -25,6 +31,7 @@ export interface RoutingConfig {
   grid_size_m?: number;
   nodes: RoadNode[];
   edges: RoadEdge[];
+  bma_zones?: BmaZone[];
 }
 
 export interface RouteDistance {
@@ -68,6 +75,7 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   grid_size_m: 50,
   nodes: [],
   edges: [],
+  bma_zones: [],
 };
 
 export const MAX_SNAP_DISTANCE_METERS = 300;
@@ -132,6 +140,7 @@ export function cloneRoutingConfig(config: RoutingConfig): RoutingConfig {
     grid_size_m: config.grid_size_m,
     nodes: config.nodes.map((node) => ({ ...node })),
     edges: config.edges.map((edge) => ({ ...edge })),
+    bma_zones: (config.bma_zones ?? []).map((zone) => ({ ...zone, points: zone.points.map((point) => ({ ...point })) })),
   };
 }
 
@@ -186,6 +195,24 @@ export function parseRoutingConfig(value: unknown, fallback: RoutingConfig = DEF
     edges.push({ id, from, to, kind });
   }
 
+  const bmaZones: BmaZone[] = [];
+  const bmaIds = new Set<string>();
+  for (const entry of Array.isArray(source.bma_zones) ? source.bma_zones : []) {
+    if (!entry || typeof entry !== 'object') throw new Error('Mindestens eine BMA-Zone ist ungültig.');
+    const zone = entry as Record<string, unknown>;
+    const id = String(zone.id ?? '');
+    const name = String(zone.name ?? '').trim();
+    const points = Array.isArray(zone.points)
+      ? zone.points.map((point) => ({ x: Number((point as Record<string, unknown>)?.x), y: Number((point as Record<string, unknown>)?.y) }))
+      : [];
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id) || bmaIds.has(id) || !name || name.length > 120
+      || points.length < 3 || points.length > 100 || !points.every(finitePoint)) {
+      throw new Error(`Die BMA-Zone ${name || id || 'ohne Namen'} ist ungültig oder doppelt vorhanden.`);
+    }
+    bmaIds.add(id);
+    bmaZones.push({ id, name, points });
+  }
+
   return {
     coordinate_space: source.coordinate_space === 'normalized' ? 'normalized' : 'world',
     meters_per_world_unit: importedPositiveNumber(source.meters_per_world_unit, fallback.meters_per_world_unit, 'Meter je Spielkoordinate')!,
@@ -197,6 +224,7 @@ export function parseRoutingConfig(value: unknown, fallback: RoutingConfig = DEF
     grid_size_m: importedPositiveNumber(source.grid_size_m, fallback.grid_size_m ?? 50, 'Rasterweite'),
     nodes,
     edges,
+    bma_zones: bmaZones,
   };
 }
 

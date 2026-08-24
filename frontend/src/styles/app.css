@@ -18,6 +18,18 @@
   --danger-text: #ff8580;
   --good-text: #62d9ad;
   --warn-text: #ffc36b;
+  --attention-bg: rgba(240, 160, 60, 0.12);
+  --attention-bg-hover: rgba(240, 160, 60, 0.22);
+  --attention-text: #ffd9a8;
+  --attention-border: #d6870b;
+  --game-alarm-bg: rgba(232, 82, 74, 0.14);
+  --game-alarm-text: #ff8580;
+  --game-alarm-border: #e13a3a;
+  --game-doctor-bg: rgba(103, 65, 165, 0.18);
+  --game-doctor-text: #d2bcff;
+  --game-doctor-border: #8257aa;
+  --speech-alert-bg: rgba(232, 82, 74, 0.72);
+  --speech-alert-text: #ffffff;
   --vehicle-outline: #dfe7ff;
   --shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   --radius: 8px;
@@ -53,6 +65,43 @@
   --status-9-start: #8f1f45;
   --status-9-end: #651631;
   --status-9-border: #ac2f53;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #ecece8;
+  --bg-raised: #e4e4df;
+  --panel: #f7f7f4;
+  --panel-header: #e8e8e3;
+  --border: #cecec7;
+  --border-strong: #a6a69e;
+  --text: #1d1e20;
+  --text-dim: #66686d;
+  --accent: #b52930;
+  --accent-soft: rgba(181, 41, 48, 0.08);
+  --accent-outline: #7e2025;
+  --selection: rgba(181, 41, 48, 0.24);
+  --danger: #b52930;
+  --good: #167356;
+  --warn: #9a6217;
+  --water: #18788a;
+  --danger-text: #982129;
+  --good-text: #126249;
+  --warn-text: #7e5012;
+  --attention-bg: #fff0d1;
+  --attention-bg-hover: #f8e2b6;
+  --attention-text: #68410c;
+  --attention-border: #a96c14;
+  --game-alarm-bg: #f6d8d6;
+  --game-alarm-text: #741a20;
+  --game-alarm-border: #b52930;
+  --game-doctor-bg: #ebe2f5;
+  --game-doctor-text: #51246f;
+  --game-doctor-border: #755091;
+  --speech-alert-bg: #efaaa5;
+  --speech-alert-text: #521316;
+  --vehicle-outline: #31343a;
+  --shadow: 0 8px 24px rgba(39, 39, 35, 0.16);
 }
 
 * {
@@ -94,7 +143,7 @@ button {
 }
 
 button:hover:not(:disabled) {
-  background: #1e2023;
+  background: var(--accent-soft);
   border-color: var(--border-strong);
 }
 

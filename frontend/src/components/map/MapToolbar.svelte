@@ -51,8 +51,9 @@
 
 <style>
   .map-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; z-index: 6; }
-  button { min-width: 30px; height: 30px; padding: 0 7px; justify-content: center; background: rgba(21, 22, 25, 0.94); }
-  button.active { border-color: var(--accent-outline); background: #25282d; }
+  button { min-width: 30px; height: 30px; padding: 0 7px; justify-content: center; border-color: #565a61; background: rgba(21, 22, 25, 0.94); color: #f3f0e9; }
+  button:hover:not(:disabled) { border-color: #858991; background: #2b2e33; color: #ffffff; }
+  button.active { border-color: #b8d0ff; background: #25282d; color: #ffffff; }
   @media (max-width: 700px) {
     .create-event { width: 30px; font-size: 0; }
     .create-event :global(svg) { margin: 0; }

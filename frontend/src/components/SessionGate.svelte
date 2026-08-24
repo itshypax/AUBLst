@@ -111,7 +111,7 @@
 </main>
 
 <style>
-  .session-start { flex: 1 1 auto; min-height: 0; display: grid; place-items: center; padding: 32px; background: #111214; }
+  .session-start { flex: 1 1 auto; min-height: 0; display: grid; place-items: center; padding: 32px; background: var(--bg); }
   .session-dialog { width: min(440px, calc(100vw - 32px)); border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); }
   .dialog-title { display: flex; align-items: center; gap: 10px; padding: 15px 17px; border-bottom: 1px solid var(--border); font-size: 16px; font-weight: 650; }
   .dialog-title :global(svg) { color: var(--danger); }
@@ -122,7 +122,7 @@
   input { width: 100%; height: 36px; }
   input.token { letter-spacing: .14em; font: 650 16px ui-monospace, 'Cascadia Mono', Consolas, monospace; }
   .connect { height: 36px; justify-content: center; border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 650; }
-  .connect:hover:not(:disabled) { border-color: #71a5ff; background: #5c98ff; }
+  .connect:hover:not(:disabled) { border-color: var(--accent-outline); background: var(--accent-outline); }
   .demo { height: 34px; justify-content: center; background: transparent; }
   .server-settings { border-top: 1px solid var(--border); padding-top: 10px; }
   .server-settings summary { display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); cursor: pointer; font-size: 12px; }

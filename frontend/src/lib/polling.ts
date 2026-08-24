@@ -2,7 +2,7 @@ import { api, apiGet, fetchMapImage } from './api';
 import { advanceLogCursor, INITIAL_LOG_CURSOR, mergeLogRows } from './log-stream';
 import { SoundAlertTracker } from './sound-alerts';
 import { soundCuesForLogs } from './sound-events';
-import { app, persistSettings, resetSessionData } from './state.svelte';
+import { app, clearCurrentEvent, persistSettings, resetSessionData } from './state.svelte';
 import { getSoundAlertConfig, playPhone, playSoundCue, playSoundCues } from './sounds';
 import type { LogRow, StateResponse } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
@@ -22,6 +22,7 @@ import { uiSyncScope } from './ui-sync';
 import { startRealtimeStream } from './realtime';
 import { recordAnonymousMetrics } from './telemetry';
 import { notifyNewIncidents, notifySpeechRequests } from './notifications';
+import { bmaZonesForEvent } from './bma';
 
 const STATE_INTERVAL = 3_000;
 const LOG_INTERVAL = 2_000;
@@ -247,6 +248,7 @@ async function applyState(
   app.vehicles = data.vehicles ?? [];
   app.events = data.events ?? [];
   app.assignments = data.assignments ?? [];
+  app.statusHistory = data.status_history ?? [];
   app.hospitals = data.hospitals ?? [];
   app.hospitalReservations = data.hospital_reservations ?? [];
   app.clock = data.time ?? null;
@@ -301,12 +303,14 @@ async function applyState(
     }
   }
 
-  const ids = new Set(app.events.map((event) => event.id));
+  const activeEvents = app.events.filter((event) => event.status === 'active');
+  const ids = new Set(activeEvents.map((event) => event.id));
   if (playEventSounds && eventsInitialized) {
-    const fresh = app.events.filter((event) => !lastEventIds.has(event.id) && event.created_by === 'game');
+    const fresh = activeEvents.filter((event) => !lastEventIds.has(event.id) && event.created_by === 'game');
     if (fresh.length) {
       void playPhone();
       notifyNewIncidents(fresh);
+      if (fresh.some((event) => bmaZonesForEvent(app.routing.bma_zones ?? [], event).length)) void playSoundCue('bma-alarm');
     }
     if ([...lastEventIds].some((id) => !ids.has(id))) void playSoundCue('incident-completed');
   }
@@ -314,6 +318,7 @@ async function applyState(
   lastEventIds = ids;
 
   if (app.highlightedEventId != null && !ids.has(app.highlightedEventId)) app.highlightedEventId = null;
+  if (app.assignEvent && !ids.has(app.assignEvent.id)) clearCurrentEvent();
 }
 
 export async function refreshState(): Promise<void> {

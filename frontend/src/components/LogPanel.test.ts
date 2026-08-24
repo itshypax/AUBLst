@@ -23,7 +23,7 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-describe('Funkmeldungen', () => {
+describe('FMS-LOG', () => {
   it('zeigt Sprechwünsche nur als Eintrag in der Chronologie', () => {
     render(LogPanel);
 
@@ -52,5 +52,14 @@ describe('Funkmeldungen', () => {
 
     expect(screen.getByRole('button', { name: 'Einsatz öffnen' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Meldung abarbeiten' })).toBeTruthy();
+  });
+
+  it('führt Statuswechsel mit Uhrzeit, Fahrzeugname und Badge auf', () => {
+    app.statusHistory = [{ id: 8, game_vehicle_id: '4_RTW_B', vehicle_name: '4-RTW-B', status: 5, created_at: '2026-08-09 20:46:00' }];
+    render(LogPanel);
+
+    expect(screen.getByRole('heading', { name: 'FMS-LOG' })).toBeTruthy();
+    expect(screen.getByText('20:46')).toBeTruthy();
+    expect(screen.getByLabelText('Sprechwunsch').textContent).toBe('5');
   });
 });

@@ -316,7 +316,6 @@
 
 <section class="panel current-event">
   <div class="panel-header">
-    <span class="icon"><FaIcon icon={BellRing} size={14} /></span>
     <h2>Aktueller Einsatz</h2>
     <span class="spacer"></span>
   </div>

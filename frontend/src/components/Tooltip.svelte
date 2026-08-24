@@ -189,10 +189,10 @@
     z-index: 1000;
     max-width: min(320px, calc(100vw - 16px));
     padding: 5px 7px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid #565a61;
     border-radius: var(--radius-sm);
     background: #24262a;
-    color: var(--text);
+    color: #f3f0e9;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
     font-size: 12px;
     line-height: 1.35;

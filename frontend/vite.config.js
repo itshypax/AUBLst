@@ -117,6 +117,7 @@ function routingEditorPlugin() {
               grid_size_m: Number(data.grid_size_m) || 50,
               nodes: Array.isArray(data.nodes) ? data.nodes : [],
               edges: Array.isArray(data.edges) ? data.edges : [],
+              bma_zones: Array.isArray(data.bma_zones) ? data.bma_zones : [],
             };
             writeFileSync(graphFile(modId), `${JSON.stringify(routing, null, 2)}\n`, 'utf8');
             return sendJson(response, 200, routing);

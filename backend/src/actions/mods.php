@@ -70,6 +70,7 @@ function empty_routing_config(float $meters_per_world_unit = 0.1): array {
         'grid_size_m' => 50.0,
         'nodes' => [],
         'edges' => [],
+        'bma_zones' => [],
     ];
 }
 
@@ -123,6 +124,30 @@ function normalize_routing_config(array $data): array {
         $edges[] = ['id' => $id, 'from' => $from, 'to' => $to, 'kind' => $kind];
     }
 
+    $bma_zones = [];
+    $bma_ids = [];
+    foreach (($data['bma_zones'] ?? []) as $zone) {
+        if (!is_array($zone)) continue;
+        $id = (string)($zone['id'] ?? '');
+        $name = trim((string)($zone['name'] ?? ''));
+        $input_points = is_array($zone['points'] ?? null) ? $zone['points'] : [];
+        if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id) || isset($bma_ids[$id]) || !preg_match('/^.{1,120}$/us', $name)
+            || count($input_points) < 3 || count($input_points) > 100) continue;
+        $points = [];
+        foreach ($input_points as $point) {
+            $x = is_array($point) && isset($point['x']) ? (float)$point['x'] : NAN;
+            $y = is_array($point) && isset($point['y']) ? (float)$point['y'] : NAN;
+            if (!is_finite($x) || !is_finite($y)) {
+                $points = [];
+                break;
+            }
+            $points[] = ['x' => $x, 'y' => $y];
+        }
+        if (count($points) < 3) continue;
+        $bma_ids[$id] = true;
+        $bma_zones[] = ['id' => $id, 'name' => $name, 'points' => $points];
+    }
+
     $coordinate_space = ($data['coordinate_space'] ?? 'world') === 'normalized' ? 'normalized' : 'world';
     $map_width_px = optional_positive_number($data, 'map_width_px', 1, 100000);
     $map_height_px = optional_positive_number($data, 'map_height_px', 1, 100000);
@@ -141,6 +166,7 @@ function normalize_routing_config(array $data): array {
         'grid_size_m' => $grid_size_m,
         'nodes' => $nodes,
         'edges' => $edges,
+        'bma_zones' => $bma_zones,
     ];
 }
 
@@ -173,6 +199,14 @@ function routing_for_session(array $config, array $session): array {
         $node['y'] = -($min_y + (-(float)$node['y']) * $range_y);
     }
     unset($node);
+    foreach (($config['bma_zones'] ?? []) as &$zone) {
+        foreach ($zone['points'] as &$point) {
+            $point['x'] = $min_x + (float)$point['x'] * $range_x;
+            $point['y'] = -($min_y + (-(float)$point['y']) * $range_y);
+        }
+        unset($point);
+    }
+    unset($zone);
     $config['coordinate_space'] = 'world';
     return $config;
 }
@@ -217,6 +251,7 @@ function action_routing_put(PDO $pdo): void {
         'grid_size_m' => $config['grid_size_m'],
         'nodes' => $config['nodes'],
         'edges' => $config['edges'],
+        'bma_zones' => $config['bma_zones'],
     ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     $stmt = $pdo->prepare('UPDATE mods SET meters_per_world_unit = ?, routing_graph = ?, updated_at = CURRENT_TIMESTAMP WHERE mod_id = ?');
     $stmt->execute([$config['meters_per_world_unit'], $graph, $session['mod_id']]);

@@ -1,18 +1,27 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
-  import { Check, FolderOpen, Radio } from '../lib/fontawesome-icons';
+  import { Check, FolderOpen } from '../lib/fontawesome-icons';
   import { vehicleDisplayNameForIdentifier } from '../lib/classify';
   import { dismissLog } from '../lib/polling';
   import { isSpeechRequest } from '../lib/speech-requests';
   import { app, canWrite, eventById, openAssign, setHighlightedEvent } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
-  import type { LogRow } from '../lib/types';
+  import type { LogRow, VehicleStatusChange } from '../lib/types';
+  import StatusBadge from './StatusBadge.svelte';
 
-  const rows = $derived([...app.logs].reverse());
+  type FmsRow = { kind: 'log'; key: string; timestamp: string; row: LogRow } | { kind: 'status'; key: string; timestamp: string; row: VehicleStatusChange };
+  const rows = $derived([
+    ...app.logs.map((row): FmsRow => ({ kind: 'log', key: `log-${row.id}`, timestamp: row.updated_at, row })),
+    ...app.statusHistory.map((row): FmsRow => ({ kind: 'status', key: `status-${row.id}`, timestamp: row.created_at, row })),
+  ].sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
   let dismissing = $state<Set<number>>(new Set());
 
   function timeOf(row: LogRow): string {
     return row.updated_at?.slice(11, 16) ?? '';
+  }
+
+  function statusTime(row: VehicleStatusChange): string {
+    return row.created_at?.slice(11, 16) ?? '';
   }
 
   function entityName(row: LogRow): string {
@@ -42,11 +51,18 @@
 
 <section class="panel">
   <div class="panel-header">
-    <span class="icon"><FaIcon icon={Radio} size={14} /></span>
-    <h2>Funkmeldungen</h2>
+    <h2>FMS-LOG</h2>
   </div>
   <div class="panel-body log" role="list" aria-live="polite">
-    {#each rows as row (row.id)}
+    {#each rows as item (item.key)}
+      {#if item.kind === 'status'}
+        <div class="row status-change" role="listitem">
+          <span class="time" data-tooltip={item.row.created_at}>{statusTime(item.row)}</span>
+          <span class="entity">{item.row.vehicle_name || item.row.game_vehicle_id}</span>
+          <StatusBadge value={Number(item.row.status)} />
+        </div>
+      {:else}
+      {@const row = item.row}
       {@const speechRequest = isSpeechRequest(row)}
       <div
         class="row"
@@ -72,9 +88,10 @@
           </button>
         {/if}
       </div>
+      {/if}
     {/each}
     {#if !rows.length}
-      <div class="empty-hint">Keine Funkmeldungen</div>
+      <div class="empty-hint">Keine FMS-Einträge</div>
     {/if}
   </div>
 </section>
@@ -125,6 +142,8 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
+
+  .status-change { min-height: 28px; }
 
   .done-mark {
     color: var(--good);

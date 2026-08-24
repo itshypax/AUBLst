@@ -71,4 +71,16 @@ describe('Sitzungsdaten', () => {
     openAssign(second);
     expect(app.dispatchVehicleIds).toEqual([]);
   });
+
+  it('zentriert die Karte beim Öffnen eines Einsatzes erneut auf dessen Position', () => {
+    const event = { id: 3, game_event_id: '3', name: 'Wohnungsbrand', x: 145, y: -72, status: 'active' as const, created_by: 'game' as const };
+
+    openAssign(event);
+    const firstSequence = app.focusPoint?.seq;
+    expect(app.focusPoint).toMatchObject({ x: 145, y: -72 });
+
+    openAssign(event);
+    expect(app.focusPoint).toMatchObject({ x: 145, y: -72 });
+    expect(app.focusPoint?.seq).toBeGreaterThan(firstSequence ?? 0);
+  });
 });

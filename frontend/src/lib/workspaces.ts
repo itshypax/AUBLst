@@ -6,12 +6,13 @@ export const PANEL_IDS = [
   'logs',
   'speech_requests',
   'hospitals',
+  'bmas',
 ] as const;
 export const AREA_IDS = ['leftTop', 'leftBottom', 'rightTop', 'rightBottom'] as const;
 
 export type PanelId = (typeof PANEL_IDS)[number];
 export type AreaId = (typeof AREA_IDS)[number];
-export type AreaDirection = 'row' | 'column';
+export type AreaDirection = 'row' | 'column' | 'mosaic';
 
 export interface WorkspaceLayout {
   id: string;
@@ -32,14 +33,14 @@ export const DEFAULT_WORKSPACES: WorkspaceLayout[] = [
     id: 'standard',
     name: 'Standard',
     areas: {
-      leftTop: ['events', 'current_event'],
-      leftBottom: ['logs', 'speech_requests', 'hospitals'],
+      leftTop: ['events', 'bmas', 'speech_requests', 'current_event'],
+      leftBottom: ['hospitals', 'logs'],
       rightTop: ['vehicles'],
       rightBottom: ['map'],
     },
-    directions: { leftTop: 'row', leftBottom: 'row', rightTop: 'row', rightBottom: 'row' },
+    directions: { leftTop: 'mosaic', leftBottom: 'row', rightTop: 'row', rightBottom: 'row' },
     ratios: DEFAULT_RATIOS,
-    panelRatios: { leftTop: [0.34, 0.66], leftBottom: [0.42, 0.22, 0.36], rightTop: [1], rightBottom: [1] },
+    panelRatios: { leftTop: [0.25, 0.25, 0.25, 0.25], leftBottom: [0.5, 0.5], rightTop: [1], rightBottom: [1] },
   },
   {
     id: 'einsatzmonitor',
@@ -56,6 +57,19 @@ export const DEFAULT_WORKSPACES: WorkspaceLayout[] = [
     directions: { leftTop: 'row', leftBottom: 'row', rightTop: 'row', rightBottom: 'row' },
     ratios: { col: 0.62, left: 0.5, right: 0.68 },
     panelRatios: { leftTop: [1], leftBottom: [], rightTop: [1], rightBottom: [1] },
+  },
+  {
+    id: 'leitstelle',
+    name: 'Leitstelle kompakt',
+    areas: {
+      leftTop: ['events'],
+      leftBottom: ['bmas', 'speech_requests'],
+      rightTop: ['current_event'],
+      rightBottom: [],
+    },
+    directions: { leftTop: 'row', leftBottom: 'row', rightTop: 'row', rightBottom: 'row' },
+    ratios: { col: 0.39, left: 0.56, right: 0.5 },
+    panelRatios: { leftTop: [1], leftBottom: [0.44, 0.56], rightTop: [1], rightBottom: [] },
   },
 ];
 
@@ -91,13 +105,32 @@ export function cloneWorkspace(layout: WorkspaceLayout): WorkspaceLayout {
   };
 }
 
+export function resetWorkspaceLayout(layout: WorkspaceLayout): WorkspaceLayout {
+  const preset = DEFAULT_WORKSPACES.find((workspace) => workspace.id === layout.id) ?? DEFAULT_WORKSPACES[0];
+  return { ...cloneWorkspace(preset), id: layout.id, name: layout.name };
+}
+
 function normalizeWorkspace(value: Partial<WorkspaceLayout>, fallback: WorkspaceLayout): WorkspaceLayout {
   const seen = new Set<PanelId>();
   const legacyStandard =
     value.id === 'standard' && !AREA_IDS.some((area) => value.areas?.[area]?.includes('current_event'));
+  const legacyStandardRows = value.id === 'standard'
+    && value.areas?.leftTop?.join(',') === 'events,current_event'
+    && value.areas?.rightTop?.join(',') === 'vehicles'
+    && value.areas?.rightBottom?.join(',') === 'map';
+  const legacyStandardMosaicOrder = value.id === 'standard'
+    && value.areas?.leftTop?.join(',') === 'events,bmas,speech_requests,current_event'
+    && value.areas?.leftBottom?.join(',') === 'logs,hospitals'
+    && value.areas?.rightTop?.join(',') === 'vehicles'
+    && value.areas?.rightBottom?.join(',') === 'map';
+  const legacyCompact = value.id === 'leitstelle'
+    && value.areas?.leftTop?.join(',') === 'events'
+    && value.areas?.leftBottom?.join(',') === 'bmas,speech_requests'
+    && value.areas?.rightTop?.join(',') === 'current_event'
+    && value.areas?.rightBottom?.join(',') === 'hospitals,logs';
   const areas = Object.fromEntries(
     AREA_IDS.map((area) => {
-      const candidates = legacyStandard
+      const candidates = legacyStandard || legacyStandardRows || legacyStandardMosaicOrder || legacyCompact
         ? fallback.areas[area]
         : Array.isArray(value.areas?.[area])
           ? value.areas[area]
@@ -117,12 +150,25 @@ function normalizeWorkspace(value: Partial<WorkspaceLayout>, fallback: Workspace
     areas[logsArea] = panels;
     seen.add('speech_requests');
   }
+  if (value.id === 'standard' && !seen.has('bmas')) {
+    const speechArea = AREA_IDS.find((area) => areas[area].includes('speech_requests')) ?? 'leftBottom';
+    const panels = [...areas[speechArea]];
+    panels.splice(panels.indexOf('speech_requests') + 1, 0, 'bmas');
+    areas[speechArea] = panels;
+    seen.add('bmas');
+  }
   return {
     id: typeof value.id === 'string' && value.id.trim() ? value.id.trim() : fallback.id,
     name: typeof value.name === 'string' && value.name.trim() ? value.name.trim().slice(0, 60) : fallback.name,
     areas,
     directions: Object.fromEntries(
-      AREA_IDS.map((area) => [area, value.directions?.[area] === 'column' ? 'column' : 'row']),
+      AREA_IDS.map((area) => {
+        if (legacyStandard || legacyStandardRows || legacyStandardMosaicOrder || legacyCompact) return [area, fallback.directions[area]];
+        const direction = value.directions?.[area];
+        if (direction === 'column') return [area, 'column'];
+        if (direction === 'mosaic' && areas[area].length === 4) return [area, 'mosaic'];
+        return [area, 'row'];
+      }),
     ) as Record<AreaId, AreaDirection>,
     ratios: {
       col: clamp(value.ratios?.col, fallback.ratios.col),
@@ -145,7 +191,10 @@ export function loadWorkspaces(): WorkspaceLayout[] {
     if (Array.isArray(parsed) && parsed.length) {
       initial = parsed
         .slice(0, 20)
-        .map((item, index) => normalizeWorkspace(item, DEFAULT_WORKSPACES[index] ?? DEFAULT_WORKSPACES[0]));
+        .map((item, index) => normalizeWorkspace(
+          item,
+          DEFAULT_WORKSPACES.find((workspace) => workspace.id === item?.id) ?? DEFAULT_WORKSPACES[index] ?? DEFAULT_WORKSPACES[0],
+        ));
     }
   } catch {
     // Ungültige Einstellungen werden durch die Startansichten ersetzt.
@@ -157,7 +206,10 @@ export function loadWorkspaces(): WorkspaceLayout[] {
       if (Array.isArray(parsed) && parsed.length) {
         initial = parsed
           .slice(0, 20)
-          .map((item, index) => normalizeWorkspace(item, DEFAULT_WORKSPACES[index] ?? DEFAULT_WORKSPACES[0]));
+          .map((item, index) => normalizeWorkspace(
+            item,
+            DEFAULT_WORKSPACES.find((workspace) => workspace.id === item?.id) ?? DEFAULT_WORKSPACES[index] ?? DEFAULT_WORKSPACES[0],
+          ));
       }
     } catch {
       // Bestehende browserweite Einstellungen werden einmalig übernommen.

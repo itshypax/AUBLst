@@ -22,9 +22,14 @@ function action_state(PDO $pdo): void {
     $hospitals->execute([$sid]);
     $hospitals = $hospitals->fetchAll();
 
-    $events = $pdo->prepare("SELECT * FROM events WHERE session_id = ? AND status != 'completed'");
+    $events = $pdo->prepare('SELECT * FROM events WHERE session_id = ? ORDER BY created_at DESC, id DESC');
     $events->execute([$sid]);
     $events = $events->fetchAll();
+
+    $status_history = $pdo->prepare('SELECT id, game_vehicle_id, vehicle_name, status, created_at
+        FROM vehicle_status_history WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT 500');
+    $status_history->execute([$sid]);
+    $status_history = $status_history->fetchAll();
 
     if (reconcile_event_leaders($pdo, $sid)) touch_session($pdo, $sid);
 
@@ -91,6 +96,7 @@ function action_state(PDO $pdo): void {
         'events' => $events,
         'assignments' => $assignments,
         'hospital_reservations' => $hospital_reservations,
+        'status_history' => $status_history,
         'time' => $time,
     ]);
 }

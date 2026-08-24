@@ -92,7 +92,7 @@
 </div>
 
 <style>
-  .map-filters { position: absolute; top: 48px; right: 10px; z-index: 7; width: min(330px, calc(100% - 20px)); max-height: calc(100% - 62px); overflow: auto; padding: 10px; border: 1px solid var(--border-strong); background: rgba(21, 22, 25, 0.98); box-shadow: var(--shadow); cursor: default; }
+  .map-filters { --text: #e9eaec; --text-dim: #aeb1b7; --bg-raised: #24262a; --border: #34373c; --border-strong: #565a61; --accent-soft: rgba(255, 255, 255, 0.08); position: absolute; top: 48px; right: 10px; z-index: 7; width: min(330px, calc(100% - 20px)); max-height: calc(100% - 62px); overflow: auto; padding: 10px; border: 1px solid var(--border-strong); background: rgba(21, 22, 25, 0.98); color: var(--text); box-shadow: var(--shadow); cursor: default; }
   .filter-head { display: flex; align-items: center; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
   .filter-head strong { flex: 1; font-size: 12px; }
   .filter-section { padding: 9px 0; border-bottom: 1px solid var(--border); }

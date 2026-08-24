@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app, resetSessionData } from '../lib/state.svelte';
 import type { LogRow } from '../lib/types';
@@ -63,6 +63,23 @@ describe('Kopfzeile', () => {
     expect(profile).toBeTruthy();
     expect(screen.getByRole('option', { name: 'Standard' })).toBeTruthy();
     expect(await screen.findByRole('option', { name: 'Stimme Jannik' })).toBeTruthy();
+  });
+
+  it('legt den Farbmodus mit Sonne und Mond in die Sitzungseinstellungen', () => {
+    const { container } = render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
+
+    expect(screen.getByRole('button', { name: 'Darkmode' }).querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Lightmode' }).querySelector('svg')).not.toBeNull();
+    expect(container.querySelector('.topbar > .theme-toggle')).toBeNull();
+  });
+
+  it('setzt das vollständige Layout aus den Sitzungseinstellungen zurück', async () => {
+    const onResetLayout = vi.fn();
+    render(Topbar, { props: { onResetLayout, onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Layout auf Standard zurücksetzen' }));
+
+    expect(onResetLayout).toHaveBeenCalledOnce();
   });
 
   it('zeigt alle aktiven Lagehinweise', () => {

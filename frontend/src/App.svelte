@@ -31,7 +31,7 @@
     setHighlightFromSync,
   } from './lib/state.svelte';
   import { startUiSync, uiSyncScope, updateUiSyncPresence } from './lib/ui-sync';
-  import { AREA_IDS, cloneWorkspace, loadWorkspaces, saveWorkspaces, setWorkspaceInUrl, workspaceIdFromUrl, workspaceUrl, type AreaId, type WorkspaceLayout } from './lib/workspaces';
+  import { AREA_IDS, cloneWorkspace, loadWorkspaces, resetWorkspaceLayout, saveWorkspaces, setWorkspaceInUrl, workspaceIdFromUrl, workspaceUrl, type AreaId, type WorkspaceLayout } from './lib/workspaces';
 
   const pageParams = new URLSearchParams(location.search);
   const localHostname = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '::1';
@@ -136,10 +136,7 @@
   }
 
   function resetLayout(): void {
-    colRatio = 0.58;
-    leftRowRatio = 0.62;
-    rightRowRatio = 0.55;
-    persistLayout();
+    saveWorkspace(resetWorkspaceLayout(activeWorkspace));
   }
 
   function saveWorkspace(workspace: WorkspaceLayout): void {

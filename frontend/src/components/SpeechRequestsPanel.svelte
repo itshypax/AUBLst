@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import FaIcon from './FaIcon.svelte';
-  import { Check, Crosshair, FolderOpen, Hospital, RadioTower } from '../lib/fontawesome-icons';
+  import { Check, Crosshair, FolderOpen, Hospital } from '../lib/fontawesome-icons';
   import { isHospitalTransportUnit } from '../lib/classify';
   import { acknowledgeLog, dismissLog } from '../lib/polling';
   import { buildSpeechRequestEntries, type SpeechRequestEntry } from '../lib/speech-requests';
@@ -119,7 +119,7 @@
   }
 
   function menuOpenEvent(entry: SpeechRequestEntry): void {
-    openRequest(entry);
+    openEvent(entry);
     void acknowledge(entry);
     menu = null;
   }
@@ -132,7 +132,6 @@
 
 <section class="panel speech-panel">
   <div class="panel-header">
-    <span class="icon"><FaIcon icon={RadioTower} size={14} /></span>
     <h2>Sprechwünsche</h2>
     <span class="count" aria-label={`${entries.length} offene Sprechwünsche`}>{entries.length}</span>
   </div>
@@ -244,7 +243,7 @@
   .speech-panel tbody td {
     padding: 5px;
     border-bottom: 1px solid var(--border);
-    color: #fff;
+    color: var(--text);
     font-size: 14px;
     line-height: 1.25;
     overflow: hidden;
@@ -267,7 +266,7 @@
     pointer-events: none;
   }
   .speech-panel td.time {
-    color: #fff;
+    color: inherit;
     font-variant-numeric: tabular-nums;
   }
   .request-text {
@@ -278,12 +277,16 @@
     font-weight: 600;
   }
   tbody tr.unacknowledged {
-    background-color: rgba(232, 82, 74, 0.72);
+    background-color: var(--speech-alert-bg);
+    color: var(--speech-alert-text);
     animation: speech-request-alert 1.2s step-end infinite;
+  }
+  .speech-panel tbody tr.unacknowledged td {
+    color: var(--speech-alert-text);
   }
   @keyframes speech-request-alert {
     0%, 49% {
-      background-color: rgba(232, 82, 74, 0.72);
+      background-color: var(--speech-alert-bg);
     }
     50%, 100% {
       background-color: transparent;

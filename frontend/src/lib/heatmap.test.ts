@@ -13,4 +13,13 @@ describe('Einsatz-Heatmap', () => {
     );
     expect(points).toEqual([{ x: 200, y: 100 }]);
   });
+
+  it('wendet Zoom und Verschiebung auf die Einsatzorte an', () => {
+    const points = visibleHeatmapPoints(
+      [{ x: 50, y: -50 }],
+      { min_x: 0, min_y: 0, max_x: 100, max_y: 100 },
+      { width: 400, height: 200, natural: { w: 1000, h: 500 }, zoom: 2, pan: { x: -100, y: -50 } },
+    );
+    expect(points).toEqual([{ x: 300, y: 150 }]);
+  });
 });

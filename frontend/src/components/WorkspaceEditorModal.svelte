@@ -27,9 +27,10 @@
     vehicles: 'Fahrzeuge',
     events: 'Einsätze',
     current_event: 'Aktueller Einsatz',
-    logs: 'Funk',
+    logs: 'FMS-LOG',
     speech_requests: 'Sprechwünsche',
     hospitals: 'Krankenhäuser',
+    bmas: 'BMAs',
   };
   const areaLabels: Record<AreaId, string> = {
     leftTop: 'Links oben',
@@ -40,6 +41,7 @@
 
   let draft = $state(cloneWorkspace(DEFAULT_WORKSPACES[0]));
   let loadedDraftId = $state('');
+  let hiddenPanels = $derived(PANEL_IDS.filter((panel) => areaFor(panel) === 'hidden'));
 
   $effect(() => {
     const selected = workspaces.find((workspace) => workspace.id === activeId);
@@ -56,7 +58,11 @@
   function placePanel(panel: PanelId, target: AreaId | 'hidden'): void {
     const areas = Object.fromEntries(AREA_IDS.map((area) => [area, draft.areas[area].filter((item) => item !== panel)])) as Record<AreaId, PanelId[]>;
     if (target !== 'hidden') areas[target] = [...areas[target], panel];
-    draft = { ...draft, areas };
+    const directions = { ...draft.directions };
+    for (const area of AREA_IDS) {
+      if (directions[area] === 'mosaic' && areas[area].length !== 4) directions[area] = 'row';
+    }
+    draft = { ...draft, areas, directions };
   }
 
   function move(panel: PanelId, direction: -1 | 1): void {
@@ -96,6 +102,21 @@
   }
 </script>
 
+{#snippet panelRow(panel: PanelId, area: AreaId | 'hidden', position: number, lastPosition: number)}
+  <div class="panel-row">
+    <span class="panel-name">{panelLabels[panel]}</span>
+    <select aria-label={`${panelLabels[panel]} platzieren`} value={area} onchange={(event) => placePanel(panel, event.currentTarget.value as AreaId | 'hidden')}>
+      {#each AREA_IDS as candidate (candidate)}<option value={candidate}>{areaLabels[candidate]}</option>{/each}
+      <option value="hidden">Ausgeblendet</option>
+    </select>
+    <span class="order-actions">
+      <span class="position-number" aria-label={`Position ${position + 1}`}>{area === 'hidden' ? '–' : position + 1}</span>
+      <button class="ghost icon-button" aria-label={`${panelLabels[panel]} nach vorne`} disabled={area === 'hidden' || position === 0} onclick={() => move(panel, -1)}><FaIcon icon={ArrowUp} size={14} /></button>
+      <button class="ghost icon-button" aria-label={`${panelLabels[panel]} nach hinten`} disabled={area === 'hidden' || position === lastPosition} onclick={() => move(panel, 1)}><FaIcon icon={ArrowDown} size={14} /></button>
+    </span>
+  </div>
+{/snippet}
+
 <div class="backdrop" role="presentation" onclick={(event) => event.target === event.currentTarget && onClose()} onkeydown={onKeydown} use:focusTrap={{ initial: '[data-autofocus]' }} tabindex="-1">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="workspace-title">
     <header>
@@ -125,22 +146,26 @@
 
       <div class="panel-table">
         <div class="table-head"><span>Panel</span><span>Bereich</span><span>Reihenfolge</span></div>
-        {#each PANEL_IDS as panel (panel)}
-          {@const area = areaFor(panel)}
-          {@const position = area === 'hidden' ? -1 : draft.areas[area].indexOf(panel)}
-          {@const lastPosition = area === 'hidden' ? -1 : draft.areas[area].length - 1}
-          <div class="panel-row">
-            <span class="panel-name">{panelLabels[panel]}</span>
-            <select aria-label={`${panelLabels[panel]} platzieren`} value={area} onchange={(event) => placePanel(panel, event.currentTarget.value as AreaId | 'hidden')}>
-              {#each AREA_IDS as candidate (candidate)}<option value={candidate}>{areaLabels[candidate]}</option>{/each}
-              <option value="hidden">Ausgeblendet</option>
-            </select>
-            <span class="order-actions">
-              <button class="ghost icon-button" aria-label={`${panelLabels[panel]} nach vorne`} disabled={area === 'hidden' || position === 0} onclick={() => move(panel, -1)}><FaIcon icon={ArrowUp} size={14} /></button>
-              <button class="ghost icon-button" aria-label={`${panelLabels[panel]} nach hinten`} disabled={area === 'hidden' || position === lastPosition} onclick={() => move(panel, 1)}><FaIcon icon={ArrowDown} size={14} /></button>
-            </span>
-          </div>
+        {#each AREA_IDS as area (area)}
+          <section class="area-group" data-area={area}>
+            <div class="area-group-title">{areaLabels[area]}</div>
+            {#if draft.areas[area].length}
+              {#each draft.areas[area] as panel, position (panel)}
+                {@render panelRow(panel, area, position, draft.areas[area].length - 1)}
+              {/each}
+            {:else}
+              <div class="empty-area">Keine Fenster</div>
+            {/if}
+          </section>
         {/each}
+        {#if hiddenPanels.length}
+          <section class="area-group" data-area="hidden">
+            <div class="area-group-title">Ausgeblendet</div>
+            {#each hiddenPanels as panel (panel)}
+              {@render panelRow(panel, 'hidden', -1, -1)}
+            {/each}
+          </section>
+        {/if}
       </div>
 
       <div class="area-settings">
@@ -150,10 +175,12 @@
             <select bind:value={draft.directions[area]} disabled={draft.areas[area].length < 2}>
               <option value="row">Nebeneinander</option>
               <option value="column">Untereinander</option>
+              <option value="mosaic" disabled={draft.areas[area].length !== 4}>1 oben, 2 unten, 1 rechts groß</option>
             </select>
           </label>
         {/each}
       </div>
+      <p class="layout-note">Bei „1 oben, 2 unten, 1 rechts groß“ legt die Reihenfolge die Position fest: Das erste Fenster steht oben links, das zweite und dritte darunter, das vierte rechts. Ein einzelner belegter Bereich füllt seine Spalte.</p>
     </div>
 
     <footer>
@@ -183,10 +210,15 @@
   .panel-table { border: 1px solid var(--border); }
   .table-head, .panel-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(150px, 1fr) 84px; align-items: center; gap: 10px; min-height: 42px; padding: 6px 10px; }
   .table-head { min-height: 32px; color: var(--text-dim); background: var(--bg-raised); font-size: 11px; }
-  .panel-row + .panel-row { border-top: 1px solid var(--border); }
+  .area-group + .area-group { border-top: 1px solid var(--border-strong); }
+  .area-group-title { padding: 7px 10px; border-bottom: 1px solid var(--border); background: var(--panel-header); color: var(--text); font-size: 12px; font-weight: 700; }
+  .area-group .panel-row + .panel-row { border-top: 1px solid var(--border); }
+  .empty-area { padding: 9px 10px; color: var(--text-dim); font-size: 12px; }
   .panel-name { font-weight: 600; }
   .order-actions { display: flex; justify-content: flex-end; gap: 3px; }
+  .position-number { min-width: 20px; align-self: center; color: var(--text-dim); text-align: center; font-variant-numeric: tabular-nums; }
   .area-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .layout-note { margin: -4px 0 0; color: var(--text-dim); font-size: 12px; }
   .spacer { flex: 1; }
   .delete { color: var(--danger-text); }
   .save { background: var(--accent); border-color: var(--accent); }

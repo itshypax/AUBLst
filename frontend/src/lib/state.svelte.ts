@@ -1,4 +1,4 @@
-import type { Assignment, ClockTime, EventItem, Hospital, HospitalReservation, LogRow, MapBounds, Player, Vehicle } from './types';
+import type { Assignment, ClockTime, EventItem, Hospital, HospitalReservation, LogRow, MapBounds, Player, Vehicle, VehicleStatusChange } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 import {
   closeEventAcrossWindows,
@@ -32,6 +32,7 @@ export const app = $state({
   mapImageUrl: '',
   routing: cloneRoutingConfig(DEFAULT_ROUTING_CONFIG) as RoutingConfig,
   logs: [] as LogRow[],
+  statusHistory: [] as VehicleStatusChange[],
   lastLogBatch: [] as number[],
   highlightedEventId: null as number | null,
   highlightedVehicleId: null as number | null,
@@ -52,6 +53,7 @@ export const app = $state({
   soundVolume: 0.7,
   soundProfile: 'standard',
   desktopNotifications: false,
+  colorMode: 'dark' as 'dark' | 'light',
   notice: null as { message: string; kind: 'success' | 'error'; id: number } | null,
 });
 
@@ -85,6 +87,13 @@ let focusSeq = 0;
 function focusVehicleLocally(v: Vehicle): void {
   app.focusPoint = { x: v.x, y: v.y, seq: ++focusSeq };
   app.highlightedVehicleId = v.id;
+}
+
+function focusEventLocally(ev: EventItem): void {
+  const x = Number(ev.x);
+  const y = Number(ev.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  app.focusPoint = { x, y, seq: ++focusSeq };
 }
 
 export function focusVehicle(v: Vehicle): void {
@@ -123,6 +132,8 @@ export function initSettings(): void {
   app.desktopNotifications = localStorage.getItem('desktopNotifications') === 'true'
     && typeof Notification !== 'undefined'
     && Notification.permission === 'granted';
+  app.colorMode = localStorage.getItem('colorMode') === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = app.colorMode;
 
   // Alte Versionen legten Zugangsdaten dauerhaft ab.
   localStorage.removeItem('sessionToken');
@@ -152,6 +163,12 @@ export function persistSoundSettings(): void {
   localStorage.setItem('soundEnabled', String(app.soundEnabled));
   localStorage.setItem('soundVolume', String(app.soundVolume));
   localStorage.setItem('soundProfile', app.soundProfile);
+}
+
+export function setColorMode(mode: 'dark' | 'light'): void {
+  app.colorMode = mode;
+  document.documentElement.dataset.theme = mode;
+  localStorage.setItem('colorMode', mode);
 }
 
 function pinStorageKey(apiBase: string, token: string): string {
@@ -195,6 +212,7 @@ export function resetSessionData(): void {
   app.mapImageUrl = '';
   app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
   app.logs = [];
+  app.statusHistory = [];
   app.lastLogBatch = [];
   app.highlightedEventId = null;
   app.highlightedVehicleId = null;
@@ -203,6 +221,7 @@ export function resetSessionData(): void {
   app.dispatchVehicleIds = [];
   app.createEventPos = null;
   app.contextMenu = null;
+  app.focusPoint = null;
   app.actionsOpen = false;
   app.sessionOverviewOpen = false;
   app.shortcutsOpen = false;
@@ -231,6 +250,7 @@ export function setHighlightedVehicle(id: number | null): void {
 }
 
 export function openAssign(ev: EventItem): void {
+  if (ev.status !== 'active') return;
   const placement = openEventAcrossWindows(ev.id);
   setCurrentEvent(ev, placement.hostAvailable && !placement.hostedHere);
 }
@@ -239,6 +259,7 @@ function setCurrentEvent(ev: EventItem, hostedRemotely: boolean): void {
   if (app.assignEvent?.id !== ev.id) app.dispatchVehicleIds = [];
   app.assignEvent = ev;
   app.currentEventHostedRemotely = hostedRemotely;
+  focusEventLocally(ev);
 }
 
 export function toggleDispatchVehicle(vehicleId: number): void {

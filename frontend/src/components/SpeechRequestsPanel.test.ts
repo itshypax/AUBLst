@@ -112,4 +112,16 @@ describe('Sprechwunsch-Tabelle', () => {
 
     await waitFor(() => expect(app.hospitalAssignmentVehicleId).toBe(4));
   });
+
+  it('zentriert beim ausdrücklichen Öffnen des Einsatzes auf den Einsatzort', async () => {
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    render(SpeechRequestsPanel);
+
+    await fireEvent.contextMenu(screen.getByText('4-RTW-B'), { clientX: 100, clientY: 100 });
+    await user.click(screen.getByRole('menuitem', { name: 'Einsatz öffnen' }));
+
+    expect(app.focusPoint).toMatchObject({ x: 0, y: 0 });
+    expect(app.highlightedVehicleId).toBeNull();
+  });
 });

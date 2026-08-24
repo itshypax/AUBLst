@@ -9,6 +9,9 @@
   import EmptyState from './EmptyState.svelte';
 
   let query = $state('');
+  type EventFilter = 'new' | 'current' | 'completed';
+
+  let filters = $state<Set<EventFilter>>(new Set(['new', 'current']));
   let now = $state(Date.now());
   let finishing = $state<Set<number>>(new Set());
 
@@ -17,8 +20,15 @@
     return () => clearInterval(timer);
   });
 
+  const counts = $derived({
+    new: app.events.filter((event) => event.status === 'active' && assignedCount(event.id) === 0).length,
+    current: app.events.filter((event) => event.status === 'active' && assignedCount(event.id) > 0).length,
+    completed: app.events.filter((event) => event.status !== 'active').length,
+  });
+
   const sorted = $derived(
     [...app.events]
+      .filter((event) => filters.has(eventFilter(event)))
       .filter((event) => `${event.name ?? ''} ${event.id}`.toLocaleLowerCase('de').includes(query.trim().toLocaleLowerCase('de')))
       .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id - a.id)
   );
@@ -64,11 +74,22 @@
     return app.assignments.filter((item) => Number(item.event_id) === id).length;
   }
 
+  function eventFilter(event: EventItem): EventFilter {
+    if (event.status !== 'active') return 'completed';
+    return assignedCount(event.id) === 0 ? 'new' : 'current';
+  }
+
+  function toggleFilter(filter: EventFilter): void {
+    const next = new Set(filters);
+    if (next.has(filter)) next.delete(filter);
+    else next.add(filter);
+    filters = next;
+  }
+
 </script>
 
 <section class="panel">
   <div class="panel-header">
-    <span class="icon"><FaIcon icon={TriangleAlert} size={14} /></span>
     <h2>Einsätze</h2>
     <span class="spacer"></span>
     <label class="event-search">
@@ -78,6 +99,11 @@
     </label>
     <span class="count">{sorted.length}</span>
   </div>
+  <div class="event-filters" aria-label="Einsatzstatus">
+    <button class:active={filters.has('new')} aria-pressed={filters.has('new')} onclick={() => toggleFilter('new')}>Neu <span>{counts.new}</span></button>
+    <button class:active={filters.has('current')} aria-pressed={filters.has('current')} onclick={() => toggleFilter('current')}>Aktuell <span>{counts.current}</span></button>
+    <button class:active={filters.has('completed')} aria-pressed={filters.has('completed')} onclick={() => toggleFilter('completed')}>Abgeschlossen <span>{counts.completed}</span></button>
+  </div>
   <div class="panel-body">
     {#each sorted as ev (ev.id)}
       {@const cat = eventCategory(ev.name)}
@@ -86,8 +112,9 @@
       {@const iconTitle = isControlRoomEvent ? 'Leitstellen-Einsatz' : categoryTitle[cat]}
       {@const isAvailableInGame = !isControlRoomEvent || (ev.game_event_id !== null && String(ev.game_event_id).trim() !== '')}
       {@const age = ageText(ev)}
-      <div class="row {cat}" role="group" class:control-room={isControlRoomEvent} class:highlighted={app.highlightedEventId === ev.id} class:open={app.assignEvent?.id === ev.id} onmouseenter={() => setHighlightedEvent(ev.id)} onmouseleave={() => setHighlightedEvent(null)}>
-        <button class="event-open" onclick={() => openAssign(ev)}>
+      {@const completed = ev.status !== 'active'}
+      <div class="row {cat}" role="group" class:completed class:control-room={isControlRoomEvent} class:highlighted={!completed && app.highlightedEventId === ev.id} class:open={!completed && app.assignEvent?.id === ev.id} onmouseenter={() => !completed && setHighlightedEvent(ev.id)} onmouseleave={() => !completed && setHighlightedEvent(null)}>
+        <button class="event-open" disabled={completed} onclick={() => !completed && openAssign(ev)}>
           <span class="cat {cat}" class:control-room={isControlRoomEvent} data-tooltip={iconTitle} aria-label={iconTitle}><FaIcon icon={Icon} size={16} /></span>
           <span class="info">
             <span class="name">{ev.name || 'Einsatz'}</span>
@@ -97,7 +124,7 @@
             </span>
           </span>
         </button>
-        {#if isControlRoomEvent}
+        {#if isControlRoomEvent && !completed}
           <button class="ghost finish" data-tooltip="Einsatz abschließen" aria-label="Einsatz abschließen" disabled={finishing.has(ev.id) || !canWrite()} onclick={(e) => void finish(ev, e)}>
             <FaIcon icon={CircleCheck} size={15} />
           </button>
@@ -105,7 +132,12 @@
       </div>
     {/each}
     {#if !sorted.length}
-      <EmptyState compact search={Boolean(query.trim())} title={query.trim() ? 'Keine passenden Einsätze' : 'Keine laufenden Einsätze'} description={query.trim() ? 'Suchbegriff ändern, um andere Einsätze zu sehen.' : 'Neue Einsätze erscheinen hier automatisch.'} />
+      <EmptyState
+        compact
+        search={Boolean(query.trim())}
+        title={query.trim() ? 'Keine passenden Einsätze' : filters.size === 0 ? 'Keine Statusfilter ausgewählt' : 'Keine Einsätze in dieser Auswahl'}
+        description={query.trim() ? 'Suchbegriff oder Statusauswahl ändern.' : filters.size === 0 ? 'Mindestens einen Status auswählen, um Einsätze anzuzeigen.' : 'Neue Änderungen erscheinen hier automatisch.'}
+      />
     {/if}
   </div>
 </section>
@@ -119,6 +151,12 @@
     border-radius: var(--radius-sm);
     padding: 1px 7px;
   }
+
+  .event-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--border); background: var(--panel-header); }
+  .event-filters button { min-height: 34px; justify-content: center; border: 0; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-dim); font-size: 12px; font-weight: 650; }
+  .event-filters button:hover { background: var(--accent-soft); color: var(--text); }
+  .event-filters button.active { border-bottom-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+  .event-filters span { min-width: 19px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 999px; font-size: 10px; font-variant-numeric: tabular-nums; }
 
   .row {
     display: flex;
@@ -148,9 +186,13 @@
   .row.water { border-left-color: var(--water); }
   .row.medical { border-left-color: var(--good); }
   .row.control-room { border-left-color: var(--accent); }
+  .row.completed { opacity: 0.52; background: transparent; }
+  .row.completed:hover { border-color: var(--border); background: transparent; }
+  .row.completed .name { text-decoration: line-through; text-decoration-color: var(--text-dim); }
 
   .event-open { flex: 1; min-width: 0; justify-content: flex-start; padding: 0; border: 0; background: transparent; text-align: left; }
   .event-open:hover:not(:disabled) { background: transparent; border-color: transparent; }
+  .event-open:disabled { opacity: 1; cursor: default; color: inherit; }
   .finish { flex: 0 0 auto; }
   .event-search { display: flex; align-items: center; gap: 5px; color: var(--text-dim); }
   .event-search input { width: 110px; padding: 4px 7px; font-size: 12px; }

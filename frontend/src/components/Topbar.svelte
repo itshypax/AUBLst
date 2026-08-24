@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import FaIcon from './FaIcon.svelte';
-  import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Play, RefreshCw, Settings, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
+  import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Moon, Play, RefreshCw, Settings, Sun, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
   import { pollLogs, refreshState, switchSession } from '../lib/polling';
   import { dismissibleDetails } from '../lib/dismissible-details';
   import { configureSounds, getDefaultSoundProfile, getSoundProfileOptions, loadSoundManifest, testSound } from '../lib/sounds';
-  import { app, persistSoundSettings, showNotice } from '../lib/state.svelte';
+  import { app, persistSoundSettings, setColorMode, showNotice } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import { userFacingError } from '../lib/user-facing-error';
   import type { LogRow } from '../lib/types';
@@ -174,7 +174,7 @@
   </button>
 
   <details class="settings" bind:this={details} use:dismissibleDetails>
-    <summary data-tooltip="Verbindung und Ton einstellen">
+    <summary data-tooltip="Sitzungseinstellungen">
       <FaIcon icon={Settings} size={16} />
       <span>{app.sessionToken ? `Sitzung ${app.sessionToken}` : 'Sitzung einrichten'}</span>
     </summary>
@@ -194,6 +194,18 @@
       <button class="ghost reload-data" disabled={app.lastSuccessfulSync === null || applying} onclick={() => { void refreshState(); void pollLogs(); }}>
         <FaIcon icon={RefreshCw} size={15} /> Daten neu laden
       </button>
+
+      <div class="settings-title section-title">Darstellung</div>
+      <div class="theme-options" role="group" aria-label="Farbmodus">
+        <button class:active={app.colorMode === 'dark'} aria-pressed={app.colorMode === 'dark'} onclick={() => setColorMode('dark')}>
+          <FaIcon icon={Moon} size={16} />
+          Darkmode
+        </button>
+        <button class:active={app.colorMode === 'light'} aria-pressed={app.colorMode === 'light'} onclick={() => setColorMode('light')}>
+          <FaIcon icon={Sun} size={16} />
+          Lightmode
+        </button>
+      </div>
 
       <div class="settings-title sound-title">Ton</div>
       <label class="sound-profile">
@@ -242,7 +254,7 @@
           {/if}
         </div>
       {/if}
-      <button class="ghost reset-layout" onclick={() => { onResetLayout(); details.open = false; }}>Panelgrößen zurücksetzen</button>
+      <button class="ghost reset-layout" onclick={() => { onResetLayout(); details.open = false; }}>Layout auf Standard zurücksetzen</button>
     </div>
   </details>
 </header>
@@ -258,9 +270,9 @@
   .clock { display: flex; align-items: center; gap: 6px; padding: 4px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); font-variant-numeric: tabular-nums; font-weight: 600; }
   .clock :global(svg) { color: var(--text-dim); }
   .game-states { display: flex; flex: 1 1 320px; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
-  .game-state { font-size: 12px; padding: 3px 8px; border-radius: var(--radius-sm); border: 1px solid var(--status-3-border); background: rgba(240, 160, 60, 0.12); color: #ffd9a8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(360px, 100%); }
-  .game-state.alarm-level { border-color: var(--status-4-border); background: rgba(232, 82, 74, 0.14); color: var(--danger-text); }
-  .game-state.doctor-alarm { border-color: var(--status-8-border); background: rgba(103, 65, 165, 0.18); color: #d2bcff; }
+  .game-state { font-size: 12px; padding: 3px 8px; border-radius: var(--radius-sm); border: 1px solid var(--attention-border); background: var(--attention-bg); color: var(--attention-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(360px, 100%); }
+  .game-state.alarm-level { border-color: var(--game-alarm-border); background: var(--game-alarm-bg); color: var(--game-alarm-text); }
+  .game-state.doctor-alarm { border-color: var(--game-doctor-border); background: var(--game-doctor-bg); color: var(--game-doctor-text); }
   .connection { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); white-space: nowrap; }
   .connection.ok { color: var(--good-text); }
   .connection.warn { color: var(--warn-text); }
@@ -268,10 +280,13 @@
   .settings { position: relative; }
   summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); background: var(--panel); font-size: 12px; white-space: nowrap; }
   summary::-webkit-details-marker { display: none; }
-  summary:hover, summary:focus-visible { border-color: var(--border-strong); background: #1e2023; }
+  summary:hover, summary:focus-visible { border-color: var(--border-strong); background: var(--accent-soft); }
   .settings-popover { position: absolute; top: calc(100% + 8px); right: 0; width: min(360px, calc(100vw - 24px)); padding: 14px; background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
   .settings-title { font-size: 13px; font-weight: 700; }
-  .sound-title { padding-top: 10px; border-top: 1px solid var(--border); }
+  .section-title, .sound-title { padding-top: 10px; border-top: 1px solid var(--border); }
+  .theme-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .theme-options button { justify-content: flex-start; min-height: 34px; background: transparent; }
+  .theme-options button.active { border-color: var(--accent); background: var(--accent-soft); }
   label { display: flex; flex-direction: column; gap: 4px; color: var(--text-dim); font-size: 12px; }
   label > span { display: inline-flex; align-items: center; gap: 4px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
