@@ -186,6 +186,15 @@ test_case('Normalisierte Straßenpunkte werden auf Sitzungskoordinaten abgebilde
         'grid_size_m' => 50,
         'nodes' => [['id' => 'mitte', 'x' => 0.5, 'y' => -0.25]],
         'edges' => [],
+        'bma_zones' => [[
+            'id' => 'schloss',
+            'name' => 'Schloss',
+            'points' => [
+                ['x' => 0.4, 'y' => -0.2],
+                ['x' => 0.6, 'y' => -0.2],
+                ['x' => 0.5, 'y' => -0.4],
+            ],
+        ]],
     ]), [
         'min_x' => -100,
         'max_x' => 300,
@@ -195,6 +204,10 @@ test_case('Normalisierte Straßenpunkte werden auf Sitzungskoordinaten abgebilde
     expect_same('world', $routing['coordinate_space']);
     expect_same(100.0, $routing['nodes'][0]['x']);
     expect_same(-100.0, $routing['nodes'][0]['y']);
+    expect_same(60.0, $routing['bma_zones'][0]['points'][0]['x']);
+    expect_same(-80.0, $routing['bma_zones'][0]['points'][0]['y']);
+    expect_same(140.0, $routing['bma_zones'][0]['points'][1]['x']);
+    expect_same(-160.0, $routing['bma_zones'][0]['points'][2]['y']);
     $expected_scale = (8192 / 10.5) / 400;
     expect_true(abs($routing['meters_per_world_unit_x'] - $expected_scale) < 0.000001);
     expect_true(abs($routing['meters_per_world_unit_y'] - $expected_scale) < 0.000001);

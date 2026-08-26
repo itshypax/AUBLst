@@ -83,6 +83,45 @@ describe('Kartenabruf', () => {
     expect(mocks.fetchMapImage).toHaveBeenCalledOnce();
     expect(app.mapImageUrl).toBe('blob:aubmp');
   });
+
+  it('lädt die umgerechneten BMA-Zonen bei geänderten Kartengrenzen neu', async () => {
+    const state = (maxX: number) => ({
+      session: {
+        token: 'demo',
+        mod_id: 'AUBMP',
+        map_bounds: { min_x: 0, min_y: 0, max_x: maxX, max_y: 1000 },
+      },
+      players: [],
+      vehicles: [],
+      hospitals: [],
+      events: [],
+      assignments: [],
+      hospital_reservations: [],
+      time: null,
+    });
+    const routing = {
+      coordinate_space: 'world',
+      meters_per_world_unit: 0.1,
+      grid_size_m: 50,
+      nodes: [],
+      edges: [],
+      bma_zones: [],
+    };
+    let stateRequests = 0;
+    mocks.apiGet.mockImplementation((action: string) => {
+      if (action === 'state') return Promise.resolve(state(++stateRequests === 1 ? 1000 : 2000));
+      return Promise.resolve(routing);
+    });
+    mocks.fetchMapImage.mockResolvedValue('blob:aubmp');
+    app.mapBounds = { min_x: 0, min_y: 0, max_x: 1000, max_y: 1000 };
+    const { refreshState } = await import('./polling');
+
+    await refreshState();
+    await refreshState();
+
+    expect(mocks.apiGet.mock.calls.filter(([action]) => action === 'routing_get')).toHaveLength(2);
+    expect(mocks.fetchMapImage).toHaveBeenCalledOnce();
+  });
 });
 
 describe('Funk-Polling', () => {

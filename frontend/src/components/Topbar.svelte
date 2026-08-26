@@ -3,7 +3,7 @@
   import FaIcon from './FaIcon.svelte';
   import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Moon, Play, RefreshCw, Settings, Sun, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
   import { pollLogs, refreshState, switchSession } from '../lib/polling';
-  import { dismissibleDetails } from '../lib/dismissible-details';
+  import { dismissible } from '../lib/dismissible-details';
   import { configureSounds, getDefaultSoundProfile, getSoundProfileOptions, loadSoundManifest, testSound } from '../lib/sounds';
   import { app, persistSoundSettings, setColorMode, showNotice } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
@@ -15,7 +15,8 @@
 
   let tokenInput = $state(app.sessionToken);
   let pinInput = $state(app.pin);
-  let details: HTMLDetailsElement;
+  let settingsTrigger: HTMLButtonElement;
+  let settingsOpen = $state(false);
   let applying = $state(false);
   let soundMessage = $state('');
   let soundProfiles = $state(getSoundProfileOptions());
@@ -37,7 +38,7 @@
   });
 
   $effect(() => {
-    if (!details?.open && !app.sessionChanging) {
+    if (!settingsOpen && !app.sessionChanging) {
       tokenInput = app.sessionToken;
       pinInput = app.pin;
     }
@@ -47,7 +48,7 @@
     applying = true;
     try {
       await switchSession(app.apiBase, tokenInput, pinInput);
-      details.open = false;
+      settingsOpen = false;
     } finally {
       applying = false;
     }
@@ -173,12 +174,29 @@
     <FaIcon icon={Keyboard} size={16} />
   </button>
 
-  <details class="settings" bind:this={details} use:dismissibleDetails>
-    <summary data-tooltip="Sitzungseinstellungen">
+  <div class="settings">
+    <button
+      bind:this={settingsTrigger}
+      class="settings-trigger"
+      data-settings-trigger
+      data-tooltip="Sitzungseinstellungen"
+      aria-expanded={settingsOpen}
+      aria-controls="session-settings-popover"
+      onclick={() => (settingsOpen = !settingsOpen)}
+    >
       <FaIcon icon={Settings} size={16} />
       <span>{app.sessionToken ? `Sitzung ${app.sessionToken}` : 'Sitzung einrichten'}</span>
-    </summary>
-      <div class="settings-popover">
+    </button>
+    {#if settingsOpen}
+      <div
+        id="session-settings-popover"
+        class="settings-popover"
+        use:dismissible={{
+          onDismiss: () => (settingsOpen = false),
+          ignore: (target) => target instanceof Element && Boolean(target.closest('[data-settings-trigger]')),
+          restoreFocus: () => settingsTrigger?.focus(),
+        }}
+      >
       <div class="settings-title">Verbindung</div>
       <div class="field-row">
         <label>
@@ -254,9 +272,10 @@
           {/if}
         </div>
       {/if}
-      <button class="ghost reset-layout" onclick={() => { onResetLayout(); details.open = false; }}>Layout auf Standard zurücksetzen</button>
-    </div>
-  </details>
+      <button class="ghost reset-layout" onclick={() => { onResetLayout(); settingsOpen = false; }}>Layout auf Standard zurücksetzen</button>
+      </div>
+    {/if}
+  </div>
 </header>
 
 <style>
@@ -278,9 +297,8 @@
   .connection.warn { color: var(--warn-text); }
   .connection.error { color: var(--danger-text); }
   .settings { position: relative; }
-  summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); background: var(--panel); font-size: 12px; white-space: nowrap; }
-  summary::-webkit-details-marker { display: none; }
-  summary:hover, summary:focus-visible { border-color: var(--border-strong); background: var(--accent-soft); }
+  .settings-trigger { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); background: var(--panel); font-size: 12px; white-space: nowrap; }
+  .settings-trigger:hover, .settings-trigger:focus-visible, .settings-trigger[aria-expanded='true'] { border-color: var(--border-strong); background: var(--accent-soft); }
   .settings-popover { position: absolute; top: calc(100% + 8px); right: 0; width: min(360px, calc(100vw - 24px)); padding: 14px; background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
   .settings-title { font-size: 13px; font-weight: 700; }
   .section-title, .sound-title { padding-top: 10px; border-top: 1px solid var(--border); }
@@ -315,7 +333,7 @@
     .game-state { max-width: min(280px, 100%); }
   }
   @media (max-width: 760px) {
-    .brand-copy, summary span { display: none; }
+    .brand-copy, .settings-trigger span { display: none; }
     .topbar { gap: 8px; }
     .game-states { display: flex; }
     .connection span { display: inline; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }

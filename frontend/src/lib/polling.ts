@@ -4,7 +4,7 @@ import { SoundAlertTracker } from './sound-alerts';
 import { soundCuesForLogs } from './sound-events';
 import { app, clearCurrentEvent, persistSettings, resetSessionData } from './state.svelte';
 import { getSoundAlertConfig, playPhone, playSoundCue, playSoundCues } from './sounds';
-import type { LogRow, StateResponse } from './types';
+import type { LogRow, MapBounds, StateResponse } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 import {
   broadcastLogAcknowledged,
@@ -29,6 +29,11 @@ const LOG_INTERVAL = 2_000;
 const HIDDEN_INTERVAL = 15_000;
 const MAX_BACKOFF = 30_000;
 const MAX_LOG_ROWS = 500;
+
+function sameMapBounds(left: MapBounds, right: MapBounds): boolean {
+  return left.min_x === right.min_x && left.min_y === right.min_y
+    && left.max_x === right.max_x && left.max_y === right.max_y;
+}
 
 let lastEventIds = new Set<number>();
 let eventsInitialized = false;
@@ -243,6 +248,7 @@ async function applyState(
   signal?: AbortSignal,
 ): Promise<void> {
   const applyGeneration = generation;
+  const mapBoundsChanged = !sameMapBounds(app.mapBounds, data.session.map_bounds);
   app.mapBounds = data.session.map_bounds;
   app.players = data.players ?? [];
   app.vehicles = data.vehicles ?? [];
@@ -276,24 +282,25 @@ async function applyState(
   const newMod = data.session.mod_id ?? null;
   const modChanged = app.modId !== newMod;
   const mapMissing = Boolean(newMod && !app.mapImageUrl);
-  if (modChanged || mapMissing) {
+  if (modChanged || mapMissing || (newMod && mapBoundsChanged)) {
+    const reloadMapImage = modChanged || mapMissing;
     if (modChanged && app.mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(app.mapImageUrl);
     app.modId = newMod;
     if (newMod) {
       try {
         const [mapImageUrl, routing] = await Promise.all([
-          fetchMapImage(signal),
+          reloadMapImage ? fetchMapImage(signal) : Promise.resolve(app.mapImageUrl),
           apiGet<RoutingConfig>('routing_get', {}, { signal, requireFresh: false }),
         ]);
         if (signal?.aborted || applyGeneration !== generation) {
-          if (mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(mapImageUrl);
+          if (reloadMapImage && mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(mapImageUrl);
           return;
         }
         app.mapImageUrl = mapImageUrl;
         app.routing = routing;
       } catch (error) {
         if (signal?.aborted || applyGeneration !== generation) return;
-        app.mapImageUrl = '';
+        if (reloadMapImage) app.mapImageUrl = '';
         app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
         app.lastError = `Kartendaten: ${(error as Error).message}`;
       }
@@ -310,7 +317,7 @@ async function applyState(
     if (fresh.length) {
       void playPhone();
       notifyNewIncidents(fresh);
-      if (fresh.some((event) => bmaZonesForEvent(app.routing.bma_zones ?? [], event).length)) void playSoundCue('bma-alarm');
+      if (fresh.some((event) => bmaZonesForEvent(app.routing.bma_zones ?? [], event, app.routing).length)) void playSoundCue('bma-alarm');
     }
     if ([...lastEventIds].some((id) => !ids.has(id))) void playSoundCue('incident-completed');
   }

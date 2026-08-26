@@ -57,6 +57,7 @@ function routingEditorPlugin() {
       grid_size_m: Number(saved.grid_size_m) || defaults.grid_size_m,
       nodes: Array.isArray(saved.nodes) ? saved.nodes : [],
       edges: Array.isArray(saved.edges) ? saved.edges : [],
+      bma_zones: Array.isArray(saved.bma_zones) ? saved.bma_zones : [],
     };
   }
 

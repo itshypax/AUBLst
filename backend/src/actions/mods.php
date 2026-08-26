@@ -199,7 +199,7 @@ function routing_for_session(array $config, array $session): array {
         $node['y'] = -($min_y + (-(float)$node['y']) * $range_y);
     }
     unset($node);
-    foreach (($config['bma_zones'] ?? []) as &$zone) {
+    foreach ($config['bma_zones'] as &$zone) {
         foreach ($zone['points'] as &$point) {
             $point['x'] = $min_x + (float)$point['x'] * $range_x;
             $point['y'] = -($min_y + (-(float)$point['y']) * $range_y);

@@ -1,10 +1,19 @@
 <script lang="ts">
-  import { activeEventForBma } from '../lib/bma';
+  import { bmaZonesForEvent } from '../lib/bma';
   import { app, openAssign, setHighlightedEvent } from '../lib/state.svelte';
 
-  const rows = $derived((app.routing.bma_zones ?? [])
-    .map((zone) => ({ zone, event: activeEventForBma(zone, app.events) }))
-    .sort((a, b) => Number(Boolean(b.event)) - Number(Boolean(a.event)) || a.zone.name.localeCompare(b.zone.name, 'de')));
+  const rows = $derived.by(() => {
+    const zones = app.routing.bma_zones ?? [];
+    const eventsByZone = new Map<string, (typeof app.events)[number]>();
+    for (const event of app.events) {
+      for (const zone of bmaZonesForEvent(zones, event, app.routing)) {
+        if (!eventsByZone.has(zone.id)) eventsByZone.set(zone.id, event);
+      }
+    }
+    return zones
+      .map((zone) => ({ zone, event: eventsByZone.get(zone.id) }))
+      .sort((a, b) => Number(Boolean(b.event)) - Number(Boolean(a.event)) || a.zone.name.localeCompare(b.zone.name, 'de'));
+  });
 </script>
 
 <section class="panel">
@@ -40,9 +49,12 @@
   .signal { width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 2px color-mix(in srgb, var(--good) 18%, transparent); }
   .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .state { color: var(--text-dim); font-size: 11px; }
-  .bma-row.active { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 15%, transparent); cursor: pointer; animation: bma-alert 1s steps(2, end) infinite; }
+  .bma-row.active { border-color: var(--danger); background-color: color-mix(in srgb, var(--danger) 15%, transparent); cursor: pointer; animation: bma-alert 1.2s step-end infinite; }
   .bma-row.active .signal { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 28%, transparent); }
   .bma-row.active .state { color: var(--danger-text); font-weight: 700; }
-  @keyframes bma-alert { 50% { background: color-mix(in srgb, var(--danger) 30%, transparent); } }
+  @keyframes bma-alert {
+    0%, 49% { background-color: color-mix(in srgb, var(--danger) 15%, transparent); }
+    50%, 100% { background-color: transparent; }
+  }
   @media (prefers-reduced-motion: reduce) { .bma-row.active { animation: none; } }
 </style>

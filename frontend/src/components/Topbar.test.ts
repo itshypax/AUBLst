@@ -59,14 +59,30 @@ describe('Kopfzeile', () => {
   it('bietet die Soundprofile im Sitzungsmenü an', async () => {
     render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
 
+    await fireEvent.click(screen.getByRole('button', { name: 'Sitzung einrichten' }));
+
     const profile = await screen.findByRole('combobox', { name: 'Soundprofil' });
     expect(profile).toBeTruthy();
     expect(screen.getByRole('option', { name: 'Standard' })).toBeTruthy();
     expect(await screen.findByRole('option', { name: 'Stimme Jannik' })).toBeTruthy();
   });
 
-  it('legt den Farbmodus mit Sonne und Mond in die Sitzungseinstellungen', () => {
+  it('bleibt bei Klicks auf inaktive Flächen im Sitzungsmenü geöffnet', async () => {
     const { container } = render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
+
+    const trigger = screen.getByRole('button', { name: 'Sitzung einrichten' });
+    await fireEvent.click(trigger);
+    await fireEvent.pointerDown(screen.getByText('Darstellung'));
+    await fireEvent.click(screen.getByText('Darstellung'));
+
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('#session-settings-popover')).not.toBeNull();
+  });
+
+  it('legt den Farbmodus mit Sonne und Mond in die Sitzungseinstellungen', async () => {
+    const { container } = render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Sitzung einrichten' }));
 
     expect(screen.getByRole('button', { name: 'Darkmode' }).querySelector('svg')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Lightmode' }).querySelector('svg')).not.toBeNull();
@@ -77,6 +93,7 @@ describe('Kopfzeile', () => {
     const onResetLayout = vi.fn();
     render(Topbar, { props: { onResetLayout, onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
 
+    await fireEvent.click(screen.getByRole('button', { name: 'Sitzung einrichten' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Layout auf Standard zurücksetzen' }));
 
     expect(onResetLayout).toHaveBeenCalledOnce();
