@@ -25,6 +25,9 @@ describe('Session-Einstieg', () => {
     expect(screen.getByRole('dialog', { name: 'Mit der Leitstelle verbinden' })).toBeTruthy();
     expect(screen.getByLabelText('Sitzungscode')).toBeTruthy();
     expect(screen.getByLabelText(/PIN/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Alarmmonitor für Spieler' }).getAttribute('href')).toContain(
+      'view=monitor',
+    );
   });
 
   it('übergibt Sitzungscode und PIN erst beim Verbinden', async () => {

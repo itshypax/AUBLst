@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import FaIcon from './FaIcon.svelte';
-  import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Moon, Play, RefreshCw, Settings, Sun, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
+  import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Moon, Play, RadioTower, RefreshCw, Settings, Sun, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
   import { pollLogs, refreshState, switchSession } from '../lib/polling';
   import { dismissible } from '../lib/dismissible-details';
   import { configureSounds, getDefaultSoundProfile, getSoundProfileOptions, loadSoundManifest, testSound } from '../lib/sounds';
@@ -73,6 +73,16 @@
     const message = await setDesktopNotifications(!app.desktopNotifications);
     const accepted = message.includes('eingeschaltet') || message.includes('ausgeschaltet');
     showNotice(message, accepted ? 'success' : 'error');
+  }
+
+  function openAlarmMonitor(): void {
+    const url = new URL(location.href);
+    url.searchParams.set('view', 'monitor');
+    url.searchParams.delete('monitor');
+    url.searchParams.delete('wache');
+    url.searchParams.delete('pin');
+    if (app.sessionToken) url.searchParams.set('session_token', app.sessionToken);
+    window.open(url.toString(), '_blank', 'noopener');
   }
 
   let clockBase = $state<{ minutes: number; realMs: number } | null>(null);
@@ -212,6 +222,9 @@
       <button class="ghost reload-data" disabled={app.lastSuccessfulSync === null || applying} onclick={() => { void refreshState(); void pollLogs(); }}>
         <FaIcon icon={RefreshCw} size={15} /> Daten neu laden
       </button>
+      <button class="ghost open-monitor" disabled={!app.sessionToken || applying} onclick={openAlarmMonitor}>
+        <FaIcon icon={RadioTower} size={15} /> Alarmmonitor öffnen
+      </button>
 
       <div class="settings-title section-title">Darstellung</div>
       <div class="theme-options" role="group" aria-label="Farbmodus">
@@ -309,7 +322,7 @@
   label > span { display: inline-flex; align-items: center; gap: 4px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .apply { justify-content: center; }
-  .reload-data { justify-content: flex-start; }
+  .reload-data, .open-monitor { justify-content: flex-start; }
   .sound-row { display: flex; align-items: center; gap: 8px; }
   .sound-profile select { width: 100%; }
   .sound-toggle { min-width: 74px; }

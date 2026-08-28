@@ -87,6 +87,17 @@ Aufruf dann z. B.:
 https://example.org/leitstelle/?session_token=a1b2&pin=1234
 ```
 
+Für Spieler gibt es zusätzlich einen schreibgeschützten Alarmmonitor:
+
+```text
+https://example.org/leitstelle/?view=monitor
+```
+
+Dort werden Raumcode und Wache 1–4 gewählt. Der Monitor zeigt nur laufende
+Einsätze, denen mindestens ein Fahrzeug der gewählten Wache zugeordnet ist;
+eine PIN wird dafür nicht benötigt. Der Einstieg ist auch direkt im
+Verbindungsdialog und in den Sitzungseinstellungen verlinkt.
+
 Ohne aktive Sitzung erscheint zuerst ein Verbindungsdialog für Token und PIN.
 Später lässt sich die Sitzung weiterhin über die Kopfzeile wechseln. Die
 Zugangsdaten bleiben nur für die aktuelle Browser-Sitzung gespeichert und

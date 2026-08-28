@@ -10,7 +10,7 @@ beforeEach(() => {
 
 describe('Sitzungsdaten', () => {
   it('entfernt Zugangsdaten nach dem Einlesen aus der Adresszeile', () => {
-    history.replaceState(null, '', '/?session_token=a1b2&pin=1234&api_base=%2Fapi.php');
+    history.replaceState(null, '', '/?session_token=A1B2&pin=1234&api_base=%2Fapi.php');
     initSettings();
     expect(app.sessionToken).toBe('a1b2');
     expect(app.pin).toBe('1234');
@@ -33,7 +33,7 @@ describe('Sitzungsdaten', () => {
       updated_at: '2026-08-09 10:00:00',
     }];
     app.events = [{ id: 1, game_event_id: 'old', name: 'Alt', x: 0, y: 0, status: 'active', created_by: 'game' }];
-    await switchSession('/new-api.php', 'b2c3', '5678');
+    await switchSession('/new-api.php', ' B2C3 ', '5678');
     expect(app.logs).toEqual([]);
     expect(app.events).toEqual([]);
     expect(app.sessionToken).toBe('b2c3');

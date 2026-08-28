@@ -36,6 +36,8 @@ function globalState(id: number, message: string, longMessage: string): LogRow {
 
 beforeEach(() => {
   resetSessionData();
+  app.sessionToken = '';
+  app.pin = '';
   app.logs = [
     globalState(1, 'shortage', 'Rettungsmittelknappheit'),
     globalState(2, 'alarm', 'Alarmstufe'),
@@ -67,8 +69,19 @@ describe('Kopfzeile', () => {
     expect(await screen.findByRole('option', { name: 'Stimme Jannik' })).toBeTruthy();
   });
 
+  it('öffnet den Spieler-Alarmmonitor aus den Sitzungseinstellungen', async () => {
+    app.sessionToken = '758c';
+    render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Sitzung 758c' }));
+
+    expect(screen.getByRole('button', { name: 'Alarmmonitor öffnen' })).toBeTruthy();
+  });
+
   it('bleibt bei Klicks auf inaktive Flächen im Sitzungsmenü geöffnet', async () => {
-    const { container } = render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
+    const { container } = render(Topbar, {
+      props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' },
+    });
 
     const trigger = screen.getByRole('button', { name: 'Sitzung einrichten' });
     await fireEvent.click(trigger);
@@ -80,7 +93,9 @@ describe('Kopfzeile', () => {
   });
 
   it('legt den Farbmodus mit Sonne und Mond in die Sitzungseinstellungen', async () => {
-    const { container } = render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
+    const { container } = render(Topbar, {
+      props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' },
+    });
 
     await fireEvent.click(screen.getByRole('button', { name: 'Sitzung einrichten' }));
 

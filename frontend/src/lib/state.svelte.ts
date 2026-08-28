@@ -1,5 +1,6 @@
 import type { Assignment, ClockTime, EventItem, Hospital, HospitalReservation, LogRow, MapBounds, Player, Vehicle, VehicleStatusChange } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
+import { normalizeSessionToken } from './session-token';
 import {
   closeEventAcrossWindows,
   dispatchSelectionAcrossWindows,
@@ -123,7 +124,9 @@ export function closeVehicleMenu(): void {
 export function initSettings(): void {
   const params = new URLSearchParams(location.search);
   app.apiBase = params.get('api_base') ?? localStorage.getItem('apiBase') ?? app.apiBase;
-  app.sessionToken = params.get('session_token') ?? sessionStorage.getItem(tokenStorageKey(app.apiBase)) ?? '';
+  app.sessionToken = normalizeSessionToken(
+    params.get('session_token') ?? sessionStorage.getItem(tokenStorageKey(app.apiBase)),
+  );
   app.pin = params.get('pin') ?? sessionStorage.getItem(pinStorageKey(app.apiBase, app.sessionToken)) ?? '';
   app.soundEnabled = localStorage.getItem('soundEnabled') !== 'false';
   const storedVolume = Number(localStorage.getItem('soundVolume'));

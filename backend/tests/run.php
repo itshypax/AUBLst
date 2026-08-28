@@ -91,7 +91,7 @@ test_case('Einsatzleiter RD wird ab drei RTW nach der ersten Ankunft bestimmt', 
     expect_same(null, select_medical_incident_leader(array_slice($vehicles, 0, 2)));
 });
 
-test_case('Das erste eingetroffene NEF übernimmt den Einsatzleiter RD', static function (): void {
+test_case('Das erste eingetroffene Notarztfahrzeug übernimmt den Einsatzleiter RD', static function (): void {
     $vehicles = [
         ['id' => 1, 'game_vehicle_id' => '1_RTW_A', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:02:00'],
         ['id' => 2, 'game_vehicle_id' => '2_RTW_A', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:04:00'],
@@ -104,6 +104,24 @@ test_case('Das erste eingetroffene NEF übernimmt den Einsatzleiter RD', static 
     expect_same(5, select_medical_incident_leader($vehicles));
     $vehicles[4]['status'] = 1;
     expect_same(1, select_medical_incident_leader($vehicles));
+});
+
+test_case('Zwei Notarztfahrzeuge reichen für einen Einsatzleiter RD', static function (): void {
+    $vehicles = [
+        ['id' => 1, 'game_vehicle_id' => '4_NEF_A', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:04:00'],
+        ['id' => 2, 'game_vehicle_id' => 'Christoph_82', 'status' => 4, 'first_status_4_at' => '2026-08-18 10:02:00'],
+    ];
+    expect_same(2, select_medical_incident_leader($vehicles));
+    expect_same(null, select_medical_incident_leader(array_slice($vehicles, 0, 1)));
+});
+
+test_case('Notarzt- und Intensivtransportmittel gelten als notarztbesetzt', static function (): void {
+    foreach (['NEF', 'NAW', 'ITW', 'RTH', 'ITH'] as $type) {
+        expect_true(is_physician_staffed_incident_vehicle(['game_vehicle_id' => "4_{$type}_A"]));
+    }
+    expect_true(is_physician_staffed_incident_vehicle(['game_vehicle_id' => 'Christoph_82']));
+    expect_true(is_rescue_incident_vehicle(['game_vehicle_id' => 'Christoph_82']));
+    expect_true(!is_physician_staffed_incident_vehicle(['game_vehicle_id' => '4_RTW_A']));
 });
 
 test_case('Einsatzleiter FW folgt der Reihenfolge HLF, ELW, B-Dienst und A-Dienst', static function (): void {

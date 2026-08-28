@@ -23,19 +23,33 @@ beforeEach(() => {
   };
   app.events = [event];
   app.assignEvent = event;
-  app.vehicles = [{ id: 4, game_vehicle_id: '4_RTW_B', name: '4-RTW-B', type: 'RTW', modes: null, x: 0, y: 0, status: 5, assigned_player_id: null }];
+  app.vehicles = [
+    {
+      id: 4,
+      game_vehicle_id: '4_RTW_B',
+      name: '4-RTW-B',
+      type: 'RTW',
+      modes: null,
+      x: 0,
+      y: 0,
+      status: 5,
+      assigned_player_id: null,
+    },
+  ];
   app.assignments = [{ event_id: 1030, vehicle_id: 4 }];
-  app.logs = [{
-    id: 21,
-    type: 'vehicle',
-    entity_id: '4_RTW_B',
-    event_id: 1030,
-    message: 'Sprechwunsch',
-    long_message: 'Rettung Auenburg 4-RTW-B mit Sprechwunsch',
-    state: 'active',
-    created_at: '2026-08-11 20:00:00',
-    updated_at: '2026-08-11 20:00:00',
-  }];
+  app.logs = [
+    {
+      id: 21,
+      type: 'vehicle',
+      entity_id: '4_RTW_B',
+      event_id: 1030,
+      message: 'Sprechwunsch',
+      long_message: 'Rettung Auenburg 4-RTW-B mit Sprechwunsch',
+      state: 'active',
+      created_at: '2026-08-11 20:00:00',
+      updated_at: '2026-08-11 20:00:00',
+    },
+  ];
   mocks.api.mockReset().mockResolvedValue({ feedback: [] });
   mocks.refreshState.mockReset().mockResolvedValue(undefined);
 });
@@ -53,7 +67,9 @@ describe('Aktueller Einsatz', () => {
     const meta = screen.getByText('Position 100.0, 200.0').closest('.event-meta');
     expect(meta?.textContent).toContain('18:36:42');
     expect(container.querySelector('.event-summary')?.children).toHaveLength(3);
-    expect(container.querySelector('.event-summary')?.lastElementChild).toBe(screen.getByRole('button', { name: 'Alarmieren' }));
+    expect(container.querySelector('.event-summary')?.lastElementChild).toBe(
+      screen.getByRole('button', { name: 'Alarmieren' }),
+    );
   });
 
   it('zeigt ohne Suchtext alle verfügbaren Fahrzeuge im Dropdown', async () => {
@@ -92,10 +108,50 @@ describe('Aktueller Einsatz', () => {
   it('zeigt Entfernungen, aber weder Aktionsobjekte noch Status für versteckte Einheiten', async () => {
     app.assignments = [];
     app.vehicles = [
-      { id: 1, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', type: '200', modes: null, x: 0, y: 0, status: 2, assigned_player_id: null },
-      { id: 2, game_vehicle_id: 'JA', name: 'Jaeger', type: 'None', modes: null, x: -1000000, y: -1000000, status: 2, assigned_player_id: null },
-      { id: 3, game_vehicle_id: 'FS_LST_1', name: 'AuenPort', type: 'None', modes: 'Schiffsverkehr sperren', x: -1000000, y: -1000000, status: 2, assigned_player_id: null },
-      { id: 4, game_vehicle_id: 'FS_LST_2', name: 'SWA Bahn', type: 'None', modes: 'Tramverkehr einstellen', x: -1000000, y: -1000000, status: 2, assigned_player_id: null },
+      {
+        id: 1,
+        game_vehicle_id: '1_HLF_1',
+        name: '1-HLF-1',
+        type: '200',
+        modes: null,
+        x: 0,
+        y: 0,
+        status: 2,
+        assigned_player_id: null,
+      },
+      {
+        id: 2,
+        game_vehicle_id: 'JA',
+        name: 'Jaeger',
+        type: 'None',
+        modes: null,
+        x: -1000000,
+        y: -1000000,
+        status: 2,
+        assigned_player_id: null,
+      },
+      {
+        id: 3,
+        game_vehicle_id: 'FS_LST_1',
+        name: 'AuenPort',
+        type: 'None',
+        modes: 'Schiffsverkehr sperren',
+        x: -1000000,
+        y: -1000000,
+        status: 2,
+        assigned_player_id: null,
+      },
+      {
+        id: 4,
+        game_vehicle_id: 'FS_LST_2',
+        name: 'SWA Bahn',
+        type: 'None',
+        modes: 'Tramverkehr einstellen',
+        x: -1000000,
+        y: -1000000,
+        status: 2,
+        assigned_player_id: null,
+      },
     ];
     render(CurrentEventPanel);
 
@@ -115,6 +171,41 @@ describe('Aktueller Einsatz', () => {
     expect(screen.queryByRole('button', { name: /Sprechwunsch .* abarbeiten/ })).toBeNull();
   });
 
+  it('trennt Leitstellenrückmeldungen von manuellen und automatischen EL-Wechseln', async () => {
+    mocks.api.mockImplementation(async (action: string) => {
+      if (action !== 'events_get_feedback') return {};
+      return {
+        feedback: [
+          { id: 1, event_id: 1030, content: 'DLK Rettung benötigt', created_at: '2026-08-28 23:49:00' },
+          {
+            id: 2,
+            event_id: 1030,
+            content: 'Einsatzleiter FW gewechselt: 1-HLF-1 → 1-ELW-1',
+            created_at: '2026-08-28 23:48:00',
+          },
+          {
+            id: 3,
+            event_id: 1030,
+            content: 'Einsatzleiter RD automatisch bestimmt: 4-RTW-A',
+            created_at: '2026-08-28 23:47:00',
+          },
+        ],
+      };
+    });
+
+    render(CurrentEventPanel);
+
+    const controlRoomNote = await screen.findByText('DLK Rettung benötigt');
+    const manualLeaderChange = screen.getByText('Einsatzleiter FW gewechselt: 1-HLF-1 → 1-ELW-1');
+    const automaticLeaderChange = screen.getByText('Einsatzleiter RD automatisch bestimmt: 4-RTW-A');
+    expect(controlRoomNote.closest('.timeline-row')?.classList.contains('feedback')).toBe(true);
+    expect(controlRoomNote.closest('.timeline-row')?.textContent).toContain('Leitstelle');
+    expect(manualLeaderChange.closest('.timeline-row')?.classList.contains('command')).toBe(true);
+    expect(manualLeaderChange.closest('.timeline-row')?.textContent).toContain('Einsatzleitung');
+    expect(automaticLeaderChange.closest('.timeline-row')?.classList.contains('system')).toBe(true);
+    expect(automaticLeaderChange.closest('.timeline-row')?.textContent).toContain('EL-Automatik');
+  });
+
   it('zeigt Vormerkungen ohne separate Dispositionsspalte', () => {
     app.assignments = [];
     app.vehicles = [{ ...app.vehicles[0], status: 2 }];
@@ -131,8 +222,28 @@ describe('Aktueller Einsatz', () => {
 
   it('zeigt beide Einsatzleiter ausgeschrieben unter den Einsatzdaten', () => {
     app.vehicles = [
-      { id: 1, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', type: 'HLF', modes: null, x: 0, y: 0, status: 3, assigned_player_id: null },
-      { id: 2, game_vehicle_id: '1_RTW_A', name: '1-RTW-A', type: 'RTW', modes: null, x: 0, y: 0, status: 4, assigned_player_id: null },
+      {
+        id: 1,
+        game_vehicle_id: '1_HLF_1',
+        name: '1-HLF-1',
+        type: 'HLF',
+        modes: null,
+        x: 0,
+        y: 0,
+        status: 3,
+        assigned_player_id: null,
+      },
+      {
+        id: 2,
+        game_vehicle_id: '1_RTW_A',
+        name: '1-RTW-A',
+        type: 'RTW',
+        modes: null,
+        x: 0,
+        y: 0,
+        status: 4,
+        assigned_player_id: null,
+      },
     ];
     app.assignments = [
       { event_id: 1030, vehicle_id: 1, leader_role: 'fire' },
@@ -160,9 +271,39 @@ describe('Aktueller Einsatz', () => {
     app.logs = [];
     app.assignments = [];
     app.vehicles = [
-      { id: 31, game_vehicle_id: 'ASF', name: 'Abschleppwagen', type: 'ASF', modes: '1,2,3,4,Masterlift,Tieflader', x: -1000000, y: -1000000, status: 6, assigned_player_id: null },
-      { id: 32, game_vehicle_id: 'FuSTW', name: 'Streifenwagen', type: 'FUSTW', modes: '1,2,3', x: -1000000, y: -1000000, status: 0, assigned_player_id: null },
-      { id: 33, game_vehicle_id: 'BSW', name: 'Bestatter', type: 'BSW', modes: '1,2,3,4', x: -1000000, y: -1000000, status: 2, assigned_player_id: null },
+      {
+        id: 31,
+        game_vehicle_id: 'ASF',
+        name: 'Abschleppwagen',
+        type: 'ASF',
+        modes: '1,2,3,4,Masterlift,Tieflader',
+        x: -1000000,
+        y: -1000000,
+        status: 6,
+        assigned_player_id: null,
+      },
+      {
+        id: 32,
+        game_vehicle_id: 'FuSTW',
+        name: 'Streifenwagen',
+        type: 'FUSTW',
+        modes: '1,2,3',
+        x: -1000000,
+        y: -1000000,
+        status: 0,
+        assigned_player_id: null,
+      },
+      {
+        id: 33,
+        game_vehicle_id: 'BSW',
+        name: 'Bestatter',
+        type: 'BSW',
+        modes: '1,2,3,4',
+        x: -1000000,
+        y: -1000000,
+        status: 2,
+        assigned_player_id: null,
+      },
     ];
     render(CurrentEventPanel);
 
@@ -172,7 +313,9 @@ describe('Aktueller Einsatz', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Abschleppwagen vormerken' }));
 
     expect(app.dispatchVehicleIds).toEqual([32, 33, 31]);
-    expect(screen.getByRole('button', { name: 'Streifenwagen aus Vormerkung entfernen' }).getAttribute('aria-pressed')).toBe('true');
+    expect(
+      screen.getByRole('button', { name: 'Streifenwagen aus Vormerkung entfernen' }).getAttribute('aria-pressed'),
+    ).toBe('true');
 
     await fireEvent.click(screen.getByRole('button', { name: 'Bestatter aus Vormerkung entfernen' }));
     expect(app.dispatchVehicleIds).toEqual([32, 31]);
@@ -245,17 +388,19 @@ describe('Aktueller Einsatz', () => {
   });
 
   it('zeigt den alarmierten Dropdown-Wert in Klammern hinter dem Fahrzeug', () => {
-    app.vehicles = [{
-      id: 41,
-      game_vehicle_id: '1_WLF_1',
-      name: '1-WLF-1',
-      type: 'WLF',
-      modes: 'AB-Rüst,AB-Atemschutz',
-      x: 0,
-      y: 0,
-      status: 4,
-      assigned_player_id: null,
-    }];
+    app.vehicles = [
+      {
+        id: 41,
+        game_vehicle_id: '1_WLF_1',
+        name: '1-WLF-1',
+        type: 'WLF',
+        modes: 'AB-Rüst,AB-Atemschutz',
+        x: 0,
+        y: 0,
+        status: 4,
+        assigned_player_id: null,
+      },
+    ];
     app.assignments = [{ event_id: 1030, vehicle_id: 41, alarm_modes: ['AB-Rüst'] }];
 
     const { container } = render(CurrentEventPanel);
@@ -265,40 +410,46 @@ describe('Aktueller Einsatz', () => {
 
   it('zeigt das Klinikziel eines zugeordneten RTW unter dem Fahrzeugnamen', () => {
     app.vehicles = [{ ...app.vehicles[0], status: 4 }];
-    app.hospitalReservations = [{
-      id: 11,
-      vehicle_id: 4,
-      hospital_id: 2,
-      bed_type: 'ward',
-      status: 'reserved',
-      created_at: '2026-08-16 20:00:00',
-      updated_at: '2026-08-16 20:00:00',
-      arrived_at: null,
-      game_vehicle_id: '4_RTW_B',
-      vehicle_name: '4-RTW-B',
-      hospital_name: 'Uniklinik',
-    }];
+    app.hospitalReservations = [
+      {
+        id: 11,
+        vehicle_id: 4,
+        hospital_id: 2,
+        bed_type: 'ward',
+        status: 'reserved',
+        created_at: '2026-08-16 20:00:00',
+        updated_at: '2026-08-16 20:00:00',
+        arrived_at: null,
+        game_vehicle_id: '4_RTW_B',
+        vehicle_name: '4-RTW-B',
+        hospital_name: 'Uniklinik',
+      },
+    ];
 
     const { container } = render(CurrentEventPanel);
 
     const destination = screen.getByText('→ Uniklinik');
     expect(destination.classList.contains('destination')).toBe(true);
-    expect(container.querySelector('.vehicle-row.assigned')?.getAttribute('aria-label')).toBe('4-RTW-B, Ziel Uniklinik');
+    expect(container.querySelector('.vehicle-row.assigned')?.getAttribute('aria-label')).toBe(
+      '4-RTW-B, Ziel Uniklinik',
+    );
   });
 
   it('zeigt getrennte Alarmierungen derselben Einheit einzeln an', () => {
     app.logs = [];
-    app.vehicles = [{
-      id: 42,
-      game_vehicle_id: 'ASF',
-      name: 'Abschleppwagen',
-      type: 'ASF',
-      modes: '1,2,3,4,Masterlift,Tieflader',
-      x: -1000000,
-      y: -1000000,
-      status: 2,
-      assigned_player_id: null,
-    }];
+    app.vehicles = [
+      {
+        id: 42,
+        game_vehicle_id: 'ASF',
+        name: 'Abschleppwagen',
+        type: 'ASF',
+        modes: '1,2,3,4,Masterlift,Tieflader',
+        x: -1000000,
+        y: -1000000,
+        status: 2,
+        assigned_player_id: null,
+      },
+    ];
     app.assignments = [{ event_id: 1030, vehicle_id: 42, alarm_modes: ['1', '2'] }];
 
     const { container } = render(CurrentEventPanel);
@@ -309,9 +460,39 @@ describe('Aktueller Einsatz', () => {
   it('zeigt nicht getrackte Einheiten normal und alarmiert sie nur über Schnellwahl oder Suche erneut', async () => {
     app.logs = [];
     app.vehicles = [
-      { id: 31, game_vehicle_id: 'ASF', name: 'Abschleppwagen', type: 'ASF', modes: '1,2,3,4,Masterlift,Tieflader', x: -1000000, y: -1000000, status: 6, assigned_player_id: null },
-      { id: 32, game_vehicle_id: 'FuSTW', name: 'Streifenwagen', type: 'FUSTW', modes: '1,2,3', x: -1000000, y: -1000000, status: 0, assigned_player_id: null },
-      { id: 33, game_vehicle_id: 'TD', name: 'Stadtwerke', type: 'TD', modes: null, x: -1000000, y: -1000000, status: 4, assigned_player_id: null },
+      {
+        id: 31,
+        game_vehicle_id: 'ASF',
+        name: 'Abschleppwagen',
+        type: 'ASF',
+        modes: '1,2,3,4,Masterlift,Tieflader',
+        x: -1000000,
+        y: -1000000,
+        status: 6,
+        assigned_player_id: null,
+      },
+      {
+        id: 32,
+        game_vehicle_id: 'FuSTW',
+        name: 'Streifenwagen',
+        type: 'FUSTW',
+        modes: '1,2,3',
+        x: -1000000,
+        y: -1000000,
+        status: 0,
+        assigned_player_id: null,
+      },
+      {
+        id: 33,
+        game_vehicle_id: 'TD',
+        name: 'Stadtwerke',
+        type: 'TD',
+        modes: null,
+        x: -1000000,
+        y: -1000000,
+        status: 4,
+        assigned_player_id: null,
+      },
     ];
     app.assignments = app.vehicles.map((vehicle) => ({ event_id: 1030, vehicle_id: vehicle.id }));
 
@@ -325,7 +506,9 @@ describe('Aktueller Einsatz', () => {
     expect(screen.queryByRole('button', { name: 'Stadtwerke erneut vormerken' })).toBeNull();
 
     await fireEvent.click(screen.getByRole('button', { name: 'Abschleppwagen vormerken' }));
-    await fireEvent.change(screen.getByRole('combobox', { name: 'Ausrückmodus für Abschleppwagen' }), { target: { value: '3' } });
+    await fireEvent.change(screen.getByRole('combobox', { name: 'Ausrückmodus für Abschleppwagen' }), {
+      target: { value: '3' },
+    });
 
     expect(app.dispatchVehicleIds).toEqual([31]);
     expect(container.querySelector('.vehicle-row.staged .status-badge')).toBeNull();
@@ -334,17 +517,19 @@ describe('Aktueller Einsatz', () => {
 
   it('merkt eine bereits zugeordnete versteckte Einheit über die Suche erneut vor', async () => {
     app.logs = [];
-    app.vehicles = [{
-      id: 33,
-      game_vehicle_id: 'TD',
-      name: 'Stadtwerke',
-      type: 'TD',
-      modes: null,
-      x: -1000000,
-      y: -1000000,
-      status: 4,
-      assigned_player_id: null,
-    }];
+    app.vehicles = [
+      {
+        id: 33,
+        game_vehicle_id: 'TD',
+        name: 'Stadtwerke',
+        type: 'TD',
+        modes: null,
+        x: -1000000,
+        y: -1000000,
+        status: 4,
+        assigned_player_id: null,
+      },
+    ];
     app.assignments = [{ event_id: 1030, vehicle_id: 33 }];
     render(CurrentEventPanel);
 

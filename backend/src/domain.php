@@ -52,7 +52,14 @@ function vehicle_has_incident_type(array $vehicle, string $type): bool {
 }
 
 function is_rescue_incident_vehicle(array $vehicle): bool {
-    foreach (['RTW', 'KTW', 'NKTW', 'GRTW', 'ITW', 'NEF', 'NAW', 'RTH', 'ITH', 'GWSAN', 'GWRH'] as $type) {
+    foreach (['RTW', 'KTW', 'NKTW', 'GRTW', 'ITW', 'NEF', 'NAW', 'RTH', 'ITH', 'CHRISTOPH', 'GWSAN', 'GWRH'] as $type) {
+        if (vehicle_has_incident_type($vehicle, $type)) return true;
+    }
+    return false;
+}
+
+function is_physician_staffed_incident_vehicle(array $vehicle): bool {
+    foreach (['NEF', 'NAW', 'ITW', 'RTH', 'ITH', 'CHRISTOPH'] as $type) {
         if (vehicle_has_incident_type($vehicle, $type)) return true;
     }
     return false;
@@ -63,6 +70,9 @@ function select_medical_incident_leader(array $vehicles): ?int {
         $vehicles,
         static fn(array $vehicle): bool => vehicle_has_incident_type($vehicle, 'RTW')
     ));
+    $physicianCount = count(array_filter($vehicles, 'is_physician_staffed_incident_vehicle'));
+    if ($rtwCount < 3 && $physicianCount < 2) return null;
+
     $eligible = array_values(array_filter($vehicles, static function (array $vehicle): bool {
         return in_array((int)($vehicle['status'] ?? -1), [3, 4], true)
             && !empty($vehicle['first_status_4_at']);
@@ -73,9 +83,8 @@ function select_medical_incident_leader(array $vehicles): ?int {
     });
 
     foreach ($eligible as $vehicle) {
-        if (vehicle_has_incident_type($vehicle, 'NEF')) return (int)$vehicle['id'];
+        if (is_physician_staffed_incident_vehicle($vehicle)) return (int)$vehicle['id'];
     }
-    if ($rtwCount < 3) return null;
     foreach ($eligible as $vehicle) {
         if (vehicle_has_incident_type($vehicle, 'RTW')) return (int)$vehicle['id'];
     }

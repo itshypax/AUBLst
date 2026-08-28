@@ -54,6 +54,7 @@ function require_session(PDO $pdo, ?string $token, ?string $pin = null, bool $en
     if (!$token) {
         respond_json(400, ['error' => 'Missing session_token']);
     }
+    $token = strtolower(trim($token));
 
     // Ein Session-Code kann bereits vor dem eigentlichen Spielstart bekannt sein.
     // Solange der Adapter noch nicht synchronisiert hat, ist das kein Login-Fehler.

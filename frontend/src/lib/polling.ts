@@ -23,6 +23,7 @@ import { startRealtimeStream } from './realtime';
 import { recordAnonymousMetrics } from './telemetry';
 import { notifyNewIncidents, notifySpeechRequests } from './notifications';
 import { bmaZonesForEvent } from './bma';
+import { normalizeSessionToken } from './session-token';
 
 const STATE_INTERVAL = 3_000;
 const LOG_INTERVAL = 2_000;
@@ -48,6 +49,9 @@ let stateController: AbortController | null = null;
 let logController: AbortController | null = null;
 let generation = 0;
 let started = false;
+let readOnlySession = typeof location !== 'undefined'
+  && (new URLSearchParams(location.search).get('view') === 'monitor'
+    || new URLSearchParams(location.search).get('monitor') === '1');
 let lastState: StateResponse | null = null;
 let realtimeConnected = false;
 let stopRealtime: (() => void) | null = null;
@@ -190,16 +194,18 @@ async function connectCurrentSession(): Promise<void> {
   if (!app.sessionToken || !isPollingLeader()) return;
   clearTimeout(connectionTimer);
   const requestGeneration = generation;
-  try {
-    await api('session_validate', {}, { requireFresh: false });
-  } catch (error) {
-    if (requestGeneration !== generation) return;
-    app.connected = false;
-    app.stateHealthy = false;
-    app.logsHealthy = false;
-    app.lastError = (error as Error).message;
-    if (sessionIsWaiting(error)) scheduleConnectionRetry();
-    return;
+  if (!readOnlySession) {
+    try {
+      await api('session_validate', {}, { requireFresh: false });
+    } catch (error) {
+      if (requestGeneration !== generation) return;
+      app.connected = false;
+      app.stateHealthy = false;
+      app.logsHealthy = false;
+      app.lastError = (error as Error).message;
+      if (sessionIsWaiting(error)) scheduleConnectionRetry();
+      return;
+    }
   }
   if (requestGeneration !== generation) return;
   const logRequest = pollLogs().finally(() => {
@@ -213,7 +219,12 @@ async function connectCurrentSession(): Promise<void> {
   void logRequest;
 }
 
-export async function switchSession(apiBase: string, token: string, pin: string): Promise<void> {
+export async function switchSession(
+  apiBase: string,
+  token: string,
+  pin: string,
+  options: { readOnly?: boolean } = {},
+): Promise<void> {
   generation += 1;
   stateController?.abort();
   logController?.abort();
@@ -225,8 +236,9 @@ export async function switchSession(apiBase: string, token: string, pin: string)
   resetSessionData();
   resetCursors();
   app.apiBase = apiBase.trim() || '../backend/api.php';
-  app.sessionToken = token.trim();
+  app.sessionToken = normalizeSessionToken(token);
   app.pin = pin.trim();
+  readOnlySession = options.readOnly ?? false;
   persistSettings();
   lastState = null;
   setPollingScope(uiSyncScope(app.apiBase, app.sessionToken));

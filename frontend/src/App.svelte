@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import ActionsModal from './components/ActionsModal.svelte';
+  import AlarmMonitorPage from './components/AlarmMonitorPage.svelte';
   import AssignModal from './components/AssignModal.svelte';
   import ConfirmDialog from './components/ConfirmDialog.svelte';
   import ConnectionLostBanner from './components/ConnectionLostBanner.svelte';
@@ -36,6 +37,7 @@
   const pageParams = new URLSearchParams(location.search);
   const localHostname = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '::1';
   const routingEditorRequested = import.meta.env.DEV && localHostname && pageParams.get('routing_editor') === '1';
+  const monitorRequested = pageParams.get('view') === 'monitor' || pageParams.get('monitor') === '1';
   const routingEditorModId = pageParams.get('mod_id')?.trim() ?? '';
 
   if (!routingEditorRequested) {
@@ -68,7 +70,7 @@
   const showSessionGate = $derived(app.lastSuccessfulSync === null && !app.stateHealthy);
   const connectionLost = $derived(app.lastSuccessfulSync !== null && !app.stateHealthy);
 
-  const stopUiSync = startUiSync({
+  const stopUiSync = monitorRequested ? () => undefined : startUiSync({
     onOpenEvent: (eventId, hostedHere) => openEventFromSync(eventId, hostedHere),
     onCloseEvent: closeEventFromSync,
     onHighlight: setHighlightFromSync,
@@ -82,6 +84,7 @@
   onDestroy(stopUiSync);
 
   $effect(() => {
+    if (monitorRequested) return;
     updateUiSyncPresence(
       uiSyncScope(app.apiBase, app.sessionToken),
       activeWorkspace.id,
@@ -206,7 +209,7 @@
   }
 
   function onGlobalKeydown(event: KeyboardEvent): void {
-    if (routingEditorRequested) return;
+    if (routingEditorRequested || monitorRequested) return;
     const action = shortcutActionForEvent(event);
     if (!action) return;
     event.preventDefault();
@@ -219,6 +222,8 @@
 
 {#if routingEditorRequested}
   <RoutingEditorPage modId={routingEditorModId} />
+{:else if monitorRequested}
+  <AlarmMonitorPage />
 {:else}
   <Topbar onResetLayout={resetLayout} onOpenWorkspaceEditor={() => (workspaceEditorOpen = true)} onOpenShortcuts={() => (app.shortcutsOpen = true)} workspaceName={activeWorkspace.name} />
 

@@ -62,6 +62,15 @@
   function onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && !connecting) void connect();
   }
+
+  function monitorUrl(): string {
+    const params = new URLSearchParams(location.search);
+    params.set('view', 'monitor');
+    params.delete('monitor');
+    params.delete('pin');
+    params.delete('session_token');
+    return `${location.pathname}?${params.toString()}${location.hash}`;
+  }
 </script>
 
 <main class="session-start">
@@ -86,6 +95,7 @@
       <button class="demo" disabled={connecting} onclick={() => void openDemo()}>
         {#if activeAction === 'demo'}<span class="spinner"><FaIcon icon={LoaderCircle} size={15} /></span> Demo wird angelegt{:else}<FaIcon icon={FlaskConical} size={15} /> Demo-Sitzung anlegen{/if}
       </button>
+      <a class="monitor-link" href={monitorUrl()}><FaIcon icon={RadioTower} size={15} /> Alarmmonitor für Spieler</a>
 
       <details class="server-settings" use:dismissibleDetails>
         <summary><FaIcon icon={ServerCog} size={14} /> Serveradresse</summary>
@@ -124,6 +134,8 @@
   .connect { height: 36px; justify-content: center; border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 650; }
   .connect:hover:not(:disabled) { border-color: var(--accent-outline); background: var(--accent-outline); }
   .demo { height: 34px; justify-content: center; background: transparent; }
+  .monitor-link { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); text-decoration: none; }
+  .monitor-link:hover { border-color: var(--border-strong); background: var(--accent-soft); }
   .server-settings { border-top: 1px solid var(--border); padding-top: 10px; }
   .server-settings summary { display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); cursor: pointer; font-size: 12px; }
   .server-settings[open] summary { margin-bottom: 10px; color: var(--text); }
