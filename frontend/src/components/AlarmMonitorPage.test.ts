@@ -165,6 +165,7 @@ describe('Spieler-Alarmmonitor', () => {
     await tick();
 
     expect(container.querySelectorAll('.wall-event')).toHaveLength(3);
+    expect(container.querySelector('.incident-wall')?.classList.contains('three')).toBe(true);
     expect(container.querySelector('.wall-label')).toBeNull();
     expect(container.querySelector('.vehicle-assignment')).toBeNull();
     expect(container.querySelector('[style*="--incident-color"]')).toBeNull();

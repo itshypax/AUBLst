@@ -321,7 +321,9 @@
             class="incident-wall"
             class:two={stationEvents.length === 2}
             class:three={stationEvents.length === 3}
-            class:many={stationEvents.length >= 4}
+            class:four={stationEvents.length === 4}
+            class:many={stationEvents.length >= 5}
+            class:dense={stationEvents.length >= 7}
           >
             {#each stationEvents as event, index (event.id)}
               {@const wallCategory = eventCategory(event.name)}
@@ -765,15 +767,23 @@
     background: var(--monitor-border);
   }
   .incident-wall.two {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
   }
   .incident-wall.three {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .incident-wall.four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
   }
   .incident-wall.many {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+  }
+  .incident-wall.dense {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-auto-rows: minmax(0, 1fr);
   }
   .wall-event {
@@ -845,8 +855,12 @@
     line-height: 1.04;
     text-overflow: ellipsis;
   }
+  .incident-wall.three .wall-copy h1,
   .incident-wall.many .wall-copy h1 {
     font-size: clamp(17px, 1.8vw, 28px);
+  }
+  .incident-wall.dense .wall-copy h1 {
+    font-size: clamp(15px, 1.45vw, 23px);
   }
   .wall-units {
     grid-column: 1;
@@ -1283,6 +1297,7 @@
     .incident-wall,
     .incident-wall.two,
     .incident-wall.three,
+    .incident-wall.four,
     .incident-wall.many {
       height: auto;
       grid-template-columns: 1fr;
