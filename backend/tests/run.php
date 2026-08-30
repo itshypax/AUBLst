@@ -6,6 +6,7 @@ require_once __DIR__ . '/../src/http.php';
 require_once __DIR__ . '/../src/migrations.php';
 require_once __DIR__ . '/../src/repository.php';
 require_once __DIR__ . '/../src/actions/mods.php';
+require_once __DIR__ . '/../src/actions/state.php';
 
 $tests = [];
 
@@ -33,6 +34,12 @@ test_case('Alarmierung akzeptiert nur verfügbare Status', static function (): v
 test_case('Nicht getrackte Einheiten bleiben alarmierbar', static function (): void {
     expect_true(vehicle_available_for_alarm(['game_vehicle_id' => 'ASF', 'type' => 'ASF', 'status' => 6]));
     expect_true(vehicle_available_for_alarm(['game_vehicle_id' => 'extern', 'type' => 'FUSTW', 'status' => 0]));
+});
+
+test_case('Nur nicht getrackte Einheiten dürfen mehreren Einsätzen zugeordnet bleiben', static function (): void {
+    expect_true(vehicle_supports_multiple_assignments(['game_vehicle_id' => 'FUSTW', 'type' => 'FUSTW']));
+    expect_true(vehicle_supports_multiple_assignments(['game_vehicle_id' => 'extern', 'type' => 'TD']));
+    expect_true(!vehicle_supports_multiple_assignments(['game_vehicle_id' => '1_HLF_1', 'type' => 'HLF']));
 });
 
 test_case('Fahrzeugstatus wird vor dem Speichern geprüft', static function (): void {
@@ -72,6 +79,44 @@ test_case('Migrationen haben eine feste Reihenfolge', static function (): void {
     sort($sorted, SORT_STRING);
     expect_same($sorted, $versions);
     expect_same(count($versions), count(array_unique($versions)));
+});
+
+test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', static function (): void {
+    $result = state_session_data([
+        'token' => 'a1b2',
+        'mod_id' => 'AUBMP',
+        'min_x' => '-100.5',
+        'min_y' => '-200',
+        'max_x' => '300',
+        'max_y' => '400.5',
+        'pin' => '1234',
+    ]);
+    expect_same([
+        'token' => 'a1b2',
+        'mod_id' => 'AUBMP',
+        'map_bounds' => [
+            'min_x' => -100.5,
+            'min_y' => -200.0,
+            'max_x' => 300.0,
+            'max_y' => 400.5,
+        ],
+    ], $result);
+});
+
+test_case('Nur echte Fahrzeugstatuswechsel stoßen die Einsatzleiterprüfung an', static function (): void {
+    $saved = ['status' => 3];
+    expect_true(!vehicle_update_requires_leader_reconcile($saved, ['status' => 3]));
+    expect_true(vehicle_update_requires_leader_reconcile($saved, ['status' => 4]));
+    expect_true(vehicle_update_requires_leader_reconcile(['status' => 4, 'type' => 'HLF'], ['type' => 'ELW']));
+    expect_true(!vehicle_update_requires_leader_reconcile(false, ['status' => 4]));
+    expect_true(!vehicle_update_requires_leader_reconcile($saved, ['name' => '1-HLF-1']));
+});
+
+test_case('Nur echte Einsatzstatuswechsel stoßen die Einsatzleiterprüfung an', static function (): void {
+    $saved = ['status' => 'active'];
+    expect_true(!event_update_requires_leader_reconcile($saved, ['status' => 'active']));
+    expect_true(event_update_requires_leader_reconcile($saved, ['status' => 'completed']));
+    expect_true(!event_update_requires_leader_reconcile(false, ['status' => 'active']));
 });
 
 test_case('Sprechwunschvarianten werden als Status 5 erkannt', static function (): void {

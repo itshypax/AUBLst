@@ -50,6 +50,52 @@ beforeEach(() => {
 });
 
 describe('Kartenabruf', () => {
+  it('verwendet für den Alarmmonitor nur den schlanken Zustandsabruf', async () => {
+    const state = {
+      session: {
+        token: 'demo',
+        mod_id: null,
+        map_bounds: { min_x: 0, min_y: 0, max_x: 1000, max_y: 1000 },
+      },
+      players: [],
+      vehicles: [],
+      hospitals: [],
+      events: [],
+      assignments: [],
+      hospital_reservations: [],
+      status_history: [],
+      time: null,
+    };
+    mocks.apiGet.mockResolvedValue(state);
+    const { pollingProfile, refreshState, switchSession } = await import('./polling');
+
+    expect(pollingProfile(true)).toEqual({
+      stateAction: 'monitor_state',
+      pollsLogs: false,
+      pollsStatusHistory: false,
+      usesRealtime: false,
+    });
+
+    await switchSession('../backend/api.php', 'demo', '', { readOnly: true });
+    await refreshState();
+
+    expect(mocks.apiGet).toHaveBeenCalledWith('monitor_state', {}, expect.any(Object));
+    expect(mocks.apiGet).not.toHaveBeenCalledWith('logs', expect.anything(), expect.anything());
+
+    await switchSession('../backend/api.php', 'demo', '', { readOnly: false });
+  });
+
+  it('lädt den Fahrzeugstatusverlauf getrennt vom Live-Zustand', async () => {
+    const history = [{ id: 9, game_vehicle_id: '1_HLF_1', vehicle_name: '1-HLF-1', status: 4, created_at: '2026-08-29 20:00:00' }];
+    mocks.apiGet.mockResolvedValue({ status_history: history });
+    const { refreshStatusHistory } = await import('./polling');
+
+    await refreshStatusHistory();
+
+    expect(mocks.apiGet).toHaveBeenCalledWith('status_history', {}, expect.any(Object));
+    expect(app.statusHistory).toEqual(history);
+  });
+
   it('wiederholt einen abgebrochenen Abruf bei unveränderter Mod-ID', async () => {
     const state = {
       session: {
@@ -137,7 +183,7 @@ describe('Funk-Polling', () => {
     expect(mocks.apiGet).toHaveBeenLastCalledWith(
       'logs',
       { since: '2026-08-09 14:35:00', since_id: 0 },
-      expect.any(Object)
+      expect.any(Object),
     );
     expect(mocks.playSoundCues).toHaveBeenCalledWith(['radio-message']);
     expect(app.logs.map((item) => item.id)).toEqual([10, 11]);

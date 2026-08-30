@@ -203,7 +203,7 @@ describe('Aktueller Einsatz', () => {
     expect(manualLeaderChange.closest('.timeline-row')?.classList.contains('command')).toBe(true);
     expect(manualLeaderChange.closest('.timeline-row')?.textContent).toContain('Einsatzleitung');
     expect(automaticLeaderChange.closest('.timeline-row')?.classList.contains('system')).toBe(true);
-    expect(automaticLeaderChange.closest('.timeline-row')?.textContent).toContain('EL-Automatik');
+    expect(automaticLeaderChange.closest('.timeline-row')?.textContent).toContain('System');
   });
 
   it('zeigt Vormerkungen ohne separate Dispositionsspalte', () => {

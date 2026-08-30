@@ -99,6 +99,92 @@ describe('Spieler-Alarmmonitor', () => {
     expect(screen.queryByText('2-HLF-1')).toBeNull();
   });
 
+  it('ordnet die Alarmton-Einstellungen als beschriftete Schalter an', async () => {
+    history.replaceState(null, '', '/?view=monitor&wache=1');
+    app.sessionToken = '758c';
+    app.stateHealthy = true;
+    app.lastSuccessfulSync = Date.now();
+    const user = userEvent.setup();
+
+    render(AlarmMonitorPage);
+    await user.click(screen.getByText('Alarmton'));
+
+    expect(screen.getByText('Tonausgabe')).toBeTruthy();
+    expect(screen.getByLabelText('Gong abspielen')).toBeTruthy();
+    expect(screen.getByLabelText('Fahrzeugansage abspielen')).toBeTruthy();
+    expect(screen.getByLabelText('Lautstärke')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Hörprobe abspielen' })).toBeTruthy();
+  });
+
+  it('zeigt mitalarmierte Fahrzeuge anderer Wachen nur beim Einsatz', () => {
+    history.replaceState(null, '', '/?view=monitor&wache=1');
+    app.sessionToken = '758c';
+    app.stateHealthy = true;
+    app.lastSuccessfulSync = Date.now();
+    app.vehicles = [
+      {
+        id: 1,
+        game_vehicle_id: '1_HLF_1',
+        name: '1-HLF-1',
+        type: 'HLF',
+        modes: null,
+        x: 10,
+        y: -20,
+        status: 4,
+        assigned_player_id: null,
+      },
+      {
+        id: 2,
+        game_vehicle_id: '2_DLK_1',
+        name: '2-DLK-1',
+        type: 'DLK',
+        modes: null,
+        x: 20,
+        y: -30,
+        status: 3,
+        assigned_player_id: null,
+      },
+      {
+        id: 3,
+        game_vehicle_id: 'TD',
+        name: 'Stadtwerke',
+        type: 'TD',
+        modes: null,
+        x: -1000000,
+        y: -1000000,
+        status: 4,
+        assigned_player_id: null,
+      },
+    ];
+    app.events = [
+      {
+        id: 10,
+        game_event_id: '47',
+        name: 'Wohnungsbrand',
+        x: 100,
+        y: -200,
+        status: 'active',
+        created_by: 'game',
+        created_at: '2026-08-28 18:00:00',
+      },
+    ];
+    app.assignments = app.vehicles.map((vehicle) => ({
+      event_id: 10,
+      vehicle_id: vehicle.id,
+      alarm_modes: vehicle.id === 2 ? ['Mit Angriffstrupp'] : [],
+    }));
+
+    const { container } = render(AlarmMonitorPage);
+
+    expect(screen.getByRole('heading', { name: 'Weitere alarmierte Kräfte' })).toBeTruthy();
+    expect(screen.getByText('2-DLK-1')).toBeTruthy();
+    const additionalUnit = screen.getByText('2-DLK-1').closest('.dispatch-unit');
+    expect(additionalUnit?.classList.contains('with-subtext')).toBe(true);
+    expect(additionalUnit?.querySelector('.unit-status')?.textContent).toBe('3');
+    expect(screen.queryByText('Stadtwerke')).toBeNull();
+    expect(container.querySelector('.vehicle-board')?.textContent).not.toContain('2-DLK-1');
+  });
+
   it('rendert alle Fahrzeuge der Wache in der Vollbildübersicht', () => {
     history.replaceState(null, '', '/?view=monitor&wache=2');
     app.sessionToken = 'fe79';
@@ -144,6 +230,17 @@ describe('Spieler-Alarmmonitor', () => {
       status: 4,
       assigned_player_id: null,
     }));
+    app.vehicles.push({
+      id: 4,
+      game_vehicle_id: '2_DLK_1',
+      name: 'Florian Auenburg 2-DLK-1',
+      type: 'DLK',
+      modes: null,
+      x: 40,
+      y: -40,
+      status: 3,
+      assigned_player_id: null,
+    });
     app.events = [1, 2, 3].map((id) => ({
       id,
       game_event_id: String(id),
@@ -155,6 +252,7 @@ describe('Spieler-Alarmmonitor', () => {
       created_at: `2026-08-28 18:0${id}:00`,
     }));
     app.assignments = [1, 2, 3].map((id) => ({ event_id: id, vehicle_id: id }));
+    app.assignments.push({ event_id: 1, vehicle_id: 4 });
 
     const { container } = render(AlarmMonitorPage);
     await tick();
@@ -172,5 +270,11 @@ describe('Spieler-Alarmmonitor', () => {
     expect(screen.getByRole('heading', { name: 'Einsatz 1' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Einsatz 2' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Einsatz 3' })).toBeTruthy();
+    const firstEvent = Array.from(container.querySelectorAll<HTMLElement>('.wall-event')).find((event) =>
+      event.textContent?.includes('Einsatz 1'),
+    );
+    expect(firstEvent?.querySelector('.wall-group-label')?.textContent).toBe('Weitere alarmierte Kräfte');
+    expect(firstEvent?.textContent).toContain('Florian Auenburg 2-DLK-1');
+    expect(firstEvent?.querySelector('.status-3')?.textContent).toBe('3');
   });
 });

@@ -108,38 +108,26 @@ describe('Einsatzübersicht', () => {
     expect(row?.textContent).not.toContain('20:11');
   });
 
-  it('zeigt abgeschlossene Einsätze gedämpft und nicht mehr disponierbar', async () => {
+  it('zeigt abgeschlossene Einsätze nicht in der Live-Liste', () => {
     app.events = [{ ...app.events[1], status: 'completed' }];
     render(EventsPanel);
-    await fireEvent.click(screen.getByRole('button', { name: /Abgeschlossen/ }));
-
-    const row = screen.getByText('Unklare Rauchentwicklung').closest('.row');
-    expect(row?.classList.contains('completed')).toBe(true);
-    expect(row?.querySelector('button')?.hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByText('Unklare Rauchentwicklung')).toBeNull();
   });
 
-  it('kombiniert Statusfilter und startet mit Neu und Aktuell', async () => {
+  it('kombiniert die Filter für neue und laufende Einsätze', async () => {
     app.assignments = [{ event_id: 12, vehicle_id: 7 }];
-    app.events = [...app.events, { ...app.events[1], id: 15, name: 'Beendeter Einsatz', status: 'completed' }];
     render(EventsPanel);
 
     const newFilter = screen.getByRole('button', { name: /Neu/ });
     const currentFilter = screen.getByRole('button', { name: /Aktuell/ });
-    const completedFilter = screen.getByRole('button', { name: /Abgeschlossen/ });
 
     expect(newFilter.getAttribute('aria-pressed')).toBe('true');
     expect(currentFilter.getAttribute('aria-pressed')).toBe('true');
-    expect(completedFilter.getAttribute('aria-pressed')).toBe('false');
     expect(screen.getByText('Absicherung Stadtfest')).toBeTruthy();
     expect(screen.getByText('Unklare Rauchentwicklung')).toBeTruthy();
-    expect(screen.queryByText('Beendeter Einsatz')).toBeNull();
-
-    await fireEvent.click(completedFilter);
-    expect(screen.getByText('Beendeter Einsatz')).toBeTruthy();
 
     await fireEvent.click(newFilter);
     expect(screen.queryByText('Absicherung Stadtfest')).toBeNull();
     expect(screen.getByText('Unklare Rauchentwicklung')).toBeTruthy();
-    expect(screen.getByText('Beendeter Einsatz')).toBeTruthy();
   });
 });

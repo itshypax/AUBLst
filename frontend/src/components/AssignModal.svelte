@@ -335,7 +335,7 @@
     if (returning.has(id)) return;
     returning = new Set(returning).add(id);
     try {
-      await api('events_unassign', { vehicle_ids: [id] });
+      await api('events_unassign', { event_id: eventId, vehicle_ids: [id] });
       assigned = assigned?.filter((a) => a.id !== id) ?? null;
       void refreshState();
     } catch (err) {

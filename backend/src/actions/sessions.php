@@ -151,10 +151,14 @@ function action_sync(PDO $pdo): void {
             $stmt->execute([$sid]);
         }
     }
-    foreach (($data['vehicles'] ?? []) as $v) { upsert_vehicle($pdo, $sid, $v); }
+    $leaders_dirty = false;
+    foreach (($data['vehicles'] ?? []) as $v) { upsert_vehicle($pdo, $sid, $v, $leaders_dirty); }
     foreach (($data['hospitals'] ?? []) as $h) { upsert_hospital($pdo, $sid, $h); }
     foreach (($data['messages'] ?? []) as $m) { upsert_message($pdo, $sid, $m); }
-    foreach (($data['events'] ?? []) as $e) { $e['created_by'] = 'game'; upsert_event($pdo, $sid, $e); }
+    foreach (($data['events'] ?? []) as $e) {
+        $e['created_by'] = 'game';
+        upsert_event($pdo, $sid, $e, $leaders_dirty);
+    }
 
     if (isset($data['time'])) {
         $stmt = $pdo->prepare('INSERT INTO clock (session_id, time_hours, time_minutes)
@@ -165,6 +169,7 @@ function action_sync(PDO $pdo): void {
         $stmt->execute([$sid, $data['time']['h'], $data['time']['m']]);
     }
 
+    if ($leaders_dirty) reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
     $pdo->commit();
     respond_json(200, ['ok' => true, 'session_id' => $sid]);

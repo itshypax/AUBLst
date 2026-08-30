@@ -1,4 +1,4 @@
-import { sortVehiclesByAlarmPriority, station } from './classify';
+import { isActionUnit, isHiddenUnit, sortVehiclesByAlarmPriority, station } from './classify';
 import type { Assignment, EventItem, Vehicle } from './types';
 
 export const MONITOR_STATIONS = ['1', '2', '3', '4'] as const;
@@ -42,6 +42,28 @@ export function vehiclesAssignedToEvent(
       .map((assignment) => Number(assignment.vehicle_id)),
   );
   return monitorVehicles(vehicles, selectedStation).filter((vehicle) => assignedIds.has(vehicle.id));
+}
+
+export function additionalVehiclesAssignedToEvent(
+  vehicles: Vehicle[],
+  assignments: Assignment[],
+  eventId: number,
+  selectedStation: MonitorStation,
+): Vehicle[] {
+  const assignedIds = new Set(
+    assignments
+      .filter((assignment) => Number(assignment.event_id) === eventId)
+      .map((assignment) => Number(assignment.vehicle_id)),
+  );
+  return sortVehiclesByAlarmPriority(
+    vehicles.filter(
+      (vehicle) =>
+        assignedIds.has(vehicle.id) &&
+        station(vehicle) !== selectedStation &&
+        !isHiddenUnit(vehicle) &&
+        !isActionUnit(vehicle),
+    ),
+  );
 }
 
 export function assignmentModes(assignments: Assignment[], eventId: number, vehicleId: number): string[] {

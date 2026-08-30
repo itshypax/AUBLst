@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  additionalVehiclesAssignedToEvent,
   assignmentModes,
   isMonitorStation,
   monitorEvents,
@@ -42,6 +43,17 @@ const vehicles: Vehicle[] = [
     status: 2,
     assigned_player_id: null,
   },
+  {
+    id: 4,
+    game_vehicle_id: 'FUSTW',
+    name: 'Streifenwagen',
+    type: 'FUSTW',
+    modes: null,
+    x: -1000000,
+    y: -1000000,
+    status: 4,
+    assigned_player_id: null,
+  },
 ];
 
 const events: EventItem[] = [
@@ -81,6 +93,7 @@ const assignments: Assignment[] = [
   { event_id: 10, vehicle_id: 1, alarm_modes: ['Sondersignal'] },
   { event_id: 11, vehicle_id: 2 },
   { event_id: 11, vehicle_id: 3 },
+  { event_id: 11, vehicle_id: 4 },
   { event_id: 12, vehicle_id: 1 },
 ];
 
@@ -103,5 +116,9 @@ describe('Alarmmonitor', () => {
   it('liefert alarmierte Wachfahrzeuge und ihre Alarmierungsart', () => {
     expect(vehiclesAssignedToEvent(vehicles, assignments, 10, '1').map((vehicle) => vehicle.id)).toEqual([1]);
     expect(assignmentModes(assignments, 10, 1)).toEqual(['Sondersignal']);
+  });
+
+  it('liefert reguläre mitalarmierte Fahrzeuge anderer Wachen getrennt', () => {
+    expect(additionalVehiclesAssignedToEvent(vehicles, assignments, 11, '1').map((vehicle) => vehicle.id)).toEqual([3]);
   });
 });

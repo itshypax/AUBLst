@@ -204,3 +204,7 @@ export interface StateResponse {
   status_history?: VehicleStatusChange[];
   time: ClockTime | null;
 }
+
+export interface StatusHistoryResponse {
+  status_history: VehicleStatusChange[];
+}

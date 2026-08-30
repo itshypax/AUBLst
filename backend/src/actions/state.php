@@ -1,6 +1,77 @@
 <?php
 declare(strict_types=1);
 
+function state_assignments(PDO $pdo, $session_id): array {
+    $stmt = $pdo->prepare('SELECT a.event_id, a.vehicle_id, h.mode, leaders.role AS leader_role,
+            leaders.source AS leader_source
+        FROM assignments a
+        JOIN events e ON e.session_id = a.session_id AND e.id = a.event_id AND e.status = \'active\'
+        LEFT JOIN alarm_history h ON h.session_id = a.session_id
+            AND h.event_id = a.event_id AND h.vehicle_id = a.vehicle_id AND h.mode IS NOT NULL
+        LEFT JOIN event_leaders leaders ON leaders.session_id = a.session_id
+            AND leaders.event_id = a.event_id AND leaders.vehicle_id = a.vehicle_id
+        WHERE a.session_id = ? ORDER BY a.event_id, a.vehicle_id, h.id');
+    $stmt->execute([$session_id]);
+
+    $assignments = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $key = (int)$row['event_id'] . ':' . (int)$row['vehicle_id'];
+        if (!isset($assignments[$key])) {
+            $assignments[$key] = [
+                'event_id' => (int)$row['event_id'],
+                'vehicle_id' => (int)$row['vehicle_id'],
+                'alarm_modes' => [],
+                'leader_role' => $row['leader_role'],
+                'leader_source' => $row['leader_source'],
+            ];
+        }
+        if ($row['mode'] !== null && trim((string)$row['mode']) !== '') {
+            $assignments[$key]['alarm_modes'][] = (string)$row['mode'];
+        }
+    }
+    return array_values($assignments);
+}
+
+function state_session_data(array $session): array {
+    return [
+        'token' => $session['token'],
+        'mod_id' => $session['mod_id'],
+        'map_bounds' => [
+            'min_x' => (float)$session['min_x'],
+            'min_y' => (float)$session['min_y'],
+            'max_x' => (float)$session['max_x'],
+            'max_y' => (float)$session['max_y'],
+        ],
+    ];
+}
+
+function action_monitor_state(PDO $pdo): void {
+    $session = require_session($pdo, request_value('session_token'));
+    $sid = $session['id'];
+
+    $vehicles = $pdo->prepare('SELECT id, game_vehicle_id, name, type, modes, x, y, status, assigned_player_id
+        FROM vehicles WHERE session_id = ?');
+    $vehicles->execute([$sid]);
+
+    $events = $pdo->prepare("SELECT id, game_event_id, name, x, y, status, created_by, created_at, updated_at
+        FROM events WHERE session_id = ? AND status = 'active' ORDER BY created_at DESC, id DESC");
+    $events->execute([$sid]);
+
+    $time = $pdo->prepare('SELECT time_hours, time_minutes FROM clock WHERE session_id = ?');
+    $time->execute([$sid]);
+
+    respond_json(200, [
+        'session' => state_session_data($session),
+        'players' => [],
+        'vehicles' => $vehicles->fetchAll(),
+        'hospitals' => [],
+        'events' => $events->fetchAll(),
+        'assignments' => state_assignments($pdo, $sid),
+        'hospital_reservations' => [],
+        'time' => $time->fetch() ?: null,
+    ]);
+}
+
 function action_state(PDO $pdo): void {
     $token = request_value('session_token');
     $session = require_session($pdo, $token);
@@ -22,49 +93,11 @@ function action_state(PDO $pdo): void {
     $hospitals->execute([$sid]);
     $hospitals = $hospitals->fetchAll();
 
-    $events = $pdo->prepare('SELECT * FROM events WHERE session_id = ? ORDER BY created_at DESC, id DESC');
+    $events = $pdo->prepare("SELECT * FROM events WHERE session_id = ? AND status = 'active' ORDER BY created_at DESC, id DESC");
     $events->execute([$sid]);
     $events = $events->fetchAll();
 
-    $status_history = $pdo->prepare('SELECT id, game_vehicle_id, vehicle_name, status, created_at
-        FROM vehicle_status_history WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT 500');
-    $status_history->execute([$sid]);
-    $status_history = $status_history->fetchAll();
-
-    if (reconcile_event_leaders($pdo, $sid)) touch_session($pdo, $sid);
-
-    $assignments = $pdo->prepare('SELECT a.event_id, a.vehicle_id, h.mode, leaders.role AS leader_role,
-            leaders.source AS leader_source
-        FROM assignments a
-        LEFT JOIN alarm_history h ON h.session_id = a.session_id
-            AND h.event_id = a.event_id AND h.vehicle_id = a.vehicle_id AND h.mode IS NOT NULL
-        LEFT JOIN event_leaders leaders ON leaders.session_id = a.session_id
-            AND leaders.event_id = a.event_id AND leaders.vehicle_id = a.vehicle_id
-        WHERE a.session_id = ? ORDER BY a.event_id, a.vehicle_id, h.id');
-    $assignments->execute([$sid]);
-    $assignmentRows = $assignments->fetchAll();
-    $assignments = [];
-    foreach ($assignmentRows as $row) {
-        $key = (int)$row['event_id'] . ':' . (int)$row['vehicle_id'];
-        if (!isset($assignments[$key])) {
-            $assignments[$key] = [
-                'event_id' => (int)$row['event_id'],
-                'vehicle_id' => (int)$row['vehicle_id'],
-                'alarm_modes' => [],
-                'leader_role' => $row['leader_role'],
-                'leader_source' => $row['leader_source'],
-            ];
-        }
-        if ($row['mode'] !== null && trim((string)$row['mode']) !== '') {
-            $assignments[$key]['alarm_modes'][] = (string)$row['mode'];
-        }
-    }
-    $assignments = array_values($assignments);
-
-    $cleanup = $pdo->prepare('DELETE r FROM hospital_reservations r
-        JOIN vehicles v ON v.id = r.vehicle_id AND v.session_id = r.session_id
-        WHERE r.session_id = ? AND v.status IN (1, 2)');
-    $cleanup->execute([$sid]);
+    $assignments = state_assignments($pdo, $sid);
 
     $hospital_reservations = $pdo->prepare('SELECT r.id, r.vehicle_id, r.hospital_id, r.bed_type, r.status,
         r.created_at, r.updated_at, r.arrived_at, v.game_vehicle_id, v.name AS vehicle_name, h.name AS hospital_name
@@ -80,23 +113,21 @@ function action_state(PDO $pdo): void {
     $time = $time->fetch();
 
     respond_json(200, [
-        'session' => [
-            'token' => $session['token'],
-            'mod_id' => $session['mod_id'],
-            'map_bounds' => [
-                'min_x' => (float)$session['min_x'],
-                'min_y' => (float)$session['min_y'],
-                'max_x' => (float)$session['max_x'],
-                'max_y' => (float)$session['max_y'],
-            ],
-        ],
+        'session' => state_session_data($session),
         'players' => $players,
         'vehicles' => $vehicles,
         'hospitals' => $hospitals,
         'events' => $events,
         'assignments' => $assignments,
         'hospital_reservations' => $hospital_reservations,
-        'status_history' => $status_history,
         'time' => $time,
     ]);
+}
+
+function action_status_history(PDO $pdo): void {
+    $session = require_session($pdo, request_value('session_token'));
+    $stmt = $pdo->prepare('SELECT id, game_vehicle_id, vehicle_name, status, created_at
+        FROM vehicle_status_history WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT 500');
+    $stmt->execute([$session['id']]);
+    respond_json(200, ['status_history' => $stmt->fetchAll()]);
 }

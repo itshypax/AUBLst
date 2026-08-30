@@ -147,7 +147,7 @@
 
   function feedbackKind(content: string): Pick<TimelineEntry, 'kind' | 'source'> {
     if (!/^Einsatzleiter (?:FW|RD)\b/i.test(content.trim())) return { kind: 'feedback', source: 'Leitstelle' };
-    if (/\bautomatisch\b/i.test(content)) return { kind: 'system', source: 'EL-Automatik' };
+    if (/\bautomatisch\b/i.test(content)) return { kind: 'system', source: 'System' };
     return { kind: 'command', source: 'Einsatzleitung' };
   }
 
@@ -372,7 +372,7 @@
     if (returning.has(vehicle.id)) return;
     returning = new Set(returning).add(vehicle.id);
     try {
-      await api('events_unassign', { vehicle_ids: [vehicle.id] });
+      await api('events_unassign', { event_id: currentEventId, vehicle_ids: [vehicle.id] });
       await refreshState();
     } catch (error) {
       errorMsg = (error as Error).message;

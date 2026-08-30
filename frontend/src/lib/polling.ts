@@ -4,7 +4,7 @@ import { SoundAlertTracker } from './sound-alerts';
 import { soundCuesForLogs } from './sound-events';
 import { app, clearCurrentEvent, persistSettings, resetSessionData } from './state.svelte';
 import { getSoundAlertConfig, playPhone, playSoundCue, playSoundCues } from './sounds';
-import type { LogRow, MapBounds, StateResponse } from './types';
+import type { LogRow, MapBounds, StateResponse, StatusHistoryResponse, VehicleStatusChange } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 import {
   broadcastLogAcknowledged,
@@ -12,6 +12,7 @@ import {
   broadcastPollingLogs,
   broadcastPollingSnapshot,
   broadcastPollingState,
+  broadcastStatusHistory,
   isPollingLeader,
   requestPollingSnapshot,
   setPollingScope,
@@ -27,13 +28,28 @@ import { normalizeSessionToken } from './session-token';
 
 const STATE_INTERVAL = 3_000;
 const LOG_INTERVAL = 2_000;
+const STATUS_HISTORY_INTERVAL = 15_000;
 const HIDDEN_INTERVAL = 15_000;
 const MAX_BACKOFF = 30_000;
 const MAX_LOG_ROWS = 500;
 
+export interface PollingProfile {
+  stateAction: 'state' | 'monitor_state';
+  pollsLogs: boolean;
+  pollsStatusHistory: boolean;
+  usesRealtime: boolean;
+}
+
+export function pollingProfile(readOnly: boolean): PollingProfile {
+  return readOnly
+    ? { stateAction: 'monitor_state', pollsLogs: false, pollsStatusHistory: false, usesRealtime: false }
+    : { stateAction: 'state', pollsLogs: true, pollsStatusHistory: true, usesRealtime: true };
+}
+
 function sameMapBounds(left: MapBounds, right: MapBounds): boolean {
-  return left.min_x === right.min_x && left.min_y === right.min_y
-    && left.max_x === right.max_x && left.max_y === right.max_y;
+  return (
+    left.min_x === right.min_x && left.min_y === right.min_y && left.max_x === right.max_x && left.max_y === right.max_y
+  );
 }
 
 let lastEventIds = new Set<number>();
@@ -42,16 +58,20 @@ let logsInitialized = false;
 let logCursor = INITIAL_LOG_CURSOR;
 let stateFailures = 0;
 let logFailures = 0;
+let statusHistoryFailures = 0;
 let stateTimer = 0;
 let logTimer = 0;
+let statusHistoryTimer = 0;
 let connectionTimer = 0;
 let stateController: AbortController | null = null;
 let logController: AbortController | null = null;
+let statusHistoryController: AbortController | null = null;
 let generation = 0;
 let started = false;
-let readOnlySession = typeof location !== 'undefined'
-  && (new URLSearchParams(location.search).get('view') === 'monitor'
-    || new URLSearchParams(location.search).get('monitor') === '1');
+let readOnlySession =
+  typeof location !== 'undefined' &&
+  (new URLSearchParams(location.search).get('view') === 'monitor' ||
+    new URLSearchParams(location.search).get('monitor') === '1');
 let lastState: StateResponse | null = null;
 let realtimeConnected = false;
 let stopRealtime: (() => void) | null = null;
@@ -66,6 +86,7 @@ function resetCursors(): void {
   logCursor = INITIAL_LOG_CURSOR;
   stateFailures = 0;
   logFailures = 0;
+  statusHistoryFailures = 0;
   dismissedLogVersions.clear();
   soundAlertTracker.reset();
 }
@@ -114,8 +135,18 @@ function stopRealtimeStream(): void {
   clearTimeout(realtimeRefreshTimer);
 }
 
+function currentPollingProfile(): PollingProfile {
+  return pollingProfile(readOnlySession);
+}
+
+function currentPollingScope(): string {
+  const base = uiSyncScope(app.apiBase, app.sessionToken);
+  if (!base) return '';
+  return `${base}:${readOnlySession ? 'monitor' : 'control-room'}`;
+}
+
 function ensureRealtimeStream(): void {
-  if (stopRealtime || !isPollingLeader() || !app.sessionToken) return;
+  if (!currentPollingProfile().usesRealtime || stopRealtime || !isPollingLeader() || !app.sessionToken) return;
   stopRealtime = startRealtimeStream({
     onStatus: (connected) => {
       realtimeConnected = connected;
@@ -124,7 +155,7 @@ function ensureRealtimeStream(): void {
       clearTimeout(realtimeRefreshTimer);
       realtimeRefreshTimer = window.setTimeout(() => {
         void refreshState();
-        void pollLogs();
+        if (currentPollingProfile().pollsLogs) void pollLogs();
       }, 100);
     },
   });
@@ -152,6 +183,17 @@ function scheduleLogs(delay = nextDelay(LOG_INTERVAL, logFailures)): void {
   }, delay);
 }
 
+function scheduleStatusHistory(delay = nextDelay(STATUS_HISTORY_INTERVAL, statusHistoryFailures)): void {
+  if (!isPollingLeader()) return;
+  const scheduledGeneration = generation;
+  clearTimeout(statusHistoryTimer);
+  statusHistoryTimer = window.setTimeout(async () => {
+    if (scheduledGeneration !== generation) return;
+    await refreshStatusHistory();
+    if (scheduledGeneration === generation) scheduleStatusHistory();
+  }, delay);
+}
+
 function sessionIsWaiting(error: unknown): boolean {
   const message = error instanceof Error ? error.message.toLocaleLowerCase('en-US') : '';
   return message.includes('session not found') || message.includes('waiting for initial sync');
@@ -173,6 +215,7 @@ function scheduleConnectionRetry(): void {
 function restartLoops(runImmediately: boolean): void {
   clearTimeout(stateTimer);
   clearTimeout(logTimer);
+  clearTimeout(statusHistoryTimer);
   clearTimeout(connectionTimer);
   if (!app.sessionToken || !isPollingLeader()) return;
   if (!app.stateHealthy) {
@@ -180,13 +223,16 @@ function restartLoops(runImmediately: boolean): void {
     else scheduleConnectionRetry();
     return;
   }
-  ensureRealtimeStream();
+  const profile = currentPollingProfile();
+  if (profile.usesRealtime) ensureRealtimeStream();
   if (runImmediately) {
     void refreshState().finally(() => scheduleState());
-    void pollLogs().finally(() => scheduleLogs());
+    if (profile.pollsLogs) void pollLogs().finally(() => scheduleLogs());
+    if (profile.pollsStatusHistory) void refreshStatusHistory().finally(() => scheduleStatusHistory());
   } else {
     scheduleState();
-    scheduleLogs();
+    if (profile.pollsLogs) scheduleLogs();
+    if (profile.pollsStatusHistory) scheduleStatusHistory();
   }
 }
 
@@ -208,15 +254,24 @@ async function connectCurrentSession(): Promise<void> {
     }
   }
   if (requestGeneration !== generation) return;
-  const logRequest = pollLogs().finally(() => {
-    if (requestGeneration === generation) scheduleLogs();
-  });
+  const profile = currentPollingProfile();
+  const logRequest = profile.pollsLogs
+    ? pollLogs().finally(() => {
+        if (requestGeneration === generation) scheduleLogs();
+      })
+    : null;
+  const statusHistoryRequest = profile.pollsStatusHistory
+    ? refreshStatusHistory().finally(() => {
+        if (requestGeneration === generation) scheduleStatusHistory();
+      })
+    : null;
   await refreshState();
   if (requestGeneration === generation) {
-    if (app.stateHealthy) ensureRealtimeStream();
+    if (app.stateHealthy && profile.usesRealtime) ensureRealtimeStream();
     scheduleState();
   }
-  void logRequest;
+  if (logRequest) void logRequest;
+  if (statusHistoryRequest) void statusHistoryRequest;
 }
 
 export async function switchSession(
@@ -228,8 +283,10 @@ export async function switchSession(
   generation += 1;
   stateController?.abort();
   logController?.abort();
+  statusHistoryController?.abort();
   clearTimeout(stateTimer);
   clearTimeout(logTimer);
+  clearTimeout(statusHistoryTimer);
   clearTimeout(connectionTimer);
   stopRealtimeStream();
   app.sessionChanging = true;
@@ -241,7 +298,7 @@ export async function switchSession(
   readOnlySession = options.readOnly ?? false;
   persistSettings();
   lastState = null;
-  setPollingScope(uiSyncScope(app.apiBase, app.sessionToken));
+  setPollingScope(currentPollingScope());
   try {
     if (started && app.sessionToken && isPollingLeader()) {
       await connectCurrentSession();
@@ -260,13 +317,14 @@ async function applyState(
   signal?: AbortSignal,
 ): Promise<void> {
   const applyGeneration = generation;
+  const playControlRoomSounds = playEventSounds && !readOnlySession;
   const mapBoundsChanged = !sameMapBounds(app.mapBounds, data.session.map_bounds);
   app.mapBounds = data.session.map_bounds;
   app.players = data.players ?? [];
   app.vehicles = data.vehicles ?? [];
   app.events = data.events ?? [];
   app.assignments = data.assignments ?? [];
-  app.statusHistory = data.status_history ?? [];
+  if (data.status_history) app.statusHistory = data.status_history;
   app.hospitals = data.hospitals ?? [];
   app.hospitalReservations = data.hospital_reservations ?? [];
   app.clock = data.time ?? null;
@@ -277,7 +335,7 @@ async function applyState(
   stateFailures = 0;
   lastState = data;
 
-  if (playEventSounds) {
+  if (playControlRoomSounds) {
     const alertCues = soundAlertTracker.update(
       {
         vehicles: app.vehicles,
@@ -324,12 +382,13 @@ async function applyState(
 
   const activeEvents = app.events.filter((event) => event.status === 'active');
   const ids = new Set(activeEvents.map((event) => event.id));
-  if (playEventSounds && eventsInitialized) {
+  if (playControlRoomSounds && eventsInitialized) {
     const fresh = activeEvents.filter((event) => !lastEventIds.has(event.id) && event.created_by === 'game');
     if (fresh.length) {
       void playPhone();
       notifyNewIncidents(fresh);
-      if (fresh.some((event) => bmaZonesForEvent(app.routing.bma_zones ?? [], event, app.routing).length)) void playSoundCue('bma-alarm');
+      if (fresh.some((event) => bmaZonesForEvent(app.routing.bma_zones ?? [], event, app.routing).length))
+        void playSoundCue('bma-alarm');
     }
     if ([...lastEventIds].some((id) => !ids.has(id))) void playSoundCue('incident-completed');
   }
@@ -348,13 +407,14 @@ export async function refreshState(): Promise<void> {
   const requestGeneration = generation;
   const startedAt = performance.now();
   try {
-    const data = await apiGet<StateResponse>('state', {}, { signal: controller.signal });
+    const profile = currentPollingProfile();
+    const data = await apiGet<StateResponse>(profile.stateAction, {}, { signal: controller.signal });
     if (requestGeneration !== generation) return;
     const receivedAt = Date.now();
     await applyState(data, isPollingLeader(), receivedAt, controller.signal);
     if (requestGeneration !== generation) return;
     broadcastPollingState(data, receivedAt);
-    recordAnonymousMetrics(performance.now() - startedAt, data.events?.length ?? 0);
+    if (!readOnlySession) recordAnonymousMetrics(performance.now() - startedAt, data.events?.length ?? 0);
   } catch (error) {
     if (controller.signal.aborted || requestGeneration !== generation) return;
     stateFailures += 1;
@@ -431,6 +491,26 @@ export async function pollLogs(): Promise<void> {
   }
 }
 
+export async function refreshStatusHistory(): Promise<void> {
+  if (!app.sessionToken || !currentPollingProfile().pollsStatusHistory) return;
+  statusHistoryController?.abort();
+  const controller = new AbortController();
+  statusHistoryController = controller;
+  const requestGeneration = generation;
+  try {
+    const data = await apiGet<StatusHistoryResponse>('status_history', {}, { signal: controller.signal });
+    if (requestGeneration !== generation) return;
+    const rows: VehicleStatusChange[] = data.status_history ?? [];
+    app.statusHistory = rows;
+    statusHistoryFailures = 0;
+    broadcastStatusHistory(rows);
+  } catch {
+    if (!controller.signal.aborted && requestGeneration === generation) statusHistoryFailures += 1;
+  } finally {
+    if (statusHistoryController === controller) statusHistoryController = null;
+  }
+}
+
 export async function dismissLog(id: number): Promise<void> {
   const result = await api<{ ok: boolean; ids?: number[]; updated_at?: string | null }>(
     'log_viewed',
@@ -481,8 +561,10 @@ export function startPolling(): void {
       soundAlertTracker.reset();
       stateController?.abort();
       logController?.abort();
+      statusHistoryController?.abort();
       clearTimeout(stateTimer);
       clearTimeout(logTimer);
+      clearTimeout(statusHistoryTimer);
       clearTimeout(connectionTimer);
       stopRealtimeStream();
       if (leader) restartLoops(true);
@@ -498,6 +580,9 @@ export function startPolling(): void {
       app.logError = '';
       logsInitialized = true;
     },
+    onStatusHistory: (rows) => {
+      app.statusHistory = rows;
+    },
     onLogAcknowledged: markLogAcknowledged,
     onLogDismissed: markLogDismissed,
     onSnapshot: (snapshot) => {
@@ -505,7 +590,7 @@ export function startPolling(): void {
     },
     snapshot: pollingSnapshot,
   });
-  setPollingScope(uiSyncScope(app.apiBase, app.sessionToken));
+  setPollingScope(currentPollingScope());
   document.addEventListener('visibilitychange', () => restartLoops(!document.hidden));
   if (app.sessionToken && isPollingLeader()) {
     app.sessionChanging = true;
@@ -519,6 +604,7 @@ function pollingSnapshot(): PollingSnapshot {
   return {
     state: lastState,
     logs: app.logs,
+    statusHistory: app.statusHistory,
     logCursor,
     stateHealthy: app.stateHealthy,
     logsHealthy: app.logsHealthy,
@@ -532,6 +618,7 @@ function pollingSnapshot(): PollingSnapshot {
 async function applyPollingSnapshot(snapshot: PollingSnapshot): Promise<void> {
   if (snapshot.state) await applyState(snapshot.state, false, snapshot.lastSuccessfulSync ?? Date.now());
   app.logs = applyDismissedLogState(snapshot.logs);
+  app.statusHistory = snapshot.statusHistory;
   logCursor = snapshot.logCursor;
   app.stateHealthy = snapshot.stateHealthy;
   app.logsHealthy = snapshot.logsHealthy;

@@ -58,7 +58,10 @@
     if (!vehicle) return;
     closeVehicleMenu();
     try {
-      await api('events_unassign', { vehicle_ids: [vehicle.id] });
+      await api('events_unassign', {
+        ...(menu.eventId === undefined ? {} : { event_id: menu.eventId }),
+        vehicle_ids: [vehicle.id],
+      });
       await refreshState();
     } catch (err) {
       app.lastError = (err as Error).message;

@@ -120,6 +120,19 @@ describe('Fahrzeugmenü', () => {
     expect(mocks.api).toHaveBeenCalledWith('events_reassign', { vehicle_id: 1, event_id: 1001 });
   });
 
+  it('lässt ein Fahrzeug nur aus dem Einsatz des geöffneten Menüs einrücken', async () => {
+    const user = userEvent.setup();
+    app.events = [{ id: 1000, game_event_id: '10', name: 'Wohnungsbrand', x: 0, y: 0, status: 'active', created_by: 'game' }];
+    app.assignments = [{ event_id: 1000, vehicle_id: 1 }];
+    app.contextMenu = { x: 20, y: 20, vehicleId: 1, eventId: 1000 };
+    mocks.api.mockResolvedValue({ ok: true });
+    render(VehicleContextMenu);
+
+    await user.click(screen.getByRole('menuitem', { name: 'Einrücken lassen' }));
+
+    expect(mocks.api).toHaveBeenCalledWith('events_unassign', { event_id: 1000, vehicle_ids: [1] });
+  });
+
   it('hält lange Zieleinsätze innerhalb der festen Menübreite', async () => {
     const user = userEvent.setup();
     app.events = [

@@ -6,16 +6,20 @@
     Axe,
     Biohazard,
     Cross,
+    ExternalLink,
     Flame,
     LoaderCircle,
     RadioTower,
     TriangleAlert,
+    Volume2,
+    VolumeX,
     Waves,
     Wifi,
     WifiOff,
   } from '../lib/fontawesome-icons';
   import {
     MONITOR_STATIONS,
+    additionalVehiclesAssignedToEvent,
     assignmentModes,
     isMonitorStation,
     monitorEvents,
@@ -23,6 +27,15 @@
     vehiclesAssignedToEvent,
     type MonitorStation,
   } from '../lib/alarm-monitor';
+  import {
+    MONITOR_GONGS,
+    loadMonitorSoundSettings,
+    playMonitorAlarm,
+    saveMonitorSoundSettings,
+    stopMonitorAlarm,
+    testMonitorAlarm,
+    type MonitorSoundSettings,
+  } from '../lib/alarm-monitor-sound';
   import { eventCategory, type EventCategory, vehicleDisplayName, vehicleTypeLabel } from '../lib/classify';
   import { switchSession } from '../lib/polling';
   import { app } from '../lib/state.svelte';
@@ -47,6 +60,7 @@
   let knownEventIds = new Set<number>();
   let knownStation: MonitorStation | null = null;
   let eventTrackingInitialized = false;
+  let monitorSound = $state<MonitorSoundSettings>(loadMonitorSoundSettings());
 
   const stationVehicles = $derived(selectedStation ? monitorVehicles(app.vehicles, selectedStation) : []);
   const vehicleGridColumns = $derived.by(() => {
@@ -66,6 +80,11 @@
   const displayVehicles = $derived(
     displayEvent && selectedStation
       ? vehiclesAssignedToEvent(app.vehicles, app.assignments, displayEvent.id, selectedStation)
+      : [],
+  );
+  const additionalDisplayVehicles = $derived(
+    displayEvent && selectedStation
+      ? additionalVehiclesAssignedToEvent(app.vehicles, app.assignments, displayEvent.id, selectedStation)
       : [],
   );
   const category = $derived<EventCategory>(displayEvent ? eventCategory(displayEvent.name) : 'other');
@@ -124,6 +143,15 @@
     eventTrackingInitialized = true;
     knownEventIds = new Set(events.map((event) => event.id));
 
+    if (newEvent && !firstPass && station) {
+      const alarmVehicles = vehiclesAssignedToEvent(app.vehicles, app.assignments, newEvent.id, station).map(
+        (vehicle) => ({
+          gameVehicleId: vehicle.game_vehicle_id,
+          displayName: vehicleDisplayName(vehicle),
+        }),
+      );
+      playMonitorAlarm(alarmVehicles, monitorSound);
+    }
     if (newEvent && (!firstPass || events.length > 1)) beginEventFocus(newEvent.id);
     else if (focusEventId !== null && !knownEventIds.has(focusEventId)) endEventFocus();
   });
@@ -135,6 +163,7 @@
     return () => {
       clearInterval(timer);
       if (focusTimer !== null) window.clearTimeout(focusTimer);
+      stopMonitorAlarm();
       document.title = previousTitle;
     };
   });
@@ -207,6 +236,12 @@
   async function toggleFullscreen(): Promise<void> {
     if (document.fullscreenElement) await document.exitFullscreen();
     else await document.documentElement.requestFullscreen();
+  }
+
+  function updateMonitorSound(patch: Partial<MonitorSoundSettings>): void {
+    monitorSound = { ...monitorSound, ...patch };
+    saveMonitorSoundSettings(monitorSound);
+    if ((!monitorSound.gongEnabled && !monitorSound.ttsEnabled) || monitorSound.volume === 0) stopMonitorAlarm();
   }
 
   function formatAlarmTime(value?: string): string {
@@ -305,8 +340,78 @@
       </div>
 
       <div class="header-actions">
-        <button onclick={() => void toggleFullscreen()}>Vollbild</button>
-        <a href={controlRoomUrl()}>Leitstelle</a>
+        <details class="sound-settings">
+          <summary
+            aria-label={`Alarmton einstellen, ${monitorSound.volume > 0 && (monitorSound.gongEnabled || monitorSound.ttsEnabled) ? `${Math.round(monitorSound.volume * 100)} Prozent` : 'aus'}`}
+          >
+            <FaIcon
+              icon={monitorSound.volume > 0 && (monitorSound.gongEnabled || monitorSound.ttsEnabled) ? Volume2 : VolumeX}
+              size={14}
+            />
+            Alarmton
+          </summary>
+          <div class="sound-settings-panel">
+            <div class="sound-panel-heading">
+              <span><strong>Tonausgabe</strong><span>Wiedergabe auf diesem Gerät</span></span>
+              <b>{monitorSound.volume > 0 && (monitorSound.gongEnabled || monitorSound.ttsEnabled) ? 'Aktiv' : 'Aus'}</b>
+            </div>
+            <label class="sound-option">
+              <span class="sound-option-copy">
+                <strong>Gong</strong>
+                <span>Vor jeder neuen Alarmierung abspielen</span>
+              </span>
+              <input
+                type="checkbox"
+                aria-label="Gong abspielen"
+                checked={monitorSound.gongEnabled}
+                onchange={(event) => updateMonitorSound({ gongEnabled: event.currentTarget.checked })}
+              />
+            </label>
+            <label class="sound-select">
+              <span>Gongton</span>
+              <select
+                value={monitorSound.gong}
+                disabled={!monitorSound.gongEnabled}
+                onchange={(event) => updateMonitorSound({ gong: event.currentTarget.value as MonitorSoundSettings['gong'] })}
+              >
+                {#each MONITOR_GONGS as gong}
+                  <option value={gong.id}>{gong.label}</option>
+                {/each}
+              </select>
+            </label>
+            <label class="sound-option">
+              <span class="sound-option-copy">
+                <strong>Fahrzeugansage</strong>
+                <span>Conrad nennt die alarmierten Fahrzeuge dieser Wache</span>
+              </span>
+              <input
+                type="checkbox"
+                aria-label="Fahrzeugansage abspielen"
+                checked={monitorSound.ttsEnabled}
+                onchange={(event) => updateMonitorSound({ ttsEnabled: event.currentTarget.checked })}
+              />
+            </label>
+            <label class="sound-volume">
+              <span>Lautstärke <b>{Math.round(monitorSound.volume * 100)} %</b></span>
+              <input
+                type="range"
+                aria-label="Lautstärke"
+                min="0"
+                max="100"
+                step="5"
+                value={Math.round(monitorSound.volume * 100)}
+                oninput={(event) => updateMonitorSound({ volume: Number(event.currentTarget.value) / 100 })}
+              />
+            </label>
+            <button
+              class="sound-test"
+              disabled={monitorSound.volume === 0 || (!monitorSound.gongEnabled && !monitorSound.ttsEnabled)}
+              onclick={() => testMonitorAlarm(monitorSound)}
+            ><FaIcon icon={Volume2} size={14} /> Hörprobe abspielen</button>
+          </div>
+        </details>
+        <button class="fullscreen-action" onclick={() => void toggleFullscreen()}>Vollbild</button>
+        <a class="control-room-action" href={controlRoomUrl()}>Leitstelle <FaIcon icon={ExternalLink} size={11} /></a>
       </div>
     </header>
 
@@ -328,6 +433,12 @@
             {#each stationEvents as event, index (event.id)}
               {@const wallCategory = eventCategory(event.name)}
               {@const eventVehicles = vehiclesAssignedToEvent(app.vehicles, app.assignments, event.id, selectedStation)}
+              {@const additionalEventVehicles = additionalVehiclesAssignedToEvent(
+                app.vehicles,
+                app.assignments,
+                event.id,
+                selectedStation,
+              )}
               <article class="wall-event {wallCategory}" class:latest={index === 0}>
                 <header>
                   <FaIcon icon={categoryIcons[wallCategory]} size={17} />
@@ -349,6 +460,16 @@
                   {:else}
                     <span class="wall-empty">Keine Wachfahrzeuge zugeordnet</span>
                   {/each}
+                  {#if additionalEventVehicles.length}
+                    <span class="wall-group-label">Weitere alarmierte Kräfte</span>
+                    {#each additionalEventVehicles as vehicle (vehicle.id)}
+                      <span
+                        ><b class="status-{vehicle.status}">{statusDisplay(vehicle.status)}</b>{vehicleDisplayName(
+                          vehicle,
+                        )}</span
+                      >
+                    {/each}
+                  {/if}
                 </div>
               </article>
             {/each}
@@ -375,7 +496,7 @@
             <div class="dispatch-grid">
               {#each displayVehicles as vehicle (vehicle.id)}
                 {@const modes = assignmentModes(app.assignments, displayEvent.id, vehicle.id)}
-                <div class="dispatch-unit">
+                <div class="dispatch-unit" class:with-subtext={modes.length > 0}>
                   <span class="unit-status status-{vehicle.status}">{statusDisplay(vehicle.status)}</span>
                   <span class="unit-name">{vehicleDisplayName(vehicle)}</span>
                   {#if modes.length}<span class="unit-mode">{modes.join(' · ')}</span>{/if}
@@ -384,6 +505,19 @@
                 <div class="dispatch-empty">Keine Wachfahrzeuge mehr zugeordnet</div>
               {/each}
             </div>
+            {#if additionalDisplayVehicles.length}
+              <h2 class="additional-heading">Weitere alarmierte Kräfte</h2>
+              <div class="dispatch-grid additional-units">
+                {#each additionalDisplayVehicles as vehicle (vehicle.id)}
+                  {@const modes = assignmentModes(app.assignments, displayEvent.id, vehicle.id)}
+                  <div class="dispatch-unit" class:with-subtext={modes.length > 0}>
+                    <span class="unit-status status-{vehicle.status}">{statusDisplay(vehicle.status)}</span>
+                    <span class="unit-name">{vehicleDisplayName(vehicle)}</span>
+                    {#if modes.length}<span class="unit-mode">{modes.join(' · ')}</span>{/if}
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </div>
         {:else}
           <div class="standby">
@@ -710,7 +844,174 @@
   }
   .header-actions {
     display: flex;
+    align-items: center;
     gap: 6px;
+  }
+  .sound-settings {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    color: #e9eaec;
+  }
+  .sound-settings summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 5px 11px;
+    border: 1px solid #35383d;
+    border-radius: 4px;
+    background: #202226;
+    color: #e9eaec;
+    cursor: pointer;
+    list-style: none;
+  }
+  .sound-settings summary::-webkit-details-marker {
+    display: none;
+  }
+  .sound-settings[open] summary {
+    border-color: #64686f;
+    background: #282b2f;
+  }
+  .sound-settings-panel {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 330px;
+    border: 1px solid #45484e;
+    background: #191b1e;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32);
+  }
+  .sound-panel-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 13px 15px;
+    border-bottom: 1px solid #303338;
+  }
+  .sound-panel-heading > span,
+  .sound-option-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .sound-panel-heading strong,
+  .sound-option-copy strong {
+    color: #f0f1f2;
+    font-size: 12px;
+  }
+  .sound-panel-heading span span,
+  .sound-option-copy span {
+    color: #8f949b;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  .sound-panel-heading b {
+    color: #c7c9cd;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .sound-option {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0;
+    padding: 12px 15px;
+    color: #e9eaec;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .sound-option + .sound-option,
+  .sound-select + .sound-option,
+  .sound-option + .sound-volume {
+    border-top: 1px solid #303338;
+  }
+  .sound-option input[type='checkbox'] {
+    position: relative;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 18px;
+    margin: 0;
+    padding: 0;
+    appearance: none;
+    border: 1px solid #545860;
+    border-radius: 9px;
+    background: #292c31;
+    cursor: pointer;
+  }
+  .sound-option input[type='checkbox']::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #b9bcc1;
+    transition: left 0.15s ease, background 0.15s ease;
+  }
+  .sound-option input[type='checkbox']:checked {
+    border-color: #c4333c;
+    background: #9f2029;
+  }
+  .sound-option input[type='checkbox']:checked::after {
+    left: 18px;
+    background: #fff;
+  }
+  .sound-option input[type='checkbox']:focus-visible {
+    outline: 2px solid var(--accent-outline);
+    outline-offset: 2px;
+  }
+  .sound-select,
+  .sound-volume {
+    display: grid;
+    gap: 5px;
+    margin: 0;
+    padding: 0 15px 12px;
+    color: #aeb1b6;
+    font-size: 11px;
+  }
+  .sound-volume {
+    padding-top: 12px;
+  }
+  .sound-select select {
+    width: 100%;
+    min-height: 34px;
+  }
+  .sound-select select:disabled {
+    color: #73777e;
+    background: #16181a;
+  }
+  .sound-volume span {
+    display: flex;
+    justify-content: space-between;
+  }
+  .sound-volume b {
+    color: #e9eaec;
+    font-variant-numeric: tabular-nums;
+  }
+  .sound-volume input {
+    width: 100%;
+    margin: 2px 0 0;
+    accent-color: #b4232d;
+  }
+  .sound-test {
+    width: calc(100% - 30px);
+    justify-content: center;
+    min-height: 34px;
+    margin: 0 15px 14px;
+    border-color: #45484e;
+    background: #222428;
+  }
+  .fullscreen-action,
+  .control-room-action {
+    min-height: 32px;
   }
   .header-actions a {
     display: inline-flex;
@@ -721,6 +1022,7 @@
     background: #202226;
     color: #e9eaec;
     text-decoration: none;
+    gap: 7px;
   }
 
   .monitor-body {
@@ -897,6 +1199,16 @@
     padding-left: 7px;
     color: #8f949b;
   }
+  .wall-units .wall-group-label {
+    flex-basis: 100%;
+    height: auto;
+    padding: 2px 0 0;
+    border: 0;
+    background: transparent;
+    color: #aeb1b6;
+    font-size: 9px;
+    font-weight: 700;
+  }
   .incident-type {
     display: flex;
     align-items: center;
@@ -970,6 +1282,14 @@
     gap: 7px;
     margin-top: 9px;
   }
+  .additional-heading {
+    margin-top: 13px !important;
+    padding-top: 10px;
+    border-top: 1px solid #303338;
+  }
+  .additional-units {
+    margin-top: 7px;
+  }
   .dispatch-unit {
     display: grid;
     grid-template-columns: 34px minmax(0, 1fr);
@@ -985,6 +1305,9 @@
     background: var(--status-6-start);
     color: #fff;
     font-weight: 850;
+  }
+  .dispatch-unit.with-subtext .unit-status {
+    grid-row: 1 / span 2;
   }
   .unit-status.status-0,
   .status-block.status-0,
@@ -1265,7 +1588,7 @@
       position: sticky;
       top: 0;
       z-index: 10;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr auto auto;
       min-height: 64px;
       padding: 8px 12px;
     }
@@ -1282,7 +1605,12 @@
       grid-row: 1;
     }
     .header-actions {
-      display: none;
+      grid-column: 3;
+      grid-row: 1;
+    }
+    .fullscreen-action,
+    .control-room-action {
+      display: none !important;
     }
     .monitor-body {
       display: flex;

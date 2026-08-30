@@ -6,10 +6,12 @@ function action_update_events(PDO $pdo): void {
     $session = require_session($pdo, $data['session_token'] ?? null);
     $sid = $session['id'];
 
+    $leaders_dirty = false;
     foreach (($data['updates'] ?? []) as $e) {
         $e['created_by'] = 'game';
-        upsert_event($pdo, $sid, $e);
+        upsert_event($pdo, $sid, $e, $leaders_dirty);
     }
+    if ($leaders_dirty) reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }
@@ -58,6 +60,7 @@ function action_events_finish(PDO $pdo): void {
         'event_id' => (int)$event_id,
         'event_game_id' => (int)$ev['game_event_id'],
     ]);
+    reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
 
     respond_json(200, ['ok' => true]);
@@ -136,7 +139,9 @@ function action_events_assign(PDO $pdo): void {
 
     foreach ($vehicle_ids as $vid) {
         $veh = $vehicles_by_id[$vid];
-        unassign_vehicle($pdo, $sid, $vid);
+        if (!vehicle_supports_multiple_assignments($veh)) {
+            unassign_vehicle($pdo, $sid, $vid);
+        }
 
         $stmt = $pdo->prepare('INSERT INTO assignments (session_id, event_id, vehicle_id, assigned_player_id, status)
             VALUES (?, ?, ?, ?, ?)
@@ -162,6 +167,7 @@ function action_events_assign(PDO $pdo): void {
             $stmt->execute([$player_id, $vid, $sid]);
         }
     }
+    reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
     $pdo->commit();
 
@@ -213,6 +219,7 @@ function action_events_reassign(PDO $pdo): void {
         $previous['assigned_player_id'] ?? null,
         (int)$vehicle['status'] === 4 ? 'on_scene' : 'enroute',
     ]);
+    reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
     $pdo->commit();
 
@@ -232,7 +239,6 @@ function action_events_get_vehicles(PDO $pdo): void {
     $event_id = $data['event_id'] ?? null;
     if (!$event_id) respond_json(400, ['error' => 'Missing event_id']);
 
-    if (reconcile_event_leaders($pdo, $sid)) touch_session($pdo, $sid);
     $stmt = $pdo->prepare('SELECT vehicles.id, name, game_vehicle_id, vehicles.status as status, h.mode,
             leaders.role AS leader_role, leaders.source AS leader_source
         FROM assignments
@@ -349,6 +355,10 @@ function action_events_unassign(PDO $pdo): void {
     if (!is_array($vehicle_ids) || count($vehicle_ids) === 0) {
         respond_json(400, ['error' => 'Missing vehicle_ids']);
     }
+    $event_id = isset($data['event_id']) ? (int)$data['event_id'] : null;
+    if ($event_id !== null && $event_id <= 0) {
+        respond_json(400, ['error' => 'Ungültige event_id']);
+    }
 
     $vehLookup = $pdo->prepare('SELECT id, game_vehicle_id FROM vehicles WHERE id = ? AND session_id = ?');
 
@@ -359,7 +369,11 @@ function action_events_unassign(PDO $pdo): void {
         if (!$veh) {
             continue;
         }
-        unassign_vehicle($pdo, $sid, $vid);
+        if ($event_id !== null) {
+            unassign_vehicle_from_event($pdo, $sid, $vid, $event_id);
+        } else {
+            unassign_vehicle($pdo, $sid, $vid);
+        }
         insert_command($pdo, $sid, 'unassign', [
             'event_id' => -1,
             'vehicle_id' => (int)$vid,
@@ -367,6 +381,7 @@ function action_events_unassign(PDO $pdo): void {
             'assign_to_player_id' => null,
         ]);
     }
+    reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
     $pdo->commit();
 

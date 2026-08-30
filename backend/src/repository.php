@@ -49,10 +49,20 @@ function upsert_player(PDO $pdo, $session_id, array $player): void {
     ]);
 }
 
-function upsert_vehicle(PDO $pdo, $session_id, array $veh) {
+function vehicle_update_requires_leader_reconcile($saved, array $veh): bool {
+    if (!$saved) return false;
+    $status_changed = array_key_exists('status', $veh)
+        && valid_vehicle_status($veh['status'])
+        && (int)$saved['status'] !== (int)$veh['status'];
+    $type_changed = array_key_exists('type', $veh) && (string)$saved['type'] !== (string)$veh['type'];
+    return $status_changed || $type_changed;
+}
+
+function upsert_vehicle(PDO $pdo, $session_id, array $veh, ?bool &$leaders_dirty = null) {
     $stmt = $pdo->prepare('SELECT * FROM vehicles WHERE session_id = ? AND game_vehicle_id = ?');
     $stmt->execute([$session_id, $veh['game_vehicle_id']]);
     $saved = $stmt->fetch();
+    if (vehicle_update_requires_leader_reconcile($saved, $veh)) $leaders_dirty = true;
 
     $stmt = $pdo->prepare('INSERT INTO vehicles (session_id, game_vehicle_id, name, type, modes, x, y, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -104,7 +114,7 @@ function upsert_vehicle(PDO $pdo, $session_id, array $veh) {
 
     // Status 2 = back at station, drop any assignment
     if (isset($veh['status']) && $veh['status'] == 2 && isset($saved['id'])) {
-        unassign_vehicle($pdo, $session_id, $saved['id']);
+        if (unassign_vehicle($pdo, $session_id, $saved['id']) > 0) $leaders_dirty = true;
     }
 
     return $current;
@@ -113,6 +123,12 @@ function upsert_vehicle(PDO $pdo, $session_id, array $veh) {
 function unassign_vehicle(PDO $pdo, $session_id, $vehicle_id): int {
     $stmt = $pdo->prepare('DELETE FROM assignments WHERE session_id = ? AND vehicle_id = ?');
     $stmt->execute([$session_id, $vehicle_id]);
+    return $stmt->rowCount();
+}
+
+function unassign_vehicle_from_event(PDO $pdo, $session_id, $vehicle_id, $event_id): int {
+    $stmt = $pdo->prepare('DELETE FROM assignments WHERE session_id = ? AND vehicle_id = ? AND event_id = ?');
+    $stmt->execute([$session_id, $vehicle_id, $event_id]);
     return $stmt->rowCount();
 }
 
@@ -403,7 +419,12 @@ function upsert_message(PDO $pdo, $session_id, array $m) {
     return $stmt->fetch();
 }
 
-function upsert_event(PDO $pdo, $session_id, array $e) {
+function event_update_requires_leader_reconcile($saved, array $event): bool {
+    if (!$saved || !array_key_exists('status', $event)) return false;
+    return (string)$saved['status'] !== (string)$event['status'];
+}
+
+function upsert_event(PDO $pdo, $session_id, array $e, ?bool &$leaders_dirty = null) {
     if (($e['created_by'] ?? null) === 'game' && isset($e['name']) && is_string($e['name'])) {
         $e['name'] = em4_display_text($e['name']);
     }
@@ -419,6 +440,7 @@ function upsert_event(PDO $pdo, $session_id, array $e) {
     } else {
         $saved = [];
     }
+    if (event_update_requires_leader_reconcile($saved, $e)) $leaders_dirty = true;
 
     if (isset($e['id'])) {
         // Update by primary key never trips the unique key, so ON DUPLICATE won't fire

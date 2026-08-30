@@ -25,6 +25,10 @@ function vehicle_available_for_alarm(array $vehicle): bool {
     return is_untracked_alarm_unit($vehicle) || in_array((int)($vehicle['status'] ?? -1), [1, 2], true);
 }
 
+function vehicle_supports_multiple_assignments(array $vehicle): bool {
+    return is_untracked_alarm_unit($vehicle);
+}
+
 function is_hospital_transport_vehicle(array $vehicle): bool {
     $text = strtoupper(implode(' ', array_filter([
         $vehicle['game_vehicle_id'] ?? null,

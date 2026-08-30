@@ -6,6 +6,7 @@ function action_update_vehicles(PDO $pdo): void {
     $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
     $sid = $session['id'];
 
+    $leaders_dirty = false;
     foreach (($data['updates'] ?? []) as $u) {
         if (isset($u['status'])) {
             if (!valid_vehicle_status($u['status'])) {
@@ -13,8 +14,9 @@ function action_update_vehicles(PDO $pdo): void {
             }
         }
 
-        upsert_vehicle($pdo, $sid, $u);
+        upsert_vehicle($pdo, $sid, $u, $leaders_dirty);
     }
+    if ($leaders_dirty) reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }
