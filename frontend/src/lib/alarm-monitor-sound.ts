@@ -1,4 +1,4 @@
-export type MonitorGongId = 'soundxpro-fire-station';
+export type MonitorGongId = 'stuttgart' | 'soundxpro-fire-station';
 
 export interface MonitorSoundSettings {
   gongEnabled: boolean;
@@ -14,6 +14,11 @@ export interface MonitorAnnouncementVehicle {
 
 export const MONITOR_GONGS: ReadonlyArray<{ id: MonitorGongId; label: string; source: string }> = [
   {
+    id: 'stuttgart',
+    label: 'Gong Stuttgart',
+    source: './sounds/monitor/gong-stuttgart.wav',
+  },
+  {
     id: 'soundxpro-fire-station',
     label: 'Feuerwehr-Gong',
     source: './sounds/monitor/feuerwehr-gong-soundxpro.mp3',
@@ -23,11 +28,12 @@ export const MONITOR_GONGS: ReadonlyArray<{ id: MonitorGongId; label: string; so
 export const DEFAULT_MONITOR_SOUND_SETTINGS: MonitorSoundSettings = {
   gongEnabled: true,
   ttsEnabled: false,
-  gong: 'soundxpro-fire-station',
+  gong: 'stuttgart',
   volume: 0.7,
 };
 
 const SETTINGS_KEY = 'alarmMonitorSound';
+const SETTINGS_VERSION = 2;
 const TTS_ROOT = './sounds/monitor/tts-conrad';
 const AUENBURG_MONITOR_CALLSIGNS = new Set([
   '1_DLK_1', '1_ELW_1', '1_GWAS_1', '1_HLF_1', '1_HLF_2', '1_KDOW_1', '1_KLAF_1', '1_RTW_A',
@@ -59,11 +65,14 @@ export function loadMonitorSoundSettings(storage: Pick<Storage, 'getItem'> = loc
   try {
     const raw = storage.getItem(SETTINGS_KEY);
     if (!raw) return { ...DEFAULT_MONITOR_SOUND_SETTINGS };
-    const saved = JSON.parse(raw) as Partial<MonitorSoundSettings>;
+    const saved = JSON.parse(raw) as Partial<MonitorSoundSettings> & { version?: number };
+    const savedGong = saved.version === SETTINGS_VERSION && isGong(saved.gong)
+      ? saved.gong
+      : DEFAULT_MONITOR_SOUND_SETTINGS.gong;
     return {
       gongEnabled: saved.gongEnabled !== false,
       ttsEnabled: saved.ttsEnabled === true,
-      gong: isGong(saved.gong) ? saved.gong : DEFAULT_MONITOR_SOUND_SETTINGS.gong,
+      gong: savedGong,
       volume: clampVolume(saved.volume),
     };
   } catch {
@@ -75,7 +84,10 @@ export function saveMonitorSoundSettings(
   settings: MonitorSoundSettings,
   storage: Pick<Storage, 'setItem'> = localStorage,
 ): void {
-  storage.setItem(SETTINGS_KEY, JSON.stringify({ ...settings, volume: clampVolume(settings.volume) }));
+  storage.setItem(
+    SETTINGS_KEY,
+    JSON.stringify({ ...settings, volume: clampVolume(settings.volume), version: SETTINGS_VERSION }),
+  );
 }
 
 export function monitorVehicleSpeechSources(gameVehicleId: string): string[] {

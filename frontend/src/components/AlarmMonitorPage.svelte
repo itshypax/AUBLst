@@ -39,7 +39,7 @@
   import { eventCategory, type EventCategory, vehicleDisplayName, vehicleTypeLabel } from '../lib/classify';
   import { switchSession } from '../lib/polling';
   import { app } from '../lib/state.svelte';
-  import { statusDisplay, statusLabel } from '../lib/status';
+  import { statusCode, statusDisplay, statusLabel } from '../lib/status';
   import { userFacingError } from '../lib/user-facing-error';
 
   const params = new URLSearchParams(location.search);
@@ -544,7 +544,11 @@
         <div class="vehicle-list" style={`--vehicle-columns:${vehicleGridColumns}`}>
           {#each stationVehicles as vehicle (vehicle.id)}
             {@const typeLabel = vehicleTypeLabel(vehicle)}
-            <div class="vehicle-row" title={`${vehicleDisplayName(vehicle)} · ${statusLabel(vehicle.status)}`}>
+            <div
+              class="vehicle-row"
+              class:status-c-alert={statusCode(vehicle.status) === 0}
+              title={`${vehicleDisplayName(vehicle)} · ${statusLabel(vehicle.status)}`}
+            >
               <span class="status-block status-{vehicle.status}">{statusDisplay(vehicle.status)}</span>
               <span class="vehicle-main">
                 <strong class="vehicle-name">{vehicleDisplayName(vehicle)}</strong>
@@ -1456,6 +1460,42 @@
     overflow: hidden;
     background: #151719;
     color: #d9dbde;
+  }
+  .vehicle-row.status-c-alert {
+    animation: status-c-row-blink 1.2s step-end infinite;
+  }
+  .vehicle-row.status-c-alert .status-block {
+    animation: status-c-block-blink 1.2s step-end infinite;
+  }
+  @keyframes status-c-row-blink {
+    0%,
+    49% {
+      background: #151719;
+    }
+    50%,
+    100% {
+      background: #59191d;
+    }
+  }
+  @keyframes status-c-block-blink {
+    0%,
+    49% {
+      background: var(--status-0-start);
+    }
+    50%,
+    100% {
+      background: #b4232d;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .vehicle-row.status-c-alert {
+      animation: none;
+      background: #59191d;
+    }
+    .vehicle-row.status-c-alert .status-block {
+      animation: none;
+      background: #b4232d;
+    }
   }
   .status-block {
     align-self: stretch;

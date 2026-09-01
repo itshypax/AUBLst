@@ -208,6 +208,9 @@ describe('Spieler-Alarmmonitor', () => {
       expect(screen.getByText(`Florian Auenburg 2-${index}`)).toBeTruthy();
     }
     expect(container.querySelector('.status-block.status-0')?.textContent).toBe('C');
+    expect(container.querySelector('.vehicle-row:has(.status-block.status-0)')?.classList.contains('status-c-alert')).toBe(
+      true,
+    );
     expect(container.querySelector('.vehicle-row:has(.status-block.status-1) .status-text')?.textContent).toBe(
       'Einsatzbereit Funk',
     );

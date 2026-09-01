@@ -7,8 +7,8 @@ import {
 } from './alarm-monitor-sound';
 
 describe('Alarmmonitor-Ton', () => {
-  it('verwendet den ausgewählten Feuerwehr-Gong als Standard', () => {
-    expect(DEFAULT_MONITOR_SOUND_SETTINGS.gong).toBe('soundxpro-fire-station');
+  it('verwendet den Gong Stuttgart als Standard', () => {
+    expect(DEFAULT_MONITOR_SOUND_SETTINGS.gong).toBe('stuttgart');
   });
 
   it('ersetzt eine nicht mehr angebotene gespeicherte Gongauswahl', () => {
@@ -16,8 +16,24 @@ describe('Alarmmonitor-Ton', () => {
       getItem: () => JSON.stringify({ gong: 'short', gongEnabled: true, ttsEnabled: false, volume: 0.4 }),
     });
 
-    expect(settings.gong).toBe('soundxpro-fire-station');
+    expect(settings.gong).toBe('stuttgart');
     expect(settings.volume).toBe(0.4);
+  });
+
+  it('stellt eine alte gespeicherte Standardauswahl einmalig auf Stuttgart um', () => {
+    const settings = loadMonitorSoundSettings({
+      getItem: () => JSON.stringify({ gong: 'soundxpro-fire-station', volume: 0.6 }),
+    });
+
+    expect(settings.gong).toBe('stuttgart');
+  });
+
+  it('behält den bewusst ausgewählten bisherigen Feuerwehr-Gong bei', () => {
+    const settings = loadMonitorSoundSettings({
+      getItem: () => JSON.stringify({ gong: 'soundxpro-fire-station', volume: 0.6, version: 2 }),
+    });
+
+    expect(settings.gong).toBe('soundxpro-fire-station');
   });
 
   it('spricht die Fahrzeugkennung mit Anton aus der deutschen Buchstabiertafel', () => {

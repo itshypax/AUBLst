@@ -1,6 +1,10 @@
-# Alarmmonitor-Gong
+# Alarmmonitor-Gongs
 
-Die aktive Datei `feuerwehr-gong-soundxpro.mp3` stammt von SoundXPro:
+`gong-stuttgart.wav` ist die Standardauswahl „Gong Stuttgart“. Die Datei wurde
+für den Alarmmonitor bereitgestellt und wird unverändert lokal ausgeliefert.
+
+`feuerwehr-gong-soundxpro.mp3` bleibt als „Feuerwehr-Gong“ auswählbar und stammt
+von SoundXPro:
 
 - Titel: „Feuerwehr Gong“
 - Quelle: https://soundxpro.com/sounds/feuerwehr-gong
