@@ -36,6 +36,9 @@ function state_session_data(array $session): array {
     return [
         'token' => $session['token'],
         'mod_id' => $session['mod_id'],
+        'routing_version' => routing_version_for_mod($session['mod_id'] ?? null),
+        'monitor_show_hospital_capacity' => (bool)($session['monitor_show_hospital_capacity'] ?? false),
+        'map_content_rect' => map_content_rect_for_mod($session['mod_id'] ?? null),
         'map_bounds' => [
             'min_x' => (float)$session['min_x'],
             'min_y' => (float)$session['min_y'],
@@ -43,6 +46,36 @@ function state_session_data(array $session): array {
             'max_y' => (float)$session['max_y'],
         ],
     ];
+}
+
+function state_hospital_capacity_level(int $available): string {
+    if ($available <= 0) return 'full';
+    if ($available <= 2) return 'low';
+    return 'ok';
+}
+
+function state_monitor_hospital_capacities(PDO $pdo, int $session_id): array {
+    $stmt = $pdo->prepare("SELECT h.id, h.name,
+            GREATEST(0, h.ward_available - COALESCE(SUM(CASE
+                WHEN r.bed_type = 'ward' AND (r.status = 'reserved' OR (r.status = 'arrived' AND v.status = 8)) THEN 1
+                ELSE 0 END), 0)) AS ward_effective,
+            GREATEST(0, h.icu_available - COALESCE(SUM(CASE
+                WHEN r.bed_type = 'icu' AND (r.status = 'reserved' OR (r.status = 'arrived' AND v.status = 8)) THEN 1
+                ELSE 0 END), 0)) AS icu_effective
+        FROM hospitals h
+        LEFT JOIN hospital_reservations r ON r.session_id = h.session_id AND r.hospital_id = h.id
+        LEFT JOIN vehicles v ON v.session_id = r.session_id AND v.id = r.vehicle_id
+        WHERE h.session_id = ?
+        GROUP BY h.id, h.name, h.ward_available, h.icu_available
+        ORDER BY h.name, h.id");
+    $stmt->execute([$session_id]);
+
+    return array_map(static fn(array $hospital): array => [
+        'id' => (int)$hospital['id'],
+        'name' => $hospital['name'],
+        'ward_level' => state_hospital_capacity_level((int)$hospital['ward_effective']),
+        'icu_level' => state_hospital_capacity_level((int)$hospital['icu_effective']),
+    ], $stmt->fetchAll());
 }
 
 function action_monitor_state(PDO $pdo): void {
@@ -60,6 +93,8 @@ function action_monitor_state(PDO $pdo): void {
     $time = $pdo->prepare('SELECT time_hours, time_minutes FROM clock WHERE session_id = ?');
     $time->execute([$sid]);
 
+    $show_hospital_capacity = (bool)($session['monitor_show_hospital_capacity'] ?? false);
+
     respond_json(200, [
         'session' => state_session_data($session),
         'players' => [],
@@ -68,6 +103,9 @@ function action_monitor_state(PDO $pdo): void {
         'events' => $events->fetchAll(),
         'assignments' => state_assignments($pdo, $sid),
         'hospital_reservations' => [],
+        'monitor_hospital_capacities' => $show_hospital_capacity
+            ? state_monitor_hospital_capacities($pdo, (int)$sid)
+            : [],
         'time' => $time->fetch() ?: null,
     ]);
 }
@@ -120,6 +158,7 @@ function action_state(PDO $pdo): void {
         'events' => $events,
         'assignments' => $assignments,
         'hospital_reservations' => $hospital_reservations,
+        'monitor_hospital_capacities' => [],
         'time' => $time,
     ]);
 }

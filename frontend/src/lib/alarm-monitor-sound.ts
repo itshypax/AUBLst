@@ -1,4 +1,4 @@
-export type MonitorGongId = 'stuttgart' | 'soundxpro-fire-station';
+export type MonitorGongId = 'stuttgart' | 'hamburg' | 'soundxpro-fire-station';
 
 export interface MonitorSoundSettings {
   gongEnabled: boolean;
@@ -17,6 +17,11 @@ export const MONITOR_GONGS: ReadonlyArray<{ id: MonitorGongId; label: string; so
     id: 'stuttgart',
     label: 'Gong Stuttgart',
     source: './sounds/monitor/gong-stuttgart.wav',
+  },
+  {
+    id: 'hamburg',
+    label: 'Gong Hamburg',
+    source: './sounds/monitor/gong-hamburg.wav',
   },
   {
     id: 'soundxpro-fire-station',

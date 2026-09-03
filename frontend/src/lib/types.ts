@@ -5,6 +5,13 @@ export interface MapBounds {
   max_y: number;
 }
 
+export interface MapContentRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface Player {
   id: number;
   player_id: string;
@@ -59,6 +66,13 @@ export interface HospitalReservation {
   game_vehicle_id: string;
   vehicle_name: string | null;
   hospital_name: string | null;
+}
+
+export interface MonitorHospitalCapacity {
+  id: number;
+  name: string | null;
+  ward_level: 'ok' | 'low' | 'full';
+  icu_level: 'ok' | 'low' | 'full';
 }
 
 export interface EventArchiveItem extends EventItem {
@@ -193,7 +207,10 @@ export interface StateResponse {
   session: {
     token: string;
     mod_id: string | null;
+    routing_version?: string | null;
     map_bounds: MapBounds;
+    map_content_rect?: MapContentRect | null;
+    monitor_show_hospital_capacity?: boolean;
   };
   players: Player[];
   vehicles: Vehicle[];
@@ -201,6 +218,7 @@ export interface StateResponse {
   events: EventItem[];
   assignments?: Assignment[];
   hospital_reservations?: HospitalReservation[];
+  monitor_hospital_capacities?: MonitorHospitalCapacity[];
   status_history?: VehicleStatusChange[];
   time: ClockTime | null;
 }

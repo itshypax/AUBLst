@@ -1,4 +1,4 @@
-import type { Assignment, ClockTime, EventItem, Hospital, HospitalReservation, LogRow, MapBounds, Player, Vehicle, VehicleStatusChange } from './types';
+import type { Assignment, ClockTime, EventItem, Hospital, HospitalReservation, LogRow, MapBounds, MapContentRect, MonitorHospitalCapacity, Player, Vehicle, VehicleStatusChange } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 import { normalizeSessionToken } from './session-token';
 import {
@@ -22,14 +22,18 @@ export const app = $state({
   lastError: '',
   logError: '',
   mapBounds: { min_x: 0, min_y: 0, max_x: 1000, max_y: 1000 } as MapBounds,
+  mapContentRect: null as MapContentRect | null,
   players: [] as Player[],
   vehicles: [] as Vehicle[],
   events: [] as EventItem[],
   assignments: [] as Assignment[],
   hospitals: [] as Hospital[],
   hospitalReservations: [] as HospitalReservation[],
+  monitorHospitalCapacities: [] as MonitorHospitalCapacity[],
+  monitorShowHospitalCapacity: false,
   clock: null as ClockTime | null,
   modId: null as string | null,
+  routingVersion: null as string | null,
   mapImageUrl: '',
   routing: cloneRoutingConfig(DEFAULT_ROUTING_CONFIG) as RoutingConfig,
   logs: [] as LogRow[],
@@ -210,8 +214,11 @@ export function resetSessionData(): void {
   app.assignments = [];
   app.hospitals = [];
   app.hospitalReservations = [];
+  app.monitorHospitalCapacities = [];
+  app.monitorShowHospitalCapacity = false;
   app.clock = null;
   app.modId = null;
+  app.routingVersion = null;
   app.mapImageUrl = '';
   app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
   app.logs = [];
@@ -229,6 +236,7 @@ export function resetSessionData(): void {
   app.sessionOverviewOpen = false;
   app.shortcutsOpen = false;
   app.hospitalAssignmentVehicleId = null;
+  app.mapContentRect = null;
   app.focusVehicleSearchSeq = 0;
   app.fitMapSeq = 0;
   pendingSyncedEvent = null;

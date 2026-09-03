@@ -32,9 +32,25 @@ function routingEditorPlugin() {
   }
 
   function imageFile(modId) {
+    const metadataFile = resolve(mapsDirectory, `${modId}.map.json`);
+    if (existsSync(metadataFile)) {
+      const metadata = JSON.parse(readFileSync(metadataFile, 'utf8'));
+      const imageName = typeof metadata.image === 'string' && /^[A-Za-z0-9_.-]+\.(?:jpe?g|png|webp)$/i.test(metadata.image)
+        ? metadata.image
+        : '';
+      const extension = imageName.split('.').at(-1)?.toLowerCase();
+      const file = imageName ? resolve(mapsDirectory, imageName) : '';
+      if (file && extension && imageTypes[extension] && existsSync(file)) {
+        return {
+          file,
+          mime: imageTypes[extension],
+          contentRect: metadata.content_rect ?? null,
+        };
+      }
+    }
     for (const [extension, mime] of Object.entries(imageTypes)) {
       const file = resolve(mapsDirectory, `${modId}.${extension}`);
-      if (existsSync(file)) return { file, mime };
+      if (existsSync(file)) return { file, mime, contentRect: null };
     }
     return null;
   }
@@ -81,6 +97,12 @@ function routingEditorPlugin() {
 
   return {
     name: 'routing-editor-files',
+    handleHotUpdate(context) {
+      if (context.file.endsWith('MapPanel.svelte')) {
+        context.server.ws.send({ type: 'full-reload', path: '*' });
+        return [];
+      }
+    },
     configureServer(server) {
       server.middlewares.use(async (request, response, next) => {
         const url = new URL(request.url ?? '/', 'http://localhost');
@@ -98,10 +120,12 @@ function routingEditorPlugin() {
         }
 
         if (request.method === 'GET') {
-          if (!imageFile(modId)) return sendJson(response, 404, { error: `Kein Kartenbild backend/maps/${modId}.* gefunden` });
+          const image = imageFile(modId);
+          if (!image) return sendJson(response, 404, { error: `Kein Kartenbild backend/maps/${modId}.* gefunden` });
           return sendJson(response, 200, {
             mod_id: modId,
             map_image_url: `/__routing-editor-map?mod_id=${encodeURIComponent(modId)}`,
+            map_content_rect: image.contentRect,
             routing: readRouting(modId),
           });
         }

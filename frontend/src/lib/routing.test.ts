@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Vehicle } from './types';
-import { formatDistance, nearestRoadSnap, parseRoutingConfig, roadRoutePreview, routeDistance, usesDirectLine, validateRoutingNetwork, type RoutingConfig } from './routing';
+import { formatDistance, nearestRoadSnap, parseRoutingConfig, roadLocation, roadLocationLabel, roadRoutePreview, routeDistance, usesDirectLine, validateRoutingNetwork, type RoutingConfig } from './routing';
 
 const landVehicle: Vehicle = {
   id: 1,
@@ -141,6 +141,53 @@ describe('Routing', () => {
     expect(nearestRoadSnap({ x: 900, y: 100 }, stationRoads)?.edgeId).toBe('ausfahrt_ost');
   });
 
+  it('bezeichnet Straßen, Kreuzungen und weiter entfernte Punkte', () => {
+    const namedRoads: RoutingConfig = {
+      meters_per_world_unit: 1,
+      nodes: [
+        { id: 'west', x: -100, y: 0 },
+        { id: 'mitte', x: 0, y: 0 },
+        { id: 'ost', x: 100, y: 0 },
+        { id: 'nord', x: 0, y: 100 },
+      ],
+      edges: [
+        { id: 'west_mitte', from: 'west', to: 'mitte', kind: 'road', name: 'Alte Feldstraße' },
+        { id: 'mitte_ost', from: 'mitte', to: 'ost', kind: 'road', name: 'Alte Feldstraße' },
+        { id: 'mitte_nord', from: 'mitte', to: 'nord', kind: 'road', name: 'Feuerseestraße' },
+      ],
+    };
+
+    expect(roadLocationLabel({ x: 70, y: 10 }, namedRoads)).toBe('Alte Feldstraße');
+    expect(roadLocationLabel({ x: 8, y: 6 }, namedRoads)).toBe('Kreuzung Alte Feldstraße / Feuerseestraße');
+    expect(roadLocation({ x: 70, y: 60 }, namedRoads)).toMatchObject({
+      kind: 'nearby',
+      label: 'In der Nähe von Alte Feldstraße',
+      edgeId: 'mitte_ost',
+      distanceMeters: 60,
+    });
+  });
+
+  it('ignoriert unbenannte Abschnitte bei der Ortsbezeichnung', () => {
+    expect(roadLocationLabel({ x: 500, y: 0 }, graph)).toBeNull();
+  });
+
+  it('verwechselt einen reinen Straßennamenwechsel nicht mit einer Kreuzung', () => {
+    const nameChange: RoutingConfig = {
+      meters_per_world_unit: 1,
+      nodes: [
+        { id: 'west', x: -100, y: 0 },
+        { id: 'mitte', x: 0, y: 0 },
+        { id: 'ost', x: 100, y: 0 },
+      ],
+      edges: [
+        { id: 'west_mitte', from: 'west', to: 'mitte', kind: 'road', name: 'Weststraße' },
+        { id: 'mitte_ost', from: 'mitte', to: 'ost', kind: 'road', name: 'Oststraße' },
+      ],
+    };
+
+    expect(roadLocationLabel({ x: 5, y: 2 }, nameChange)).toBe('Oststraße');
+  });
+
   it('liest gespeicherte Routing-JSONs und prüft ihre Verweise', () => {
     const imported = parseRoutingConfig({ routing: {
       ...graph,
@@ -149,6 +196,12 @@ describe('Routing', () => {
     expect(imported.coordinate_space).toBe('normalized');
     expect(imported.nodes).toHaveLength(3);
     expect(imported.edges[1].kind).toBe('bridge');
+
+    const named = parseRoutingConfig({
+      ...graph,
+      edges: [{ ...graph.edges[0], name: '  Neustadtstraße  ' }],
+    });
+    expect(named.edges[0].name).toBe('Neustadtstraße');
 
     expect(() => parseRoutingConfig({
       ...graph,

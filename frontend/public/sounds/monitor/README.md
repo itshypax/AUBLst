@@ -3,6 +3,9 @@
 `gong-stuttgart.wav` ist die Standardauswahl „Gong Stuttgart“. Die Datei wurde
 für den Alarmmonitor bereitgestellt und wird unverändert lokal ausgeliefert.
 
+`gong-hamburg.wav` ist als „Gong Hamburg“ auswählbar. Die bereitgestellte Datei
+wird unverändert lokal ausgeliefert und ist keine Standardauswahl.
+
 `feuerwehr-gong-soundxpro.mp3` bleibt als „Feuerwehr-Gong“ auswählbar und stammt
 von SoundXPro:
 

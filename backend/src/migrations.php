@@ -220,6 +220,12 @@ function migration_definitions(): array {
                     MODIFY source ENUM('automatic','manual') NOT NULL DEFAULT 'manual'");
             }
         },
+        '2026090101_monitor_hospital_capacity' => static function (PDO $pdo): void {
+            if (!database_column_exists($pdo, 'sessions', 'monitor_show_hospital_capacity')) {
+                $pdo->exec('ALTER TABLE sessions
+                    ADD COLUMN monitor_show_hospital_capacity TINYINT(1) NOT NULL DEFAULT 0 AFTER max_y');
+            }
+        },
     ];
 }
 

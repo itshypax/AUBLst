@@ -4,6 +4,10 @@ import { app, resetSessionData } from '../lib/state.svelte';
 import type { LogRow } from '../lib/types';
 import Topbar from './Topbar.svelte';
 
+const apiMocks = vi.hoisted(() => ({ api: vi.fn(async () => ({ ok: true })) }));
+
+vi.mock('../lib/api', () => ({ api: apiMocks.api }));
+
 vi.mock('../lib/polling', () => ({
   pollLogs: vi.fn(),
   refreshState: vi.fn(),
@@ -35,6 +39,7 @@ function globalState(id: number, message: string, longMessage: string): LogRow {
 }
 
 beforeEach(() => {
+  apiMocks.api.mockClear();
   resetSessionData();
   app.sessionToken = '';
   app.pin = '';
@@ -76,6 +81,19 @@ describe('Kopfzeile', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Sitzung 758c' }));
 
     expect(screen.getByRole('button', { name: 'Alarmmonitor öffnen' })).toBeTruthy();
+  });
+
+  it('schaltet die Klinikverfügbarkeit für die Sitzung um', async () => {
+    app.sessionToken = '758c';
+    app.stateHealthy = true;
+    app.lastSuccessfulSync = Date.now();
+    render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Sitzung 758c' }));
+    await fireEvent.click(screen.getByLabelText('Krankenhauskapazität im Alarmmonitor anzeigen'));
+
+    expect(apiMocks.api).toHaveBeenCalledWith('session_monitor_hospital_capacity_set', { enabled: true });
+    expect(app.monitorShowHospitalCapacity).toBe(true);
   });
 
   it('bleibt bei Klicks auf inaktive Flächen im Sitzungsmenü geöffnet', async () => {

@@ -31,6 +31,7 @@ const ACTIONS = [
     'metrics_record'         => 'action_metrics_record',
     'session_create'         => 'action_session_create',
     'session_validate'       => 'action_session_validate',
+    'session_monitor_hospital_capacity_set' => 'action_session_monitor_hospital_capacity_set',
     'session_statistics'     => 'action_session_statistics',
     'events_archive'         => 'action_events_archive',
     'event_record'           => 'action_event_record',

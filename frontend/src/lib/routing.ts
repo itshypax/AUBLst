@@ -12,6 +12,7 @@ export interface RoadEdge {
   from: string;
   to: string;
   kind: RoadKind;
+  name?: string;
 }
 
 export interface BmaZone {
@@ -44,6 +45,14 @@ export interface RoadSnap {
   edgeId: string;
   point: Point;
   connectorMeters: number;
+}
+
+export interface RoadLocation {
+  kind: 'street' | 'intersection' | 'nearby';
+  label: string;
+  streetNames: string[];
+  edgeId: string;
+  distanceMeters: number;
 }
 
 export interface RoadRoutePreview extends RouteDistance {
@@ -79,6 +88,8 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
 };
 
 export const MAX_SNAP_DISTANCE_METERS = 300;
+export const DIRECT_STREET_DISTANCE_METERS = 35;
+export const INTERSECTION_DISTANCE_METERS = 30;
 const DIRECT_TYPE_MARKERS = ['RTH', 'ITH', 'CHRISTOPH', 'FLB', 'BOOT', 'BOAT'];
 
 interface EdgeProjection {
@@ -94,6 +105,7 @@ interface CompiledGraph {
   nodes: Map<string, RoadNode>;
   edges: Array<{ edge: RoadEdge; from: RoadNode; to: RoadNode; length: number }>;
   adjacency: Map<string, Array<{ id: string; length: number }>>;
+  intersections: Array<{ node: RoadNode; names: string[] }>;
 }
 
 const graphCache = new WeakMap<RoutingConfig, CompiledGraph>();
@@ -187,12 +199,13 @@ export function parseRoutingConfig(value: unknown, fallback: RoutingConfig = DEF
     const from = String(edge.from ?? '');
     const to = String(edge.to ?? '');
     const kind = edge.kind === 'bridge' ? 'bridge' : edge.kind === undefined || edge.kind === 'road' ? 'road' : null;
+    const name = String(edge.name ?? '').trim();
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(id) || edgeIds.has(id) || !kind
-      || from === to || !nodeIds.has(from) || !nodeIds.has(to)) {
+      || from === to || !nodeIds.has(from) || !nodeIds.has(to) || name.length > 120) {
       throw new Error(`Der Straßenabschnitt ${id || 'ohne ID'} ist ungültig oder doppelt vorhanden.`);
     }
     edgeIds.add(id);
-    edges.push({ id, from, to, kind });
+    edges.push({ id, from, to, kind, ...(name ? { name } : {}) });
   }
 
   const bmaZones: BmaZone[] = [];
@@ -253,7 +266,22 @@ function validGraph(config: RoutingConfig): CompiledGraph {
     adjacency.set(from.id, [...(adjacency.get(from.id) ?? []), { id: to.id, length }]);
     adjacency.set(to.id, [...(adjacency.get(to.id) ?? []), { id: from.id, length }]);
   }
-  const graph = { nodes, edges, adjacency };
+  const namesByNode = new Map<string, Set<string>>();
+  for (const { edge, from, to } of edges) {
+    const name = edge.name?.trim();
+    if (!name) continue;
+    for (const node of [from, to]) {
+      const names = namesByNode.get(node.id) ?? new Set<string>();
+      names.add(name);
+      namesByNode.set(node.id, names);
+    }
+  }
+  const intersections = [...namesByNode.entries()].flatMap(([nodeId, names]) => {
+    const node = nodes.get(nodeId);
+    if (!node || names.size < 2 || (adjacency.get(nodeId)?.length ?? 0) < 3) return [];
+    return [{ node, names: [...names].sort((left, right) => left.localeCompare(right, 'de', { numeric: true })) }];
+  });
+  const graph = { nodes, edges, adjacency, intersections };
   graphCache.set(config, graph);
   return graph;
 }
@@ -285,6 +313,30 @@ function nearestProjection(point: Point, config: RoutingConfig): EdgeProjection 
   return nearestGraphProjection(point, config);
 }
 
+function nearestNamedProjection(point: Point, config: RoutingConfig): EdgeProjection | null {
+  const graph = validGraph(config);
+  const scale = metricScale(config);
+  let nearest: EdgeProjection | null = null;
+  for (const item of graph.edges) {
+    if (!item.edge.name?.trim()) continue;
+    const dx = item.to.x - item.from.x;
+    const dy = item.to.y - item.from.y;
+    const metricDx = dx * scale.x;
+    const metricDy = dy * scale.y;
+    const lengthSquared = metricDx * metricDx + metricDy * metricDy;
+    const t = Math.max(0, Math.min(1, (
+      (point.x - item.from.x) * scale.x * metricDx
+      + (point.y - item.from.y) * scale.y * metricDy
+    ) / lengthSquared));
+    const projected = { x: item.from.x + dx * t, y: item.from.y + dy * t };
+    const connectorMeters = metricDistance(point, projected, config);
+    if (!nearest || connectorMeters < nearest.connectorMeters) {
+      nearest = { edge: item.edge, from: item.from, to: item.to, t, connectorMeters, edgeMeters: item.length };
+    }
+  }
+  return nearest;
+}
+
 function projectionPoint(projection: EdgeProjection): Point {
   return {
     x: projection.from.x + (projection.to.x - projection.from.x) * projection.t,
@@ -304,6 +356,44 @@ export function nearestRoadSnap(point: Point, config: RoutingConfig): RoadSnap |
   if (!finitePoint(point)) return null;
   const projection = nearestProjection(point, config);
   return projection ? publicSnap(projection) : null;
+}
+
+export function roadLocation(point: Point, config: RoutingConfig): RoadLocation | null {
+  if (!finitePoint(point)) return null;
+  const projection = nearestNamedProjection(point, config);
+  const streetName = projection?.edge.name?.trim();
+  if (!projection || !streetName) return null;
+
+  let nearestIntersection: { node: RoadNode; names: string[]; distanceMeters: number } | null = null;
+  for (const intersection of validGraph(config).intersections) {
+    const distanceMeters = metricDistance(point, intersection.node, config);
+    if (!nearestIntersection || distanceMeters < nearestIntersection.distanceMeters) {
+      nearestIntersection = { ...intersection, distanceMeters };
+    }
+  }
+
+  if (nearestIntersection && nearestIntersection.distanceMeters <= INTERSECTION_DISTANCE_METERS) {
+    return {
+      kind: 'intersection',
+      label: `Kreuzung ${nearestIntersection.names.join(' / ')}`,
+      streetNames: nearestIntersection.names,
+      edgeId: projection.edge.id,
+      distanceMeters: nearestIntersection.distanceMeters,
+    };
+  }
+
+  const nearby = projection.connectorMeters > DIRECT_STREET_DISTANCE_METERS;
+  return {
+    kind: nearby ? 'nearby' : 'street',
+    label: nearby ? `In der Nähe von ${streetName}` : streetName,
+    streetNames: [streetName],
+    edgeId: projection.edge.id,
+    distanceMeters: projection.connectorMeters,
+  };
+}
+
+export function roadLocationLabel(point: Point, config: RoutingConfig): string | null {
+  return roadLocation(point, config)?.label ?? null;
 }
 
 type DistanceEntry = { id: string; distance: number };

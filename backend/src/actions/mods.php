@@ -21,6 +21,40 @@ function action_mods_put(PDO $pdo): void {
     respond_json(200, ['ok' => true, 'mod_id' => $mod_id]);
 }
 
+function local_map_definition(string $mod_id): ?array {
+    if (!preg_match('/^[A-Za-z0-9_.-]{1,255}$/', $mod_id)) return null;
+    $maps_dir = __DIR__ . '/../../maps/';
+    $metadata_file = $maps_dir . $mod_id . '.map.json';
+    if (is_file($metadata_file)) {
+        $metadata = json_decode((string)file_get_contents($metadata_file), true);
+        $image_name = is_array($metadata) ? (string)($metadata['image'] ?? '') : '';
+        if (preg_match('/^[A-Za-z0-9_.-]+\.(?:jpe?g|png|webp)$/i', $image_name)) {
+            $file = $maps_dir . $image_name;
+            if (is_file($file)) {
+                $rect = is_array($metadata['content_rect'] ?? null) ? $metadata['content_rect'] : null;
+                $content_rect = $rect ? [
+                    'x' => max(0, (float)($rect['x'] ?? 0)),
+                    'y' => max(0, (float)($rect['y'] ?? 0)),
+                    'width' => max(1, (float)($rect['width'] ?? 1)),
+                    'height' => max(1, (float)($rect['height'] ?? 1)),
+                ] : null;
+                return ['file' => $file, 'content_rect' => $content_rect];
+            }
+        }
+    }
+
+    foreach (['jpg', 'jpeg', 'png', 'webp'] as $ext) {
+        $file = $maps_dir . $mod_id . '.' . $ext;
+        if (is_file($file)) return ['file' => $file, 'content_rect' => null];
+    }
+    return null;
+}
+
+function map_content_rect_for_mod(?string $mod_id): ?array {
+    if (!$mod_id) return null;
+    return local_map_definition($mod_id)['content_rect'] ?? null;
+}
+
 function action_map_image(PDO $pdo): void {
     $token = request_value('session_token');
     $session = require_session($pdo, $token);
@@ -35,17 +69,14 @@ function action_map_image(PDO $pdo): void {
 
     // Eine Datei in backend/maps/ hat Vorrang vor dem Upload in der Datenbank
     $mod_id = $session['mod_id'];
-    if (preg_match('/^[\w.-]+$/', $mod_id)) {
+    $local_map = local_map_definition((string)$mod_id);
+    if ($local_map) {
         $mimes = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
-        foreach ($mimes as $ext => $mime) {
-            $file = __DIR__ . '/../../maps/' . $mod_id . '.' . $ext;
-            if (is_file($file)) {
-                header('Content-Type: ' . $mime);
-                header('Cache-Control: private, max-age=60');
-                readfile($file);
-                exit;
-            }
-        }
+        $ext = strtolower((string)pathinfo($local_map['file'], PATHINFO_EXTENSION));
+        header('Content-Type: ' . ($mimes[$ext] ?? 'application/octet-stream'));
+        header('Cache-Control: private, max-age=60');
+        readfile($local_map['file']);
+        exit;
     }
 
     $stmt = $pdo->prepare('SELECT map_image, mime_type FROM mods WHERE mod_id = ?');
@@ -118,10 +149,14 @@ function normalize_routing_config(array $data): array {
         $from = (string)($edge['from'] ?? '');
         $to = (string)($edge['to'] ?? '');
         $kind = ($edge['kind'] ?? 'road') === 'bridge' ? 'bridge' : 'road';
+        $name = trim((string)($edge['name'] ?? ''));
         if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id) || isset($edge_ids[$id])) continue;
         if ($from === $to || !isset($node_ids[$from]) || !isset($node_ids[$to])) continue;
+        if ($name !== '' && !preg_match('/^.{1,120}$/us', $name)) $name = '';
         $edge_ids[$id] = true;
-        $edges[] = ['id' => $id, 'from' => $from, 'to' => $to, 'kind' => $kind];
+        $normalized_edge = ['id' => $id, 'from' => $from, 'to' => $to, 'kind' => $kind];
+        if ($name !== '') $normalized_edge['name'] = $name;
+        $edges[] = $normalized_edge;
     }
 
     $bma_zones = [];
@@ -174,6 +209,16 @@ function routing_file_for_mod(string $mod_id): ?string {
     if (!preg_match('/^[A-Za-z0-9_.-]{1,255}$/', $mod_id)) return null;
     $file = __DIR__ . '/../../maps/' . $mod_id . '.routing.json';
     return is_file($file) ? $file : null;
+}
+
+function routing_version_for_mod(?string $mod_id): ?string {
+    if (!$mod_id) return null;
+    $file = routing_file_for_mod($mod_id);
+    if (!$file) return null;
+    $modified = @filemtime($file);
+    $size = @filesize($file);
+    if ($modified === false || $size === false) return null;
+    return $modified . ':' . $size;
 }
 
 function routing_for_session(array $config, array $session): array {

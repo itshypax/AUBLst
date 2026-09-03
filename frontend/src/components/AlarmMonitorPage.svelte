@@ -38,9 +38,11 @@
   } from '../lib/alarm-monitor-sound';
   import { eventCategory, type EventCategory, vehicleDisplayName, vehicleTypeLabel } from '../lib/classify';
   import { switchSession } from '../lib/polling';
+  import { roadLocationLabel } from '../lib/routing';
   import { app } from '../lib/state.svelte';
   import { statusCode, statusDisplay, statusLabel } from '../lib/status';
   import { userFacingError } from '../lib/user-facing-error';
+  import { compareHospitalNames, hospitalCapacityLabel, type HospitalCapacityLevel } from '../lib/hospital-capacity';
 
   const params = new URLSearchParams(location.search);
   const appCommit = import.meta.env.VITE_APP_COMMIT || 'dev';
@@ -87,8 +89,14 @@
       ? additionalVehiclesAssignedToEvent(app.vehicles, app.assignments, displayEvent.id, selectedStation)
       : [],
   );
+  const sortedHospitalCapacities = $derived(
+    [...app.monitorHospitalCapacities].sort((left, right) => compareHospitalNames(left.name, right.name)),
+  );
   const category = $derived<EventCategory>(displayEvent ? eventCategory(displayEvent.name) : 'other');
   const showIncidentWall = $derived(stationEvents.length > 1 && focusEventId === null);
+  function eventLocation(point: { x: number; y: number }): string {
+    return roadLocationLabel(point, app.routing) ?? `Position ${Number(point.x).toFixed(0)} / ${Number(point.y).toFixed(0)}`;
+  }
   const mapIncidents = $derived.by(() => {
     const station = selectedStation;
     if (!station) return [];
@@ -255,6 +263,15 @@
     return event.game_event_id ? `#${event.game_event_id}` : `#${event.id}`;
   }
 </script>
+
+{#snippet capacityIndicator(label: string, level: HospitalCapacityLevel)}
+  <span
+    class="capacity-indicator {level}"
+    role="img"
+    aria-label={`${label}: ${hospitalCapacityLabel(level)}`}
+    title={`${label}: ${hospitalCapacityLabel(level)}`}
+  ></span>
+{/snippet}
 
 {#if setupOpen}
   <main class="monitor-entry">
@@ -448,7 +465,7 @@
                 <div class="wall-copy">
                   <span>Einsatz {event.game_event_id || `#${event.id}`}</span>
                   <h1>{event.name || 'Einsatz ohne Stichwort'}</h1>
-                  <p>Position {Number(event.x).toFixed(0)} / {Number(event.y).toFixed(0)}</p>
+                  <p title={`Position ${Number(event.x).toFixed(0)} / ${Number(event.y).toFixed(0)}`}>{eventLocation(event)}</p>
                 </div>
                 <div class="wall-units">
                   {#each eventVehicles as vehicle (vehicle.id)}
@@ -486,7 +503,7 @@
               <span class="incident-number">Einsatz {displayEvent.game_event_id || `#${displayEvent.id}`}</span>
               <h1>{displayEvent.name || 'Einsatz ohne Stichwort'}</h1>
               <div class="incident-position">
-                Position {Number(displayEvent.x).toFixed(0)} / {Number(displayEvent.y).toFixed(0)}
+                <span title={`Position ${Number(displayEvent.x).toFixed(0)} / ${Number(displayEvent.y).toFixed(0)}`}>{eventLocation(displayEvent)}</span>
               </div>
             </div>
           </div>
@@ -562,24 +579,44 @@
         </div>
       </section>
 
-      <section class="alarm-queue">
-        <div class="section-title">
-          <h2>Alarmierungen</h2>
-          <span>{stationEvents.length}</span>
-        </div>
-        <div class="queue-list">
-          {#each stationEvents as event, index (event.id)}
-            {@const eventVehicles = vehiclesAssignedToEvent(app.vehicles, app.assignments, event.id, selectedStation)}
-            <div class="queue-row" class:current={index === 0}>
-              <b class="queue-label">{eventReference(event)}</b>
-              <time>{event.created_at ? formatAlarmTime(event.created_at).split(', ').at(-1) : '--:--'}</time>
-              <span>{event.name || 'Einsatz'}</span>
-              <strong>{eventVehicles.length}</strong>
+      <section class="alarm-queue" class:capacity-panel={app.monitorShowHospitalCapacity}>
+        {#if app.monitorShowHospitalCapacity}
+          <div class="section-title">
+            <h2>Klinikverfügbarkeit</h2>
+          </div>
+          <div class="capacity-list">
+            <div class="capacity-columns" aria-hidden="true">
+              <span>Klinik</span><span>Normal</span><span>Intensiv</span>
             </div>
-          {:else}
-            <div class="board-empty">Keine laufenden Alarmierungen für diese Wache.</div>
-          {/each}
-        </div>
+            {#each sortedHospitalCapacities as hospital (hospital.id)}
+              <div class="capacity-row">
+                <strong title={hospital.name || 'Krankenhaus'}>{hospital.name || 'Krankenhaus'}</strong>
+                {@render capacityIndicator('Normal', hospital.ward_level)}
+                {@render capacityIndicator('Intensiv', hospital.icu_level)}
+              </div>
+            {:else}
+              <div class="board-empty">Keine Kliniken gemeldet.</div>
+            {/each}
+          </div>
+        {:else}
+          <div class="section-title">
+            <h2>Alarmierungen</h2>
+            <span>{stationEvents.length}</span>
+          </div>
+          <div class="queue-list">
+            {#each stationEvents as event, index (event.id)}
+              {@const eventVehicles = vehiclesAssignedToEvent(app.vehicles, app.assignments, event.id, selectedStation)}
+              <div class="queue-row" class:current={index === 0}>
+                <b class="queue-label">{eventReference(event)}</b>
+                <time>{event.created_at ? formatAlarmTime(event.created_at).split(', ').at(-1) : '--:--'}</time>
+                <span>{event.name || 'Einsatz'}</span>
+                <strong>{eventVehicles.length}</strong>
+              </div>
+            {:else}
+              <div class="board-empty">Keine laufenden Alarmierungen für diese Wache.</div>
+            {/each}
+          </div>
+        {/if}
       </section>
     </div>
 
@@ -1451,6 +1488,55 @@
   .queue-list {
     overflow: auto;
   }
+  .capacity-list {
+    height: calc(100% - 38px);
+    overflow: auto;
+  }
+  .capacity-columns,
+  .capacity-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 84px 84px;
+    align-items: center;
+    gap: 0;
+  }
+  .capacity-columns {
+    min-height: 28px;
+    border-bottom: 1px solid #303338;
+    color: #9a9da4;
+    font-size: 10px;
+  }
+  .capacity-columns span:not(:first-child) {
+    text-align: center;
+  }
+  .capacity-columns span:first-child,
+  .capacity-row > strong {
+    padding-inline: 12px;
+  }
+  .capacity-row {
+    min-height: 38px;
+    border-bottom: 1px solid #292c30;
+  }
+  .capacity-row strong {
+    min-width: 0;
+    overflow: hidden;
+    color: #d9dbde;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .capacity-indicator {
+    width: 100%;
+    height: 100%;
+    align-self: stretch;
+    border: 0;
+    background: #303338;
+  }
+  .capacity-indicator + .capacity-indicator {
+    border-left: 2px solid #292c30;
+  }
+  .capacity-indicator.ok { background: var(--good); }
+  .capacity-indicator.low { background: var(--hospital-capacity-low); }
+  .capacity-indicator.full { background: var(--danger); }
   .vehicle-row {
     display: grid;
     grid-template-columns: 40px minmax(0, 1fr) auto;

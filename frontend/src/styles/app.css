@@ -14,10 +14,12 @@
   --danger: #e8524a;
   --good: #2ec98e;
   --warn: #f0a03c;
+  --hospital-capacity-low: #e0c63b;
   --water: #2aa6b7;
   --danger-text: #ff8580;
   --good-text: #62d9ad;
   --warn-text: #ffc36b;
+  --hospital-capacity-low-text: #f5df69;
   --attention-bg: rgba(240, 160, 60, 0.12);
   --attention-bg-hover: rgba(240, 160, 60, 0.22);
   --attention-text: #ffd9a8;
@@ -84,10 +86,12 @@
   --danger: #b52930;
   --good: #167356;
   --warn: #9a6217;
+  --hospital-capacity-low: #b59a12;
   --water: #18788a;
   --danger-text: #982129;
   --good-text: #126249;
   --warn-text: #7e5012;
+  --hospital-capacity-low-text: #74620b;
   --attention-bg: #fff0d1;
   --attention-bg-hover: #f8e2b6;
   --attention-text: #68410c;

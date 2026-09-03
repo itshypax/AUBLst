@@ -28,6 +28,20 @@ function action_session_validate(PDO $pdo): void {
     respond_json(200, ['ok' => true, 'session_token' => $session['token']]);
 }
 
+function action_session_monitor_hospital_capacity_set(PDO $pdo): void {
+    $data = get_json_input();
+    $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
+    $enabled = $data['enabled'] ?? null;
+    if (!is_bool($enabled) && !in_array($enabled, [0, 1, '0', '1'], true)) {
+        respond_json(400, ['error' => 'Ungültige Einstellung für den Alarmmonitor.']);
+    }
+
+    $stmt = $pdo->prepare('UPDATE sessions SET monitor_show_hospital_capacity = ? WHERE id = ?');
+    $stmt->execute([(int)(bool)$enabled, $session['id']]);
+    touch_session($pdo, $session['id']);
+    respond_json(200, ['ok' => true, 'enabled' => (bool)$enabled]);
+}
+
 function action_session_statistics(PDO $pdo): void {
     $session = require_session($pdo, request_value('session_token'));
     $sid = $session['id'];

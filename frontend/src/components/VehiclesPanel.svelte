@@ -4,6 +4,7 @@
   import { api } from '../lib/api';
   import { actionUnits, hasLoeschzug, isHiddenUnit, isHospitalTransportUnit, loeschzugFor, stationColumns, stationGroups, tabLabel, vehicleDisplayName, vehicleTypeLabel, type MainTab, type StationGroup } from '../lib/classify';
   import { refreshState } from '../lib/polling';
+  import { roadLocationLabel } from '../lib/routing';
   import { app, canWrite, focusVehicle, openVehicleMenu, setDispatchVehicleIds, setHighlightedVehicle, toggleDispatchVehicle } from '../lib/state.svelte';
   import type { HospitalReservation, Vehicle } from '../lib/types';
   import EmptyState from './EmptyState.svelte';
@@ -111,6 +112,8 @@
       const destination = (reservation.hospital_name || 'Klinik').replace(/^Krankenhaus\s+/i, '');
       parts.push(`Ziel: ${destination}${reservation.bed_type === 'icu' ? ' · Intensiv' : ''}`);
     }
+    const location = roadLocationLabel(v, app.routing);
+    if (location) parts.push(location);
     return parts.join(' · ');
   }
 

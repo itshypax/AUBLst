@@ -4,7 +4,7 @@ import { SoundAlertTracker } from './sound-alerts';
 import { soundCuesForLogs } from './sound-events';
 import { app, clearCurrentEvent, persistSettings, resetSessionData } from './state.svelte';
 import { getSoundAlertConfig, playPhone, playSoundCue, playSoundCues } from './sounds';
-import type { LogRow, MapBounds, StateResponse, StatusHistoryResponse, VehicleStatusChange } from './types';
+import type { LogRow, MapBounds, MapContentRect, StateResponse, StatusHistoryResponse, VehicleStatusChange } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 import {
   broadcastLogAcknowledged,
@@ -50,6 +50,11 @@ function sameMapBounds(left: MapBounds, right: MapBounds): boolean {
   return (
     left.min_x === right.min_x && left.min_y === right.min_y && left.max_x === right.max_x && left.max_y === right.max_y
   );
+}
+
+function sameMapContentRect(left: MapContentRect | null, right: MapContentRect | null): boolean {
+  if (left === null || right === null) return left === right;
+  return left.x === right.x && left.y === right.y && left.width === right.width && left.height === right.height;
 }
 
 let lastEventIds = new Set<number>();
@@ -319,7 +324,10 @@ async function applyState(
   const applyGeneration = generation;
   const playControlRoomSounds = playEventSounds && !readOnlySession;
   const mapBoundsChanged = !sameMapBounds(app.mapBounds, data.session.map_bounds);
+  const nextMapContentRect = data.session.map_content_rect ?? null;
+  const mapContentRectChanged = !sameMapContentRect(app.mapContentRect, nextMapContentRect);
   app.mapBounds = data.session.map_bounds;
+  app.mapContentRect = nextMapContentRect;
   app.players = data.players ?? [];
   app.vehicles = data.vehicles ?? [];
   app.events = data.events ?? [];
@@ -327,6 +335,8 @@ async function applyState(
   if (data.status_history) app.statusHistory = data.status_history;
   app.hospitals = data.hospitals ?? [];
   app.hospitalReservations = data.hospital_reservations ?? [];
+  app.monitorHospitalCapacities = data.monitor_hospital_capacities ?? [];
+  app.monitorShowHospitalCapacity = Boolean(data.session.monitor_show_hospital_capacity);
   app.clock = data.time ?? null;
   app.connected = true;
   app.stateHealthy = true;
@@ -350,10 +360,12 @@ async function applyState(
   }
 
   const newMod = data.session.mod_id ?? null;
+  const nextRoutingVersion = data.session.routing_version ?? null;
   const modChanged = app.modId !== newMod;
+  const routingVersionChanged = Boolean(newMod && nextRoutingVersion && app.routingVersion !== nextRoutingVersion);
   const mapMissing = Boolean(newMod && !app.mapImageUrl);
-  if (modChanged || mapMissing || (newMod && mapBoundsChanged)) {
-    const reloadMapImage = modChanged || mapMissing;
+  if (modChanged || routingVersionChanged || mapMissing || (newMod && (mapBoundsChanged || mapContentRectChanged))) {
+    const reloadMapImage = modChanged || mapMissing || mapContentRectChanged;
     if (modChanged && app.mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(app.mapImageUrl);
     app.modId = newMod;
     if (newMod) {
@@ -368,6 +380,7 @@ async function applyState(
         }
         app.mapImageUrl = mapImageUrl;
         app.routing = routing;
+        app.routingVersion = nextRoutingVersion;
       } catch (error) {
         if (signal?.aborted || applyGeneration !== generation) return;
         if (reloadMapImage) app.mapImageUrl = '';
@@ -377,6 +390,7 @@ async function applyState(
     } else {
       app.mapImageUrl = '';
       app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
+      app.routingVersion = null;
     }
   }
 

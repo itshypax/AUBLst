@@ -2,12 +2,22 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MONITOR_SOUND_SETTINGS,
   loadMonitorSoundSettings,
+  MONITOR_GONGS,
   monitorAnnouncementSources,
   monitorVehicleSpeechSources,
 } from './alarm-monitor-sound';
 
 describe('Alarmmonitor-Ton', () => {
   it('verwendet den Gong Stuttgart als Standard', () => {
+    expect(DEFAULT_MONITOR_SOUND_SETTINGS.gong).toBe('stuttgart');
+  });
+
+  it('bietet den Gong Hamburg als zusätzliche Auswahl an', () => {
+    expect(MONITOR_GONGS).toContainEqual({
+      id: 'hamburg',
+      label: 'Gong Hamburg',
+      source: './sounds/monitor/gong-hamburg.wav',
+    });
     expect(DEFAULT_MONITOR_SOUND_SETTINGS.gong).toBe('stuttgart');
   });
 

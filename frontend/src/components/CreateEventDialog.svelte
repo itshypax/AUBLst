@@ -4,9 +4,11 @@
   import { api } from '../lib/api';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
+  import { roadLocationLabel } from '../lib/routing';
   import { app, canWrite, showNotice } from '../lib/state.svelte';
 
   const pos = app.createEventPos!;
+  const locationLabel = roadLocationLabel(pos, app.routing);
 
   let name = $state('');
   let errorMsg = $state('');
@@ -59,7 +61,7 @@
       <button class="ghost" data-tooltip="Abbrechen" aria-label="Abbrechen" disabled={busy} onclick={close}><FaIcon icon={X} size={16} /></button>
     </header>
     <div class="body">
-      <span class="meta">Position {pos.x.toFixed(1)}, {pos.y.toFixed(1)}</span>
+      <span class="meta" title={`Position ${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}`}>{locationLabel ?? `Position ${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}`}</span>
       <input type="text" bind:this={input} bind:value={name} placeholder="Einsatzstichwort" data-autofocus disabled={busy} />
       {#if errorMsg}
         <span class="error">{errorMsg}</span>

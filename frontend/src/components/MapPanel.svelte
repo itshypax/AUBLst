@@ -5,8 +5,8 @@
   import { api } from '../lib/api';
   import { eventCategory, station, type EventCategory } from '../lib/classify';
   import { dismissibleDetails } from '../lib/dismissible-details';
-  import { canvasToWorld, imageDrawRect, toScreen, worldToCanvas, type MapView, type Point } from '../lib/mapview';
-  import { cloneRoutingConfig, formatDistance, nearestRoadSnap, parseRoutingConfig, roadRoutePreview, validateRoutingNetwork, type BmaZone, type RoadEdge, type RoadKind, type RoadNode, type RoadRoutePreview, type RoadSnap, type RoutingConfig, type RoutingNetworkReport } from '../lib/routing';
+  import { canvasToWorld, imageDrawRect, mapContentDrawRect, screenPointInMapContent, toScreen, worldToCanvas, type MapView, type Point } from '../lib/mapview';
+  import { cloneRoutingConfig, formatDistance, nearestRoadSnap, parseRoutingConfig, roadLocationLabel, roadRoutePreview, validateRoutingNetwork, type BmaZone, type RoadEdge, type RoadKind, type RoadNode, type RoadRoutePreview, type RoadSnap, type RoutingConfig, type RoutingNetworkReport } from '../lib/routing';
   import { app, askConfirm, assignedEventForVehicle, canWrite, openAssign, openVehicleMenu, setHighlightedEvent, setHighlightedVehicle, showNotice } from '../lib/state.svelte';
   import { statusCode, statusDisplay } from '../lib/status';
   import { loadVehicleIconManifest, vehicleIconPath, type VehicleIconManifest } from '../lib/vehicleIcons';
@@ -41,7 +41,7 @@
   let hiddenStations = $state<Set<string>>(new Set());
   let canvasSize = $state({ w: 0, h: 0 });
   let editorOpen = $state(false);
-  type EditorMode = RoadKind | 'erase' | 'unlink' | 'test' | 'bma';
+  type EditorMode = RoadKind | 'erase' | 'unlink' | 'test' | 'bma' | 'street-name';
   let editorMode = $state<EditorMode>('road');
   let editorGraph = $state<RoutingConfig>(cloneRoutingConfig(app.routing));
   let editorHistory = $state<RoutingConfig[]>([]);
@@ -51,11 +51,16 @@
   let editorDragNodeId = $state<string | null>(null);
   let editorDragHistoryRecorded = false;
   let editorPointerStart = { x: 0, y: 0 };
+  let editorStreetPickStart: Point | null = null;
   type EditorSnapTarget =
     | { kind: 'node'; nodeId: string; world: Point }
     | { kind: 'edge'; edgeId: string; t: number; world: Point }
     | null;
   let editorSnapTarget = $state<EditorSnapTarget>(null);
+  let selectedStreetEdgeIds = $state<string[]>([]);
+  let selectedStreetEdgeId = $state<string | null>(null);
+  let selectedStreetEdgePoint = $state<{ t: number; world: Point } | null>(null);
+  let streetNameDraft = $state('');
   let showEditorGrid = $state(true);
   let editorDirty = $state(false);
   let editorSaving = $state(false);
@@ -79,6 +84,9 @@
   const tooltipEvent = $derived(hoverEvent ?? visibleEvents.find((event) => event.id === app.highlightedEventId) ?? null);
   const hoverVehicle = $derived(visibleVehicles.find((v) => v.id === hoverVehicleId) ?? null);
   const tooltipVehicle = $derived(hoverVehicle ?? visibleVehicles.find((v) => v.id === app.highlightedVehicleId) ?? null);
+  const selectedStreetEdge = $derived(editorGraph.edges.find((edge) => edge.id === selectedStreetEdgeId) ?? null);
+  const selectedStreetEdgeCount = $derived(selectedStreetEdgeIds.length);
+  const namedStreetEdgeCount = $derived(editorGraph.edges.filter((edge) => Boolean(edge.name?.trim())).length);
   const eventTooltipPosition = $derived.by(() => {
     if (!tooltipEvent || !canvas || hoverEvent) return hoverPos;
     return toScreen(worldToCanvas(tooltipEvent, app.mapBounds, view()), view());
@@ -95,7 +103,7 @@
     const scale = Number(routing.meters_per_world_unit_x ?? routing.meters_per_world_unit);
     const worldWidth = app.mapBounds.max_x - app.mapBounds.min_x;
     if (!canvas || canvasSize.w <= 0 || !Number.isFinite(scale) || scale <= 0 || worldWidth <= 0) return null;
-    const drawWidth = imageDrawRect(view()).w * zoom;
+    const drawWidth = mapContentDrawRect(view()).w * zoom;
     const metersPerPixel = worldWidth * scale / drawWidth;
     const targetMeters = metersPerPixel * 90;
     const power = 10 ** Math.floor(Math.log10(Math.max(1, targetMeters)));
@@ -131,7 +139,9 @@
   }
 
   const MIN_ZOOM = 0.2;
-  const MAX_ZOOM = 4;
+  const MAX_CONTROL_ROOM_ZOOM = 6;
+  const MAX_EDITOR_ZOOM = 4;
+  const maximumZoom = $derived(standaloneModId ? MAX_EDITOR_ZOOM : MAX_CONTROL_ROOM_ZOOM);
   const EDITOR_SNAP_PIXELS = 17;
   const EDITOR_DRAG_PIXELS = 4;
   const VEHICLE_ICON_SIZE = 54;
@@ -187,7 +197,7 @@
   }
 
   function view(): MapView {
-    return { zoom, pan, natural, width: canvas.clientWidth, height: canvas.clientHeight };
+    return { zoom, pan, natural, contentRect: app.mapContentRect, width: canvas.clientWidth, height: canvas.clientHeight };
   }
 
   let renderQueued = false;
@@ -279,10 +289,20 @@
     void app.vehicles;
     void app.events;
     void app.mapBounds;
+    void app.mapContentRect;
     void app.highlightedEventId;
     void app.highlightedVehicleId;
     void visibleEvents;
     void visibleVehicles;
+    scheduleRender();
+  });
+
+  $effect(() => {
+    void editorOpen;
+    void editorMode;
+    void editorGraph;
+    void editorSnapTarget;
+    void selectedStreetEdgeCount;
     scheduleRender();
   });
 
@@ -326,6 +346,20 @@
     editorHistory = [...editorHistory.slice(-49), cloneRoutingConfig(editorGraph)];
   }
 
+  function clearStreetEdgeSelection(): void {
+    selectedStreetEdgeIds = [];
+    selectedStreetEdgeId = null;
+    selectedStreetEdgePoint = null;
+    streetNameDraft = '';
+  }
+
+  function syncStreetNameDraft(edgeIds: string[]): void {
+    const names = editorGraph.edges
+      .filter((edge) => edgeIds.includes(edge.id))
+      .map((edge) => edge.name ?? '');
+    streetNameDraft = names.length > 0 && names.every((name) => name === names[0]) ? names[0] : '';
+  }
+
   function openEditor(): void {
     editorGraph = cloneRoutingConfig(app.routing);
     editorHistory = [];
@@ -334,6 +368,7 @@
     editorHoverNodeId = null;
     editorDragNodeId = null;
     editorSnapTarget = null;
+    clearStreetEdgeSelection();
     showEditorGrid = true;
     editorDirty = false;
     editorError = '';
@@ -355,6 +390,7 @@
     editorOpen = false;
     editorActiveNodeId = null;
     editorCursorWorld = null;
+    clearStreetEdgeSelection();
     editorError = '';
     scheduleRender();
   }
@@ -365,6 +401,7 @@
     editorGraph = cloneRoutingConfig(previous);
     editorHistory = editorHistory.slice(0, -1);
     editorActiveNodeId = null;
+    clearStreetEdgeSelection();
     networkReport = null;
     editorDirty = true;
     scheduleRender();
@@ -382,6 +419,7 @@
     editorActiveNodeId = null;
     editorCursorWorld = null;
     editorSnapTarget = null;
+    if (mode !== 'street-name') clearStreetEdgeSelection();
     if (mode !== 'test') resetRouteTest();
     scheduleRender();
   }
@@ -523,8 +561,8 @@
     editorGraph.nodes = [...editorGraph.nodes, node];
     editorGraph.edges = [
       ...editorGraph.edges.filter((edge) => edge.id !== match.edge.id),
-      { id: editorId('e'), from: match.edge.from, to: node.id, kind: match.edge.kind },
-      { id: editorId('e'), from: node.id, to: match.edge.to, kind: match.edge.kind },
+      { id: editorId('e'), from: match.edge.from, to: node.id, kind: match.edge.kind, ...(match.edge.name ? { name: match.edge.name } : {}) },
+      { id: editorId('e'), from: node.id, to: match.edge.to, kind: match.edge.kind, ...(match.edge.name ? { name: match.edge.name } : {}) },
     ];
     return node;
   }
@@ -535,9 +573,9 @@
     ));
   }
 
-  function appendEdge(from: string, to: string, kind: RoadKind): void {
+  function appendEdge(from: string, to: string, kind: RoadKind, name?: string): void {
     if (from === to || edgeExists(from, to, kind)) return;
-    editorGraph.edges = [...editorGraph.edges, { id: editorId('e'), from, to, kind }];
+    editorGraph.edges = [...editorGraph.edges, { id: editorId('e'), from, to, kind, ...(name ? { name } : {}) }];
   }
 
   function segmentIntersection(a: Point, b: Point, c: Point, d: Point): { t: number; u: number; world: Point } | null {
@@ -626,8 +664,8 @@
     node.x = target.world.x;
     node.y = target.world.y;
     editorGraph.edges = editorGraph.edges.filter((candidate) => candidate.id !== edge.id);
-    appendEdge(edge.from, nodeId, edge.kind);
-    appendEdge(nodeId, edge.to, edge.kind);
+    appendEdge(edge.from, nodeId, edge.kind, edge.name);
+    appendEdge(nodeId, edge.to, edge.kind, edge.name);
   }
 
   function moveEditorNode(nodeId: string, pos: Point): void {
@@ -665,6 +703,65 @@
     if (editorActiveNodeId === nodeId) editorActiveNodeId = null;
   }
 
+  function selectStreetEdge(pos: Point): void {
+    const match = nearestEditorEdge(pos, 14);
+    if (!match) {
+      clearStreetEdgeSelection();
+      scheduleRender();
+      return;
+    }
+    let next: string[];
+    if (selectedStreetEdgeIds.includes(match.edge.id)) {
+      next = selectedStreetEdgeIds.filter((edgeId) => edgeId !== match.edge.id);
+      if (selectedStreetEdgeId === match.edge.id) {
+        selectedStreetEdgeId = null;
+        selectedStreetEdgePoint = null;
+      }
+    } else {
+      next = [...selectedStreetEdgeIds, match.edge.id];
+      selectedStreetEdgeId = match.edge.id;
+      selectedStreetEdgePoint = { t: match.t, world: match.world };
+    }
+    selectedStreetEdgeIds = next;
+    syncStreetNameDraft(next);
+    editorError = '';
+    scheduleRender();
+  }
+
+  function applyStreetName(): void {
+    if (!selectedStreetEdgeIds.length) return;
+    const name = streetNameDraft.trim();
+    if (name.length > 120) {
+      editorError = 'Der Straßenname darf höchstens 120 Zeichen lang sein.';
+      return;
+    }
+    const hasChanges = editorGraph.edges.some((edge) => selectedStreetEdgeIds.includes(edge.id) && (edge.name ?? '') !== name);
+    if (!hasChanges) return;
+    recordEditorHistory();
+    editorGraph = {
+      ...editorGraph,
+      edges: editorGraph.edges.map((edge) => selectedStreetEdgeIds.includes(edge.id)
+        ? { ...edge, name: name || undefined }
+        : edge),
+    };
+    streetNameDraft = name;
+    editorDirty = true;
+    editorError = '';
+    networkReport = null;
+    scheduleRender();
+  }
+
+  function splitSelectedStreetEdge(): void {
+    if (!selectedStreetEdge || !selectedStreetEdgePoint || selectedStreetEdgePoint.t <= 0.02 || selectedStreetEdgePoint.t >= 0.98) return;
+    recordEditorHistory();
+    splitEditorEdge({ edge: selectedStreetEdge, ...selectedStreetEdgePoint });
+    clearStreetEdgeSelection();
+    editorDirty = true;
+    editorError = '';
+    networkReport = null;
+    scheduleRender();
+  }
+
   function editAt(pos: Point): void {
     if (editorMode === 'bma') {
       addBmaPoint(pos);
@@ -682,6 +779,11 @@
         routeTestPreview = roadRoutePreview(routeTestStart, point, editorGraph);
       }
       scheduleRender();
+      return;
+    }
+
+    if (editorMode === 'street-name') {
+      selectStreetEdge(pos);
       return;
     }
 
@@ -727,6 +829,7 @@
     editorGraph.nodes = [];
     editorGraph.edges = [];
     editorActiveNodeId = null;
+    clearStreetEdgeSelection();
     resetRouteTest();
     networkReport = null;
     editorDirty = true;
@@ -750,6 +853,7 @@
       editorGraph = cloneRoutingConfig(imported);
       editorActiveNodeId = null;
       editorSnapTarget = null;
+      clearStreetEdgeSelection();
       resetRouteTest();
       networkReport = null;
       editorDirty = true;
@@ -883,8 +987,14 @@
       last = { x: e.clientX, y: e.clientY };
       dragged = false;
       editorDragHistoryRecorded = false;
+      editorStreetPickStart = null;
       editorDragNodeId = editorMode === 'road' || editorMode === 'bridge' ? nearestEditorNode(pos, 12)?.id ?? null : null;
-      panning = !editorDragNodeId;
+      if (editorMode === 'street-name' && nearestEditorEdge(pos, 14)) {
+        editorStreetPickStart = pos;
+        panning = false;
+      } else {
+        panning = !editorDragNodeId;
+      }
       wrapper.setPointerCapture(e.pointerId);
       return;
     }
@@ -902,7 +1012,15 @@
     if (editorOpen) {
       const pos = clientToCanvas(e.clientX, e.clientY);
       editorHoverNodeId = nearestEditorNode(pos, 12, editorDragNodeId)?.id ?? null;
+      if (editorStreetPickStart) {
+        const match = nearestEditorEdge(editorStreetPickStart, 14);
+        editorSnapTarget = match ? { kind: 'edge', edgeId: match.edge.id, t: match.t, world: match.world } : null;
+        editorCursorWorld = match?.world ?? null;
+        scheduleRender();
+        return;
+      }
       if (editorDragNodeId) {
+        if (!screenPointInMapContent(pos, view())) return;
         const distance = Math.hypot(e.clientX - editorPointerStart.x, e.clientY - editorPointerStart.y);
         if (distance >= EDITOR_DRAG_PIXELS) {
           if (!editorDragHistoryRecorded) {
@@ -924,6 +1042,13 @@
           pan = { x: pan.x + dx, y: pan.y + dy };
           last = { x: e.clientX, y: e.clientY };
         }
+        scheduleRender();
+        return;
+      }
+      if (!screenPointInMapContent(pos, view())) {
+        editorHoverNodeId = null;
+        editorSnapTarget = null;
+        editorCursorWorld = null;
         scheduleRender();
         return;
       }
@@ -964,14 +1089,23 @@
     if (editorOpen && e.button === 0) {
       const pos = clientToCanvas(e.clientX, e.clientY);
       if (wrapper.hasPointerCapture(e.pointerId)) wrapper.releasePointerCapture(e.pointerId);
-      if (editorDragNodeId && dragged) {
-        finishEditorNodeDrag(editorDragNodeId);
-      } else if (!dragged) {
-        editAt(pos);
+      const insideMap = screenPointInMapContent(pos, view());
+      if (editorStreetPickStart) {
+        selectStreetEdge(editorStreetPickStart);
+      } else {
+        if (editorDragNodeId && dragged) {
+          finishEditorNodeDrag(editorDragNodeId);
+        } else if (!dragged && insideMap) {
+          editAt(pos);
+        }
       }
       editorDragNodeId = null;
+      editorStreetPickStart = null;
       editorDragHistoryRecorded = false;
-      if (editorMode === 'bma') {
+      if (!insideMap) {
+        editorSnapTarget = null;
+        editorCursorWorld = null;
+      } else if (editorMode === 'bma') {
         editorSnapTarget = null;
         editorCursorWorld = canvasToWorld(pos, app.mapBounds, view());
       } else {
@@ -985,6 +1119,7 @@
     }
     if (placing && e.button === 0) {
       const pos = clientToCanvas(e.clientX, e.clientY);
+      if (!screenPointInMapContent(pos, view())) return;
       const ev = eventNear(pos);
       if (ev) openAssign(ev);
       else app.createEventPos = canvasToWorld(pos, app.mapBounds, view());
@@ -1008,7 +1143,7 @@
 
   function onPointerLeave(): void {
     if (editorOpen) {
-      if (panning || editorDragNodeId) return;
+      if (panning || editorDragNodeId || editorStreetPickStart) return;
       editorCursorWorld = null;
       editorHoverNodeId = null;
       editorSnapTarget = null;
@@ -1028,6 +1163,7 @@
     panning = false;
     dragged = false;
     editorDragNodeId = null;
+    editorStreetPickStart = null;
     editorDragHistoryRecorded = false;
     editorSnapTarget = null;
     scheduleRender();
@@ -1039,7 +1175,7 @@
     const preX = (mouse.x - pan.x) / zoom;
     const preY = (mouse.y - pan.y) / zoom;
     const factor = Math.pow(1.0015, -e.deltaY);
-    zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * factor));
+    zoom = Math.max(MIN_ZOOM, Math.min(maximumZoom, zoom * factor));
     pan = { x: mouse.x - preX * zoom, y: mouse.y - preY * zoom };
     scheduleRender();
   }
@@ -1054,6 +1190,7 @@
       return;
     }
     const pos = clientToCanvas(e.clientX, e.clientY);
+    if (!screenPointInMapContent(pos, view())) return;
     const veh = vehicleNear(pos);
     if (veh) {
       openVehicleMenu(veh.id, e.clientX, e.clientY);
@@ -1067,7 +1204,7 @@
     const center = { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 };
     const preX = (center.x - pan.x) / zoom;
     const preY = (center.y - pan.y) / zoom;
-    zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * factor));
+    zoom = Math.max(MIN_ZOOM, Math.min(maximumZoom, zoom * factor));
     pan = { x: center.x - preX * zoom, y: center.y - preY * zoom };
     scheduleRender();
   }
@@ -1216,14 +1353,73 @@
         ctx.strokeStyle = edge.kind === 'bridge' ? '#e0a04b' : '#eee8dc';
         ctx.setLineDash(edge.kind === 'bridge' ? [9 / zoom, 6 / zoom] : []);
         ctx.stroke();
-        if (editorSnapTarget?.kind === 'edge' && editorSnapTarget.edgeId === edge.id) {
-          ctx.setLineDash([]);
-          ctx.lineWidth = 8 / zoom;
-          ctx.strokeStyle = editorMode === 'unlink' ? 'rgba(232, 91, 98, 0.5)' : 'rgba(242, 181, 93, 0.42)';
-          ctx.stroke();
-        }
       }
       ctx.setLineDash([]);
+      if (editorMode === 'street-name') {
+        ctx.save();
+        for (const edge of editorGraph.edges) {
+          if (!edge.name?.trim()) continue;
+          const from = nodes.get(edge.from);
+          const to = nodes.get(edge.to);
+          if (!from || !to) continue;
+          const a = worldToCanvas(from, app.mapBounds, v);
+          const b = worldToCanvas(to, app.mapBounds, v);
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          if (edge.kind === 'bridge') {
+            ctx.lineWidth = 8 / zoom;
+            ctx.setLineDash([]);
+            ctx.strokeStyle = 'rgba(13, 15, 16, 0.92)';
+            ctx.stroke();
+          }
+          ctx.lineWidth = 6 / zoom;
+          ctx.setLineDash(edge.kind === 'bridge' ? [9 / zoom, 6 / zoom] : []);
+          ctx.strokeStyle = cssVar('--good-text', '#62d9ad');
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      const hoveredEdgeId = editorSnapTarget?.kind === 'edge' ? editorSnapTarget.edgeId : null;
+      if (hoveredEdgeId && !selectedStreetEdgeIds.includes(hoveredEdgeId)) {
+        const edge = editorGraph.edges.find((candidate) => candidate.id === hoveredEdgeId);
+        const from = edge ? nodes.get(edge.from) : null;
+        const to = edge ? nodes.get(edge.to) : null;
+        if (from && to) {
+          const a = worldToCanvas(from, app.mapBounds, v);
+          const b = worldToCanvas(to, app.mapBounds, v);
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.lineWidth = (editorMode === 'street-name' ? 6 : 8) / zoom;
+          ctx.setLineDash(editorMode === 'street-name' ? [4 / zoom, 4 / zoom] : []);
+          ctx.strokeStyle = editorMode === 'unlink' ? 'rgba(232, 91, 98, 0.58)' : editorMode === 'street-name' ? 'rgba(255, 255, 255, 0.72)' : 'rgba(242, 181, 93, 0.48)';
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+      if (editorMode === 'street-name' && selectedStreetEdgeIds.length) {
+        for (const edge of editorGraph.edges) {
+          if (!selectedStreetEdgeIds.includes(edge.id)) continue;
+          const from = nodes.get(edge.from);
+          const to = nodes.get(edge.to);
+          if (!from || !to) continue;
+          const a = worldToCanvas(from, app.mapBounds, v);
+          const b = worldToCanvas(to, app.mapBounds, v);
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.lineWidth = 12 / zoom;
+          ctx.setLineDash([]);
+          ctx.strokeStyle = 'rgba(13, 15, 16, 0.92)';
+          ctx.stroke();
+          ctx.lineWidth = 7 / zoom;
+          ctx.setLineDash(edge.kind === 'bridge' ? [9 / zoom, 6 / zoom] : []);
+          ctx.strokeStyle = cssVar('--warn-text', '#ffc36b');
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
       if (editorActiveNodeId && editorCursorWorld && editorMode !== 'erase') {
         const from = nodes.get(editorActiveNodeId);
         if (from) {
@@ -1473,7 +1669,7 @@
       <div class="route-editor" onpointerdown={(e) => e.stopPropagation()} onpointerup={(e) => e.stopPropagation()} onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} oncontextmenu={(e) => e.stopPropagation()} role="dialog" aria-label="Straßennetz bearbeiten" tabindex="-1">
         <div class="route-editor-head">
           <strong>Straßennetz</strong>
-          <span>{editorGraph.edges.length} Abschnitte</span>
+          <span>{namedStreetEdgeCount} von {editorGraph.edges.length} benannt</span>
           <button class="ghost" data-tooltip="Editor schließen" aria-label="Editor schließen" onclick={() => void closeEditor()}><FaIcon icon={X} size={14} /></button>
         </div>
         <div class="route-tools" role="toolbar" aria-label="Zeichenwerkzeuge">
@@ -1481,10 +1677,30 @@
           <button class:active={editorMode === 'bridge'} aria-pressed={editorMode === 'bridge'} onclick={() => setEditorMode('bridge')}><FaIcon icon={Construction} size={14} /> Brücke</button>
           <button class:active={editorMode === 'unlink'} aria-pressed={editorMode === 'unlink'} onclick={() => setEditorMode('unlink')}><FaIcon icon={Unlink} size={14} /> Verbindung</button>
           <button class:active={editorMode === 'erase'} aria-pressed={editorMode === 'erase'} onclick={() => setEditorMode('erase')}><FaIcon icon={Eraser} size={14} /> Punkt</button>
+          <button class:active={editorMode === 'street-name'} aria-pressed={editorMode === 'street-name'} onclick={() => setEditorMode('street-name')}>Straßenname</button>
           <button class:active={editorMode === 'bma'} aria-pressed={editorMode === 'bma'} onclick={() => setEditorMode('bma')}>BMA-Zone</button>
           {#if standaloneModId}<button class:active={editorMode === 'test'} aria-pressed={editorMode === 'test'} onclick={() => setEditorMode('test')}><FaIcon icon={Crosshair} size={14} /> Test</button>{/if}
         </div>
-        {#if editorMode === 'bma'}
+        {#if editorMode === 'street-name'}
+          <p>Grün bedeutet bereits benannt. Die aktuelle Auswahl ist gelb mit dunkler Kontur.</p>
+          <div class="street-name-fields">
+            <label for="street-name">Straßenname · {selectedStreetEdgeCount} {selectedStreetEdgeCount === 1 ? 'Abschnitt' : 'Abschnitte'} ausgewählt</label>
+            <input
+              id="street-name"
+              type="text"
+              maxlength="120"
+              disabled={!selectedStreetEdgeCount}
+              bind:value={streetNameDraft}
+              placeholder={selectedStreetEdgeCount ? 'Straßenname eingeben' : 'Zuerst Abschnitte anklicken'}
+              onkeydown={(event) => { if (event.key === 'Enter') applyStreetName(); }}
+            />
+            <div class="street-name-actions">
+              <button disabled={!selectedStreetEdgeCount} onclick={applyStreetName}>Auf Auswahl anwenden</button>
+              <button class="ghost" disabled={!selectedStreetEdgeCount} onclick={() => { clearStreetEdgeSelection(); scheduleRender(); }}>Auswahl aufheben</button>
+              <button class="ghost" disabled={!selectedStreetEdgePoint || selectedStreetEdgePoint.t <= 0.02 || selectedStreetEdgePoint.t >= 0.98} onclick={splitSelectedStreetEdge}>Letzten Abschnitt teilen</button>
+            </div>
+          </div>
+        {:else if editorMode === 'bma'}
           <p>{editingBmaZoneId ? 'Bezeichnung oder Fläche ändern und erneut speichern.' : 'Bezeichnung eingeben und die Zone mit mindestens drei Punkten auf der Karte umranden.'} Rechtsklick nimmt den letzten Punkt zurück.</p>
           <div class="bma-editor-fields">
             <input type="text" maxlength="120" bind:value={bmaDraftName} placeholder="Bezeichnung, z. B. Rathaus" />
@@ -1604,11 +1820,16 @@
     {/if}
     {#if tooltipEvent}
       <div class="map-tooltip" style="left: {eventTooltipPosition.x + 14}px; top: {eventTooltipPosition.y + 14}px;">
-        <span class="tt-name">{tooltipEvent.name || 'Einsatz'}</span>
+        <span class="tt-copy">
+          <span class="tt-name">{tooltipEvent.name || 'Einsatz'}</span>
+          {#if roadLocationLabel(tooltipEvent, app.routing)}<span class="tt-location">{roadLocationLabel(tooltipEvent, app.routing)}</span>{/if}
+        </span>
       </div>
     {:else if tooltipVehicle}
       <div class="map-tooltip" style="left: {vehicleTooltipPosition.x + 14}px; top: {vehicleTooltipPosition.y + 14}px;">
-        <span class="tt-name">{tooltipVehicle.name || tooltipVehicle.type || tooltipVehicle.game_vehicle_id}</span>
+        <span class="tt-copy">
+          <span class="tt-name">{tooltipVehicle.name || tooltipVehicle.type || tooltipVehicle.game_vehicle_id}</span>
+        </span>
         <StatusBadge value={tooltipVehicle.status} />
       </div>
     {/if}
@@ -1685,6 +1906,11 @@
   .route-tools button { justify-content: center; font-size: 11px; }
   .route-tools button.active { border-color: #b98443; background: rgba(185, 132, 67, 0.16); color: #f3c98f; }
   .route-editor p { margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: 11px; line-height: 1.45; }
+  .street-name-fields { display: grid; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .street-name-fields label { color: var(--text); font-size: 11px; }
+  .street-name-fields input { width: 100%; }
+  .street-name-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .street-name-actions button:last-child { margin-left: auto; }
   .route-test-result { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); border-left: 3px solid #e0a04b; }
   .route-test-result.fallback { border-left-color: var(--danger); }
   .route-test-result > div { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
@@ -1737,6 +1963,9 @@
     pointer-events: none;
     z-index: 5;
   }
+
+  .tt-copy { display: flex; flex-direction: column; gap: 1px; }
+  .tt-location { color: var(--text-dim); font-size: 10px; font-weight: 500; }
 
   .map-placeholder {
     position: absolute;

@@ -6,7 +6,7 @@
   import { alarmGroups, alarmVehicleCount, hasLoeschzug, hasMapPosition, isHiddenUnit, loeschzugFor, vehicleAlarmPriority, vehicleDisplayName, vehicleDisplayNameForIdentifier, type StationGroup } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
-  import { createRouteCalculator, formatDistance, type RouteDistance } from '../lib/routing';
+  import { createRouteCalculator, formatDistance, roadLocationLabel, type RouteDistance } from '../lib/routing';
   import { app, canWrite, clearCurrentEvent, openVehicleMenu, showNotice } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import type { AssignedVehicle, EventFeedback, LogRow, StateResponse, Vehicle } from '../lib/types';
@@ -23,6 +23,7 @@
   const isControlRoomEvent = $derived(ev.created_by === 'frontend');
   const isAvailableInGame = $derived(!isControlRoomEvent || (ev.game_event_id !== null && String(ev.game_event_id).trim() !== ''));
   const routeToEvent = $derived(createRouteCalculator(ev, app.routing));
+  const eventLocation = $derived(roadLocationLabel(ev, app.routing));
 
   let search = $state('');
   let sortByDistance = $state(true);
@@ -368,7 +369,7 @@
       <span class="icon"><FaIcon icon={Siren} size={16} /></span>
       <div class="title">
         <h3 id="assign-title">Alarmierung – {ev.name || 'Einsatz'}</h3>
-        <span class="meta">Nr. {ev.id} · Position {ev.x.toFixed(1)}, {ev.y.toFixed(1)}</span>
+        <span class="meta" title={`Position ${ev.x.toFixed(1)}, ${ev.y.toFixed(1)}`}>Nr. {ev.id} · {eventLocation ?? `Position ${ev.x.toFixed(1)}, ${ev.y.toFixed(1)}`}</span>
       </div>
       <button class="ghost" data-tooltip="Schließen" aria-label="Schließen" disabled={busy} onclick={() => void close()}><FaIcon icon={X} size={18} /></button>
     </header>

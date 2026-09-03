@@ -10,6 +10,7 @@
   import { userFacingError } from '../lib/user-facing-error';
   import type { LogRow } from '../lib/types';
   import { desktopNotificationsAvailable, setDesktopNotifications } from '../lib/notifications';
+  import { api } from '../lib/api';
 
   let { onResetLayout, onOpenWorkspaceEditor, onOpenShortcuts = () => (app.shortcutsOpen = true), workspaceName }: { onResetLayout: () => void; onOpenWorkspaceEditor: () => void; onOpenShortcuts?: () => void; workspaceName: string } = $props();
 
@@ -18,6 +19,7 @@
   let settingsTrigger: HTMLButtonElement;
   let settingsOpen = $state(false);
   let applying = $state(false);
+  let monitorSettingSaving = $state(false);
   let soundMessage = $state('');
   let soundProfiles = $state(getSoundProfileOptions());
   const appCommit = import.meta.env.VITE_APP_COMMIT || 'dev';
@@ -73,6 +75,19 @@
     const message = await setDesktopNotifications(!app.desktopNotifications);
     const accepted = message.includes('eingeschaltet') || message.includes('ausgeschaltet');
     showNotice(message, accepted ? 'success' : 'error');
+  }
+
+  async function setMonitorHospitalCapacity(enabled: boolean): Promise<void> {
+    monitorSettingSaving = true;
+    try {
+      await api('session_monitor_hospital_capacity_set', { enabled });
+      app.monitorShowHospitalCapacity = enabled;
+      showNotice(enabled ? 'Klinikverfügbarkeit im Alarmmonitor eingeschaltet' : 'Alarmierungen im Alarmmonitor eingeschaltet');
+    } catch (error) {
+      showNotice(userFacingError(error instanceof Error ? error.message : String(error), 'state').message, 'error');
+    } finally {
+      monitorSettingSaving = false;
+    }
   }
 
   function openAlarmMonitor(): void {
@@ -225,6 +240,19 @@
       <button class="ghost open-monitor" disabled={!app.sessionToken || applying} onclick={openAlarmMonitor}>
         <FaIcon icon={RadioTower} size={15} /> Alarmmonitor öffnen
       </button>
+      <label class="monitor-setting">
+        <span>
+          <strong>Krankenhauskapazität im Alarmmonitor anzeigen</strong>
+          <small>Ersetzt dort die Liste der Alarmierungen</small>
+        </span>
+        <input
+          type="checkbox"
+          aria-label="Krankenhauskapazität im Alarmmonitor anzeigen"
+          checked={app.monitorShowHospitalCapacity}
+          disabled={!app.sessionToken || !app.stateHealthy || applying || monitorSettingSaving}
+          onchange={(event) => void setMonitorHospitalCapacity(event.currentTarget.checked)}
+        />
+      </label>
 
       <div class="settings-title section-title">Darstellung</div>
       <div class="theme-options" role="group" aria-label="Farbmodus">
@@ -323,6 +351,11 @@
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .apply { justify-content: center; }
   .reload-data, .open-monitor { justify-content: flex-start; }
+  .monitor-setting { flex-direction: row; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--border); color: var(--text); }
+  .monitor-setting > span { display: flex; min-width: 0; flex: 1; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .monitor-setting strong { font-size: 12px; line-height: 1.35; }
+  .monitor-setting small { color: var(--text-dim); font-size: 10px; }
+  .monitor-setting input { flex: 0 0 auto; }
   .sound-row { display: flex; align-items: center; gap: 8px; }
   .sound-profile select { width: 100%; }
   .sound-toggle { min-width: 74px; }

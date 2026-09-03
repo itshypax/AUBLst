@@ -85,6 +85,7 @@ test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', s
     $result = state_session_data([
         'token' => 'a1b2',
         'mod_id' => 'AUBMP',
+        'monitor_show_hospital_capacity' => '1',
         'min_x' => '-100.5',
         'min_y' => '-200',
         'max_x' => '300',
@@ -94,6 +95,14 @@ test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', s
     expect_same([
         'token' => 'a1b2',
         'mod_id' => 'AUBMP',
+        'routing_version' => routing_version_for_mod('AUBMP'),
+        'monitor_show_hospital_capacity' => true,
+        'map_content_rect' => [
+            'x' => 52.0,
+            'y' => 100.0,
+            'width' => 2048.0,
+            'height' => 2048.0,
+        ],
         'map_bounds' => [
             'min_x' => -100.5,
             'min_y' => -200.0,
@@ -101,6 +110,20 @@ test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', s
             'max_y' => 400.5,
         ],
     ], $result);
+});
+
+test_case('AUBMP verwendet das neue Kartenbild mit separater Spielarea', static function (): void {
+    $map = local_map_definition('AUBMP');
+    expect_true($map !== null);
+    expect_same('AUBMP_2.png', basename((string)$map['file']));
+    expect_same(['x' => 52.0, 'y' => 100.0, 'width' => 2048.0, 'height' => 2048.0], $map['content_rect']);
+});
+
+test_case('Klinikkapazitäten verwenden Rot, Gelb und Grün mit den neuen Grenzen', static function (): void {
+    expect_same('full', state_hospital_capacity_level(0));
+    expect_same('low', state_hospital_capacity_level(1));
+    expect_same('low', state_hospital_capacity_level(2));
+    expect_same('ok', state_hospital_capacity_level(3));
 });
 
 test_case('Nur echte Fahrzeugstatuswechsel stoßen die Einsatzleiterprüfung an', static function (): void {
@@ -230,13 +253,14 @@ test_case('Straßennetz verwirft ungültige Kanten', static function (): void {
             ['id' => 'b', 'x' => 30, 'y' => -40],
         ],
         'edges' => [
-            ['id' => 'valid', 'from' => 'a', 'to' => 'b', 'kind' => 'bridge'],
+            ['id' => 'valid', 'from' => 'a', 'to' => 'b', 'kind' => 'bridge', 'name' => ' Neustadtstraße '],
             ['id' => 'missing', 'from' => 'a', 'to' => 'c', 'kind' => 'road'],
         ],
     ]);
     expect_same(2, count($routing['nodes']));
     expect_same(1, count($routing['edges']));
     expect_same('bridge', $routing['edges'][0]['kind']);
+    expect_same('Neustadtstraße', $routing['edges'][0]['name']);
 });
 
 test_case('Normalisierte Straßenpunkte werden auf Sitzungskoordinaten abgebildet', static function (): void {

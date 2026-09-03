@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { cloneRoutingConfig, type RoutingConfig } from '../lib/routing';
   import { app } from '../lib/state.svelte';
+  import type { MapContentRect } from '../lib/types';
   import MapPanel from './MapPanel.svelte';
 
   let { modId }: { modId: string } = $props();
@@ -22,11 +23,12 @@
     }
     try {
       const response = await fetch(`/__routing-editor?mod_id=${encodeURIComponent(modId)}`, { cache: 'no-store' });
-      const data = await response.json() as { error?: string; map_image_url?: string; routing?: RoutingConfig };
+      const data = await response.json() as { error?: string; map_image_url?: string; map_content_rect?: MapContentRect | null; routing?: RoutingConfig };
       if (!response.ok || !data.map_image_url || !data.routing) throw new Error(data.error || 'Kartendaten konnten nicht geladen werden');
       app.modId = modId;
       app.mapBounds = { min_x: 0, min_y: 0, max_x: 1, max_y: 1 };
       app.mapImageUrl = data.map_image_url;
+      app.mapContentRect = data.map_content_rect ?? null;
       app.routing = cloneRoutingConfig(data.routing);
       app.vehicles = [];
       app.events = [];

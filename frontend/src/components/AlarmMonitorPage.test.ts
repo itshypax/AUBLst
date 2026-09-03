@@ -99,6 +99,27 @@ describe('Spieler-Alarmmonitor', () => {
     expect(screen.queryByText('2-HLF-1')).toBeNull();
   });
 
+  it('ersetzt Alarmierungen durch die Klinikverfügbarkeit der Sitzung', () => {
+    history.replaceState(null, '', '/?view=monitor&wache=1');
+    app.sessionToken = '758c';
+    app.stateHealthy = true;
+    app.lastSuccessfulSync = Date.now();
+    app.monitorShowHospitalCapacity = true;
+    app.monitorHospitalCapacities = [
+      { id: 1, name: 'Uniklinik', ward_level: 'ok', icu_level: 'low' },
+      { id: 2, name: 'Hanseklinik', ward_level: 'full', icu_level: 'ok' },
+    ];
+
+    render(AlarmMonitorPage);
+
+    expect(screen.getByRole('heading', { name: 'Klinikverfügbarkeit' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Alarmierungen' })).toBeNull();
+    expect(screen.getByText('Uniklinik')).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Normal: verfügbar' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Intensiv: knapp' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Normal: belegt' })).toBeTruthy();
+  });
+
   it('ordnet die Alarmton-Einstellungen als beschriftete Schalter an', async () => {
     history.replaceState(null, '', '/?view=monitor&wache=1');
     app.sessionToken = '758c';

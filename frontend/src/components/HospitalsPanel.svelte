@@ -2,12 +2,15 @@
   import FaIcon from './FaIcon.svelte';
   import { Map as MapIcon } from '../lib/fontawesome-icons';
   import { reservationAffectsCapacity } from '../lib/hospital-reservations';
+  import { compareHospitalNames, hospitalCapacityLevel } from '../lib/hospital-capacity';
   import { app } from '../lib/state.svelte';
 
   interface HospitalLocation {
     direction: string;
     onMap: boolean;
   }
+
+  const sortedHospitals = $derived([...app.hospitals].sort((left, right) => compareHospitalNames(left.name, right.name)));
 
   function locationFor(name: string | null): HospitalLocation | null {
     const normalized = (name ?? '').toLocaleLowerCase('de').replace(/[^a-zäöüß]/g, '');
@@ -17,13 +20,6 @@
     if (normalized.includes('berg')) return { direction: 'West', onMap: false };
     if (normalized.includes('lichtenau')) return { direction: 'Ost', onMap: false };
     return null;
-  }
-
-  function level(available: number): 'ok' | 'low' | 'full' {
-    const n = Number(available);
-    if (n === 0) return 'full';
-    if (n < 2) return 'low';
-    return 'ok';
   }
 
   function capacityShare(value: number, total: number): number {
@@ -48,17 +44,17 @@
   {@const reserved = reservationCount(hospitalId, bedType)}
   {@const effective = Math.max(0, Number(available) - reserved)}
   <div
-    class="bed {level(effective)}"
+    class="bed {hospitalCapacityLevel(effective)}"
     data-tooltip={capacityTooltip(label, effective, total, reserved)}
   >
     <span class="bed-label">{label}</span>
     <span class="capacity" aria-label={`${label}: ${effective} frei von ${total}, ${reserved} vorgemerkt`}>
-      <span class="available {level(effective)}" style="width: {capacityShare(effective, total)}%"></span>
+      <span class="available {hospitalCapacityLevel(effective)}" style="width: {capacityShare(effective, total)}%"></span>
       {#if reserved > 0}
         <span class="reserved" style="width: {capacityShare(reserved, total)}%"></span>
       {/if}
     </span>
-    <span class="value {level(effective)}"><strong>{effective}</strong> frei <small>von {total}</small></span>
+    <span class="value {hospitalCapacityLevel(effective)}"><strong>{effective}</strong> frei <small>von {total}</small></span>
   </div>
 {/snippet}
 
@@ -67,7 +63,7 @@
     <h2>Krankenhäuser</h2>
   </div>
   <div class="panel-body">
-    {#each app.hospitals as h (h.id)}
+    {#each sortedHospitals as h (h.id)}
       {@const location = locationFor(h.name)}
       <div class="hospital">
         <div class="name" data-tooltip={h.name}>
@@ -204,7 +200,7 @@
   }
 
   .available.low {
-    background: var(--warn);
+    background: var(--hospital-capacity-low);
   }
 
   .available.full {
@@ -229,7 +225,7 @@
   }
 
   .value.low strong {
-    color: var(--warn-text);
+    color: var(--hospital-capacity-low-text);
   }
 
   .value.full strong {

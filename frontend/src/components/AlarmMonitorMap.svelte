@@ -28,7 +28,7 @@
       image?.naturalWidth && image?.naturalHeight
         ? { w: image.naturalWidth, h: image.naturalHeight }
         : { w: width, h: height };
-    const baseView: MapView = { width, height, natural, zoom: 1, pan: { x: 0, y: 0 } };
+    const baseView: MapView = { width, height, natural, contentRect: app.mapContentRect, zoom: 1, pan: { x: 0, y: 0 } };
     const focusedIncident = incidents.find((incident) => incident.event.id === focusEventId);
     const view = focusedIncident
       ? focusMapView(focusedIncident.event, app.mapBounds, baseView)
@@ -55,6 +55,7 @@
     void incidents;
     void focusEventId;
     void app.mapBounds;
+    void app.mapContentRect;
     void app.mapImageUrl;
     requestAnimationFrame(updatePositions);
   });

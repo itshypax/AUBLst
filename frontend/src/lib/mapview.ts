@@ -1,9 +1,10 @@
-import type { MapBounds } from './types';
+import type { MapBounds, MapContentRect } from './types';
 
 export interface MapView {
   zoom: number;
   pan: { x: number; y: number };
   natural: { w: number; h: number };
+  contentRect?: MapContentRect | null;
   width: number;
   height: number;
 }
@@ -31,18 +32,39 @@ export function imageDrawRect(view: MapView): { x: number; y: number; w: number;
   return { x: (cw - w) / 2, y: 0, w, h };
 }
 
+export function mapContentDrawRect(view: MapView): { x: number; y: number; w: number; h: number } {
+  const image = imageDrawRect(view);
+  const content = view.contentRect;
+  const imageWidth = view.natural.w;
+  const imageHeight = view.natural.h;
+  if (!content || imageWidth <= 0 || imageHeight <= 0) return image;
+  return {
+    x: image.x + (content.x / imageWidth) * image.w,
+    y: image.y + (content.y / imageHeight) * image.h,
+    w: (content.width / imageWidth) * image.w,
+    h: (content.height / imageHeight) * image.h,
+  };
+}
+
+export function screenPointInMapContent(pos: Point, view: MapView): boolean {
+  const sceneX = (pos.x - view.pan.x) / view.zoom;
+  const sceneY = (pos.y - view.pan.y) / view.zoom;
+  const content = mapContentDrawRect(view);
+  return sceneX >= content.x && sceneX <= content.x + content.w && sceneY >= content.y && sceneY <= content.y + content.h;
+}
+
 // Spielwelt nutzt eine gespiegelte Y-Achse
 export function worldToCanvas(pt: Point, bounds: MapBounds, view: MapView): Point {
   const nx = (pt.x - bounds.min_x) / (bounds.max_x - bounds.min_x || 1);
   const ny = (-pt.y - bounds.min_y) / (bounds.max_y - bounds.min_y || 1);
-  const d = imageDrawRect(view);
+  const d = mapContentDrawRect(view);
   return { x: d.x + nx * d.w, y: d.y + ny * d.h };
 }
 
 export function canvasToWorld(pos: Point, bounds: MapBounds, view: MapView): Point {
   const sceneX = (pos.x - view.pan.x) / view.zoom;
   const sceneY = (pos.y - view.pan.y) / view.zoom;
-  const d = imageDrawRect(view);
+  const d = mapContentDrawRect(view);
   const nx = (sceneX - d.x) / d.w;
   const ny = (sceneY - d.y) / d.h;
   const worldX = bounds.min_x + nx * (bounds.max_x - bounds.min_x);

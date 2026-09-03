@@ -23,6 +23,17 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Krankenhäuser', () => {
+  it('zeigt zwei freie Betten gelb und drei freie Betten grün', () => {
+    app.hospitals = [{ ...hospital(1, 'Uniklinik'), ward_available: 2, icu_available: 3 }];
+    render(HospitalsPanel);
+
+    const row = screen.getByText('Uniklinik').closest('.hospital') as HTMLElement;
+    const normal = within(row).getByText('Normal').closest('.bed') as HTMLElement;
+    const intensiv = within(row).getByText('Intensiv').closest('.bed') as HTMLElement;
+    expect(normal.querySelector('.available')?.classList.contains('low')).toBe(true);
+    expect(intensiv.querySelector('.available')?.classList.contains('ok')).toBe(true);
+  });
+
   it('zeigt Richtung und Kartenlage passend zum Krankenhaus', () => {
     render(HospitalsPanel);
 

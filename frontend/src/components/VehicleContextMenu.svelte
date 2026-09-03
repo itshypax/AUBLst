@@ -5,6 +5,7 @@
   import { isHospitalTransportUnit, mainTab } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
+  import { roadLocationLabel } from '../lib/routing';
   import { app, assignedEventForVehicle, canWrite, closeVehicleMenu, focusVehicle, showNotice } from '../lib/state.svelte';
   import type { IncidentLeaderRole } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
@@ -16,6 +17,7 @@
   const hospitalReservation = $derived(vehicle ? app.hospitalReservations.find((item) => item.vehicle_id === vehicle.id && item.status === 'reserved') : undefined);
   const canManageHospital = $derived(Boolean(vehicle && isTransportUnit && ([4, 5, 7].includes(Number(vehicle.status)) || hospitalReservation)));
   const currentEvent = $derived(vehicle ? assignedEventForVehicle(vehicle.id) : undefined);
+  const vehicleLocation = $derived(vehicle ? roadLocationLabel(vehicle, app.routing) : null);
   const leaderEvent = $derived(menu.eventId === undefined ? undefined : app.events.find((event) => event.id === menu.eventId && event.status === 'active'));
   const leaderAssignment = $derived(vehicle && leaderEvent ? app.assignments.find((assignment) => Number(assignment.event_id) === leaderEvent.id && Number(assignment.vehicle_id) === vehicle.id) : undefined);
   const eligibleLeaderRole = $derived.by((): IncidentLeaderRole | null => {
@@ -141,6 +143,7 @@
       <span class="vehicle-title">
         <span class="name">{vehicle.name || vehicle.type || vehicle.game_vehicle_id}</span>
         {#if currentEvent}<span class="assignment">{currentEvent.name || `Einsatz ${currentEvent.id}`}</span>{/if}
+        {#if vehicleLocation}<span class="assignment">{vehicleLocation}</span>{/if}
       </span>
     </div>
     <button class="item" role="menuitem" onclick={focus}>

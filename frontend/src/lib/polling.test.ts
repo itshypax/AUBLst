@@ -168,6 +168,49 @@ describe('Kartenabruf', () => {
     expect(mocks.apiGet.mock.calls.filter(([action]) => action === 'routing_get')).toHaveLength(2);
     expect(mocks.fetchMapImage).toHaveBeenCalledOnce();
   });
+
+  it('lädt geänderte Routingdateien bei laufender Sitzung neu', async () => {
+    const state = (routingVersion: string) => ({
+      session: {
+        token: 'demo',
+        mod_id: 'AUBMP',
+        routing_version: routingVersion,
+        map_bounds: { min_x: 0, min_y: 0, max_x: 1000, max_y: 1000 },
+      },
+      players: [],
+      vehicles: [],
+      hospitals: [],
+      events: [],
+      assignments: [],
+      hospital_reservations: [],
+      time: null,
+    });
+    const routings = [
+      { coordinate_space: 'world', meters_per_world_unit: 0.1, nodes: [], edges: [] },
+      {
+        coordinate_space: 'world',
+        meters_per_world_unit: 0.1,
+        nodes: [{ id: 'a', x: 0, y: 0 }, { id: 'b', x: 100, y: 0 }],
+        edges: [{ id: 'ab', from: 'a', to: 'b', kind: 'road', name: 'Hauptstraße' }],
+      },
+    ];
+    let stateRequests = 0;
+    let routingRequests = 0;
+    mocks.apiGet.mockImplementation((action: string) => {
+      if (action === 'state') return Promise.resolve(state(++stateRequests === 1 ? '100:10' : '101:20'));
+      return Promise.resolve(routings[routingRequests++]);
+    });
+    mocks.fetchMapImage.mockResolvedValue('blob:aubmp');
+    const { refreshState } = await import('./polling');
+
+    await refreshState();
+    await refreshState();
+
+    expect(routingRequests).toBe(2);
+    expect(mocks.fetchMapImage).toHaveBeenCalledOnce();
+    expect(app.routingVersion).toBe('101:20');
+    expect(app.routing.edges[0]?.name).toBe('Hauptstraße');
+  });
 });
 
 describe('Funk-Polling', () => {

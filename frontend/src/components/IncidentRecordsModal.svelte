@@ -4,6 +4,8 @@
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
   import { focusTrap } from '../lib/focus';
+  import { roadLocationLabel } from '../lib/routing';
+  import { app } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import type { EventArchiveItem, EventRecordResponse } from '../lib/types';
   import EmptyState from './EmptyState.svelte';
@@ -133,7 +135,7 @@
             <div><dt>Beginn</dt><dd>{when(record.event.created_at)}</dd></div>
             <div><dt>Letzte Änderung</dt><dd>{when(record.event.updated_at)}</dd></div>
             <div><dt>Quelle</dt><dd>{record.event.created_by === 'game' ? 'EM4' : 'Leitstelle'}</dd></div>
-            <div><dt>Position</dt><dd>{Number(record.event.x).toFixed(0)}, {Number(record.event.y).toFixed(0)}</dd></div>
+            <div><dt>Ort</dt><dd title={`Position ${Number(record.event.x).toFixed(0)}, ${Number(record.event.y).toFixed(0)}`}>{roadLocationLabel(record.event, app.routing) ?? `${Number(record.event.x).toFixed(0)}, ${Number(record.event.y).toFixed(0)}`}</dd></div>
           </dl>
           {#if record.note?.content && !record.feedback?.length}<section class="note"><h4>Notiz</h4><p>{record.note.content}</p></section>{/if}
           <section class="history"><h4>Verlauf</h4>

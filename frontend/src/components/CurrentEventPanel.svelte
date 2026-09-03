@@ -26,7 +26,7 @@
   } from '../lib/classify';
   import { reservationAffectsCapacity } from '../lib/hospital-reservations';
   import { refreshState } from '../lib/polling';
-  import { createRouteCalculator, formatDistance } from '../lib/routing';
+  import { createRouteCalculator, formatDistance, roadLocationLabel } from '../lib/routing';
   import { buildSpeechRequestEntries } from '../lib/speech-requests';
   import {
     app,
@@ -64,6 +64,7 @@
     app.assignEvent ? (app.events.find((event) => event.id === app.assignEvent?.id) ?? app.assignEvent) : null,
   );
   const currentEventId = $derived(currentEvent?.id ?? null);
+  const currentEventLocation = $derived(currentEvent ? roadLocationLabel(currentEvent, app.routing) : null);
   const assignedIds = $derived(
     new Set(
       app.assignments.filter((item) => Number(item.event_id) === currentEventId).map((item) => Number(item.vehicle_id)),
@@ -414,7 +415,7 @@
       <div class="event-title">
         <strong>{currentEvent.name || 'Einsatz'}</strong>
         <div class="event-meta">
-          <span>Position {currentEvent.x.toFixed(1)}, {currentEvent.y.toFixed(1)}</span>
+          <span title={`Position ${currentEvent.x.toFixed(1)}, ${currentEvent.y.toFixed(1)}`}>{currentEventLocation ?? `Position ${currentEvent.x.toFixed(1)}, ${currentEvent.y.toFixed(1)}`}</span>
           {#if eventTime()}<span class="event-time"><FaIcon icon={Clock3} size={12} />{eventTime()}</span>{/if}
         </div>
       </div>
