@@ -49,14 +49,16 @@ if (!$packageRoot.StartsWith($releasePrefix, [System.StringComparison]::OrdinalI
 New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
 if (Test-Path -LiteralPath $packageRoot) { Remove-Item -LiteralPath $packageRoot -Recurse -Force }
 New-Item -ItemType Directory -Force -Path (Join-Path $packageRoot 'backend') | Out-Null
-New-Item -ItemType Directory -Force -Path (Join-Path $packageRoot 'frontend') | Out-Null
 
 Copy-Item -Path (Join-Path $projectRoot 'backend/*') -Destination (Join-Path $packageRoot 'backend') -Recurse -Force
 $localConfig = Join-Path $packageRoot 'backend/config.local.php'
 if (Test-Path -LiteralPath $localConfig) { Remove-Item -LiteralPath $localConfig -Force }
 $backendTests = Join-Path $packageRoot 'backend/tests'
 if (Test-Path -LiteralPath $backendTests) { Remove-Item -LiteralPath $backendTests -Recurse -Force }
-Copy-Item -Path (Join-Path $frontendRoot 'dist/*') -Destination (Join-Path $packageRoot 'frontend') -Recurse -Force
+Copy-Item -Path (Join-Path $frontendRoot 'dist/*') -Destination $packageRoot -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'deployment/root.htaccess') -Destination (Join-Path $packageRoot '.htaccess') -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'deployment/frontend') -Destination (Join-Path $packageRoot 'frontend') -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'deployment/assets.htaccess') -Destination (Join-Path $packageRoot 'assets/.htaccess') -Force
 
 $zipPath = "$packageRoot.zip"
 if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
@@ -79,4 +81,4 @@ try {
 
 Write-Host "`nRelease erstellt:" -ForegroundColor Green
 Write-Host $zipPath
-Write-Host 'Der Inhalt passt direkt in aublst.hypax.wtf/backend und aublst.hypax.wtf/frontend.'
+Write-Host 'Der Inhalt passt direkt ins Document Root; das Frontend liegt auf / und die API auf /backend/.'

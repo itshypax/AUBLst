@@ -37,6 +37,7 @@ const ACTIONS = [
     'event_record'           => 'action_event_record',
     'sync'                   => 'action_sync',
     'mods_put'               => 'action_mods_put',
+    'map_asset'              => 'action_map_asset',
     'map_image'              => 'action_map_image',
     'routing_get'            => 'action_routing_get',
     'routing_put'            => 'action_routing_put',
@@ -69,13 +70,39 @@ const ACTIONS = [
     'log_viewed'             => 'action_log_viewed',
 ];
 
+const DISPATCHER_WRITE_ACTIONS = [
+    'session_monitor_hospital_capacity_set',
+    'events_create',
+    'events_finish',
+    'events_assign',
+    'events_reassign',
+    'events_set_leader',
+    'events_unassign',
+    'events_set_note',
+    'events_add_feedback',
+    'vehicles_assign_player',
+    'vehicles_alarm',
+    'hospital_reservation_set',
+    'hospital_reservation_clear',
+    'log_viewed',
+    'log_acknowledge',
+    'routing_put',
+];
+
 $action = $_GET['action'] ?? $_POST['action'] ?? null;
 
 try {
     if ($action === null || !isset(ACTIONS[$action])) {
         respond_json(400, ['error' => 'Unknown or missing action']);
     }
+    if ($action === 'map_asset') {
+        action_map_asset();
+    }
     $pdo = pdo_conn();
+    if (in_array($action, DISPATCHER_WRITE_ACTIONS, true)) {
+        $request = get_json_input();
+        require_session($pdo, $request['session_token'] ?? null, $request['pin'] ?? null, true);
+    }
     $handler = ACTIONS[$action];
     $handler($pdo);
 } catch (Throwable $e) {

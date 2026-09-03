@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/migrations.php';
 
-function pdo_conn(): PDO {
+function pdo_conn(bool $bootstrap = false): PDO {
     static $pdo = null;
     if ($pdo === null) {
         $options = [
@@ -24,8 +24,7 @@ function pdo_conn(): PDO {
             $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
         }
-        ensure_schema($pdo);
-        maybe_cleanup($pdo);
+        if ($bootstrap) ensure_schema($pdo);
     }
     return $pdo;
 }
@@ -45,28 +44,12 @@ function ensure_schema(PDO $pdo): void {
     run_migrations($pdo);
 }
 
-// Sessions ohne Aktivität seit einer Stunde entsorgen, alles Zugehörige
-// hängt per ON DELETE CASCADE dran. Läuft wie PHP-Session-GC nur ab und zu.
-function maybe_cleanup(PDO $pdo): void {
-    if (mt_rand(1, 50) !== 1) {
-        return;
-    }
-    $pdo->exec("DELETE s
-        FROM sessions s
-        LEFT JOIN (
-          SELECT session_id, MAX(created_at) AS last_log
-          FROM activity_logs
-          GROUP BY session_id
-        ) l ON l.session_id = s.id
-        LEFT JOIN (
-          SELECT session_id, MAX(created_at) AS last_cmd
-          FROM commands
-          GROUP BY session_id
-        ) c ON c.session_id = s.id
-        WHERE GREATEST(
-          IFNULL(s.updated_at, '1970-01-01'),
-          IFNULL(l.last_log, '1970-01-01'),
-          IFNULL(c.last_cmd, '1970-01-01')
-        ) < (NOW() - INTERVAL 1 HOUR)");
+function cleanup_expired_data(PDO $pdo): array {
+    $ttl = (int)SESSION_TTL_SECONDS;
+    $stmt = $pdo->prepare("DELETE FROM sessions
+        WHERE last_activity_at < DATE_SUB(NOW(), INTERVAL $ttl SECOND)");
+    $stmt->execute();
+    $sessions = $stmt->rowCount();
     $pdo->exec("DELETE FROM auth_rate_limits WHERE updated_at < (NOW() - INTERVAL 1 DAY)");
+    return ['sessions' => $sessions];
 }

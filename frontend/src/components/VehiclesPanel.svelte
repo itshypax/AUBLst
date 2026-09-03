@@ -5,8 +5,10 @@
   import { actionUnits, hasLoeschzug, isHiddenUnit, isHospitalTransportUnit, loeschzugFor, stationColumns, stationGroups, tabLabel, vehicleDisplayName, vehicleTypeLabel, type MainTab, type StationGroup } from '../lib/classify';
   import { refreshState } from '../lib/polling';
   import { roadLocationLabel } from '../lib/routing';
+  import { getSoundAlertConfig } from '../lib/sounds';
   import { app, canWrite, focusVehicle, openVehicleMenu, setDispatchVehicleIds, setHighlightedVehicle, toggleDispatchVehicle } from '../lib/state.svelte';
   import type { HospitalReservation, Vehicle } from '../lib/types';
+  import { UnassignedVehicleWarningTracker } from '../lib/vehicle-warnings';
   import EmptyState from './EmptyState.svelte';
   import StatusBadge from './StatusBadge.svelte';
 
@@ -38,11 +40,9 @@
   const hasVehicles = $derived(columns.some((col) => col.length));
   const fireStations = $derived(new Map(stationGroups(app.vehicles, 'fire').map((group) => [group.key, group])));
 
-  // Status 4 ohne Einsatzzuordnung länger als 90 s = nicht eingerückt
-  const NOT_RETURNED_MS = 90_000;
   let nowMs = $state(Date.now());
   let warnIds = $state<Set<number>>(new Set());
-  const status4Since = new Map<number, number>();
+  const unassignedVehicleWarnings = new UnassignedVehicleWarningTracker();
 
   $effect(() => {
     const timer = setInterval(() => (nowMs = Date.now()), 5000);
@@ -52,21 +52,7 @@
   $effect(() => {
     void nowMs;
     const assigned = new Set(app.assignments.map((a) => Number(a.vehicle_id)));
-    const now = Date.now();
-    const next = new Set<number>();
-    for (const v of app.vehicles) {
-      const lingering = Number(v.status) === 4 && !assigned.has(v.id);
-      if (!lingering) {
-        status4Since.delete(v.id);
-        continue;
-      }
-      if (!status4Since.has(v.id)) {
-        status4Since.set(v.id, now);
-      }
-      if (now - status4Since.get(v.id)! >= NOT_RETURNED_MS) {
-        next.add(v.id);
-      }
-    }
+    const next = unassignedVehicleWarnings.update(app.vehicles, assigned, nowMs, getSoundAlertConfig()).activeIds;
     if (next.size !== warnIds.size || [...next].some((id) => !warnIds.has(id))) {
       warnIds = next;
     }

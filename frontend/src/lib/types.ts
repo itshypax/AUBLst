@@ -97,9 +97,37 @@ export interface AlarmHistoryRow {
 export interface EventRecordResponse {
   event: EventItem;
   alarms: AlarmHistoryRow[];
-  logs: Array<Pick<LogRow, 'id' | 'type' | 'entity_id' | 'message' | 'long_message' | 'state' | 'updated_at'> & { created_at: string }>;
+  logs: Array<
+    Pick<LogRow, 'id' | 'type' | 'entity_id' | 'message' | 'long_message' | 'state' | 'updated_at'> & {
+      created_at: string;
+    }
+  >;
   note: (Pick<EventNote, 'id' | 'content'> & { created_at: string; updated_at: string }) | null;
   feedback: EventFeedback[];
+  journal?: EventJournalEntry[];
+  positions?: ReplayPosition[];
+}
+
+export interface EventJournalEntry {
+  id: number;
+  event_id: number;
+  source: 'dispatcher' | 'game' | 'system';
+  action_type: string;
+  summary: string;
+  payload?: string | null;
+  created_at: string;
+}
+
+export interface ReplayPosition {
+  id: number;
+  event_id: number;
+  vehicle_id: number;
+  game_vehicle_id: string;
+  vehicle_name: string | null;
+  x: number;
+  y: number;
+  status: number;
+  recorded_at: string;
 }
 
 export interface ClockTime {
@@ -192,6 +220,7 @@ export interface StatisticsVehicleStatus {
 export interface SessionStatisticsResponse {
   session: {
     token: string;
+    revision?: number;
     mod_id?: string | null;
     map_bounds?: MapBounds;
     created_at: string;
@@ -203,11 +232,18 @@ export interface SessionStatisticsResponse {
   log_count: number;
 }
 
+export interface UnchangedStateResponse {
+  unchanged: true;
+  revision: number;
+}
+
 export interface StateResponse {
   session: {
     token: string;
+    revision?: number;
     mod_id: string | null;
     routing_version?: string | null;
+    map_image_version?: string | null;
     map_bounds: MapBounds;
     map_content_rect?: MapContentRect | null;
     monitor_show_hospital_capacity?: boolean;

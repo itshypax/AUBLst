@@ -1,6 +1,6 @@
 # Technische Bewertung
 
-Stand: 16. August 2026
+Stand: 3. September 2026
 
 | Punkt | Ergebnis | Weitere Arbeit |
 | --- | --- | --- |
@@ -15,3 +15,11 @@ Stand: 16. August 2026
 | Smart Notifications | Opt-in Desktop-Meldungen informieren bei neuen Einsätzen und Sprechwünschen, wenn der Tab im Hintergrund ist. | Echtes Web Push braucht VAPID-Schlüssel, Subscription-Speicherung und eine Löschroutine. Das ist erst nötig, wenn Meldungen bei geschlossenem Browser gefordert sind. |
 | Toasts | Meldungen haben Titel, Statussymbol, Ablaufanzeige und Schließen-Schaltfläche. Alarmierungen erscheinen als `Alarmierung gesendet` mit Fahrzeuganzahl. | Bei parallelen Aktionen auf eine kleine Warteschlange erweitern. |
 | Statistik-Heatmap | Historische Einsatzorte werden mit der Live-Kartenprojektion auf das tatsächliche Kartenbild gelegt. | Zeit- und Kategoriefilter ergänzen, sobald Sitzungen genug Daten für sinnvolle Vergleiche enthalten. |
+| Datenbankstart | Migrationen laufen beim Containerstart oder explizit über `backend/bin/maintenance.php`; API-Requests prüfen das Schema nicht mehr. Die Bereinigung nutzt `last_activity_at` ohne Gruppierung über Logs und Befehle. | Auf klassischem Hosting den Migrationsbefehl nach jedem Upload und den Cleanup per Cron ausführen. |
+| Fahrzeugabgleich | Fahrzeugbestand wird einmal vorgeladen. Statushistorie, Klinikstatus und Rückkehr werden mit vorbereiteten beziehungsweise gebündelten Abfragen verarbeitet. Einsatzleiter werden nur für betroffene Einsätze neu berechnet. | Mit realen Adapterpaketen die Query-Zahl weiter beobachten. |
+| Zustandsabruf | Clients senden `known_revision`; unveränderte Antworten enthalten nur die Revision. APCu teilt den aufgebauten Zustand für fünf Sekunden zwischen parallelen Rechnern. | `STATE_CACHE_SECONDS` auf dem Zielserver anhand der Messwerte abstimmen. |
+| Frontend-Pfade | Das Frontend läuft auf `/`. `/frontend/` leitet samt Querystring und Fragment auf `/` weiter. Die API bleibt unter `/backend/api.php`. | Alte externe Links nach und nach auf `/` umstellen; die Weiterleitung bleibt bestehen. |
+| JavaScript-Bundles | Alarmmonitor, lokale Routing-Werkzeuge, Sitzungsübersicht und größere Dialoge werden erst bei Bedarf geladen. | `MapPanel` und `CurrentEventPanel` bei funktionalen Änderungen weiter zerlegen. |
+| Kartenübertragung | AUBMP wird als 604-kB-WebP statt als 1,68-MB-PNG ausgeliefert. Das PNG bleibt erhalten. Eine versionierte Karten-URL mit ETag enthält keine Sitzungsdaten. | Bei Änderungen `scripts/convert-map-webp.mjs` erneut ausführen. |
+| Einsatzakte | Disponentenaktionen werden ohne Namen als `Disponent` gespeichert. Zugeordnete Fahrzeuge liefern höchstens alle zehn Sekunden eine Position für die Wiedergabe. | Aufbewahrungsdauer anhand der tatsächlichen Datenmenge prüfen. |
+| Lastprüfung | CI startet eine echte MariaDB und prüft zwei Leitstellen sowie fünf Alarmmonitore parallel. | Vor großen Releases denselben Test zusätzlich gegen den Zielserver ausführen. |

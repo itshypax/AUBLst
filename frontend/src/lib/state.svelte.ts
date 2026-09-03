@@ -1,4 +1,17 @@
-import type { Assignment, ClockTime, EventItem, Hospital, HospitalReservation, LogRow, MapBounds, MapContentRect, MonitorHospitalCapacity, Player, Vehicle, VehicleStatusChange } from './types';
+import type {
+  Assignment,
+  ClockTime,
+  EventItem,
+  Hospital,
+  HospitalReservation,
+  LogRow,
+  MapBounds,
+  MapContentRect,
+  MonitorHospitalCapacity,
+  Player,
+  Vehicle,
+  VehicleStatusChange,
+} from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 import { normalizeSessionToken } from './session-token';
 import {
@@ -10,7 +23,7 @@ import {
 } from './ui-sync';
 
 export const app = $state({
-  apiBase: '../backend/api.php',
+  apiBase: '/backend/api.php',
   sessionToken: '',
   pin: '',
   connected: false,
@@ -34,6 +47,7 @@ export const app = $state({
   clock: null as ClockTime | null,
   modId: null as string | null,
   routingVersion: null as string | null,
+  mapImageVersion: null as string | null,
   mapImageUrl: '',
   routing: cloneRoutingConfig(DEFAULT_ROUTING_CONFIG) as RoutingConfig,
   logs: [] as LogRow[],
@@ -136,9 +150,10 @@ export function initSettings(): void {
   const storedVolume = Number(localStorage.getItem('soundVolume'));
   app.soundVolume = Number.isFinite(storedVolume) ? Math.min(1, Math.max(0, storedVolume)) : 0.7;
   app.soundProfile = localStorage.getItem('soundProfile') ?? 'standard';
-  app.desktopNotifications = localStorage.getItem('desktopNotifications') === 'true'
-    && typeof Notification !== 'undefined'
-    && Notification.permission === 'granted';
+  app.desktopNotifications =
+    localStorage.getItem('desktopNotifications') === 'true' &&
+    typeof Notification !== 'undefined' &&
+    Notification.permission === 'granted';
   app.colorMode = localStorage.getItem('colorMode') === 'light' ? 'light' : 'dark';
   document.documentElement.dataset.theme = app.colorMode;
 
@@ -219,6 +234,7 @@ export function resetSessionData(): void {
   app.clock = null;
   app.modId = null;
   app.routingVersion = null;
+  app.mapImageVersion = null;
   app.mapImageUrl = '';
   app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
   app.logs = [];
@@ -274,9 +290,11 @@ function setCurrentEvent(ev: EventItem, hostedRemotely: boolean): void {
 }
 
 export function toggleDispatchVehicle(vehicleId: number): void {
-  setDispatchVehicleIds(app.dispatchVehicleIds.includes(vehicleId)
-    ? app.dispatchVehicleIds.filter((id) => id !== vehicleId)
-    : [...app.dispatchVehicleIds, vehicleId]);
+  setDispatchVehicleIds(
+    app.dispatchVehicleIds.includes(vehicleId)
+      ? app.dispatchVehicleIds.filter((id) => id !== vehicleId)
+      : [...app.dispatchVehicleIds, vehicleId],
+  );
 }
 
 export function setDispatchVehicleIds(vehicleIds: number[]): void {
@@ -330,8 +348,11 @@ export function setHighlightFromSync(entity: 'event' | 'vehicle', id: number | n
 
 export function setDispatchSelectionFromSync(eventId: number, vehicleIds: number[]): void {
   if (app.assignEvent?.id !== eventId) return;
-  if (vehicleIds.length === app.dispatchVehicleIds.length
-    && vehicleIds.every((id, index) => id === app.dispatchVehicleIds[index])) return;
+  if (
+    vehicleIds.length === app.dispatchVehicleIds.length &&
+    vehicleIds.every((id, index) => id === app.dispatchVehicleIds[index])
+  )
+    return;
   app.dispatchVehicleIds = [...vehicleIds];
 }
 

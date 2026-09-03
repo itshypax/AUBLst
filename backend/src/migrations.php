@@ -226,6 +226,47 @@ function migration_definitions(): array {
                     ADD COLUMN monitor_show_hospital_capacity TINYINT(1) NOT NULL DEFAULT 0 AFTER max_y');
             }
         },
+        '2026090301_runtime_performance_and_replay' => static function (PDO $pdo): void {
+            if (!database_column_exists($pdo, 'sessions', 'last_activity_at')) {
+                $pdo->exec('ALTER TABLE sessions
+                    ADD COLUMN last_activity_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER revision');
+            }
+            if (!database_index_exists($pdo, 'sessions', 'idx_sessions_activity')) {
+                $pdo->exec('ALTER TABLE sessions ADD INDEX idx_sessions_activity (last_activity_at)');
+            }
+            if (!database_column_exists($pdo, 'assignments', 'last_position_sample_at')) {
+                $pdo->exec('ALTER TABLE assignments
+                    ADD COLUMN last_position_sample_at TIMESTAMP(6) NULL AFTER status');
+            }
+            $pdo->exec("CREATE TABLE IF NOT EXISTS event_journal (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                session_id INT NOT NULL,
+                event_id INT NOT NULL,
+                source ENUM('dispatcher','game','system') NOT NULL,
+                action_type VARCHAR(64) NOT NULL,
+                summary VARCHAR(1000) NOT NULL,
+                payload JSON NULL,
+                created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                INDEX idx_event_journal (session_id, event_id, created_at, id),
+                CONSTRAINT fk_event_journal_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                CONSTRAINT fk_event_journal_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+            $pdo->exec("CREATE TABLE IF NOT EXISTS vehicle_position_history (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                session_id INT NOT NULL,
+                event_id INT NOT NULL,
+                vehicle_id INT NOT NULL,
+                x DOUBLE NOT NULL,
+                y DOUBLE NOT NULL,
+                status TINYINT UNSIGNED NOT NULL,
+                recorded_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                INDEX idx_position_replay (session_id, event_id, recorded_at, id),
+                INDEX idx_position_vehicle (session_id, vehicle_id, recorded_at),
+                CONSTRAINT fk_position_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                CONSTRAINT fk_position_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+                CONSTRAINT fk_position_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+        },
     ];
 }
 

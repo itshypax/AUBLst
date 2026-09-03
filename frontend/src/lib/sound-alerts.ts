@@ -1,6 +1,7 @@
 import { buildSpeechRequestEntries } from './speech-requests';
 import type { SoundAlertConfig, SoundCue } from './sounds';
 import type { Assignment, EventItem, LogRow, Vehicle } from './types';
+import { UnassignedVehicleWarningTracker } from './vehicle-warnings';
 
 interface SoundAlertState {
   vehicles: Vehicle[];
@@ -19,22 +20,14 @@ function addCue(cues: SoundCue[], cue: SoundCue): void {
   if (!cues.includes(cue)) cues.push(cue);
 }
 
-const UNASSIGNED_VEHICLE_GRACE_MS = 10_000;
-
-interface UnassignedVehicleState {
-  status: number;
-  since: number;
-  announced: boolean;
-}
-
 export class SoundAlertTracker {
-  private unassignedVehicleStatuses = new Map<number, UnassignedVehicleState>();
+  private unassignedVehicleWarnings = new UnassignedVehicleWarningTracker();
   private cStatusSince = new Map<number, number>();
   private announcedCStatuses = new Set<number>();
   private announcedSpeechRequests = new Set<string>();
 
   reset(): void {
-    this.unassignedVehicleStatuses.clear();
+    this.unassignedVehicleWarnings.reset();
     this.cStatusSince.clear();
     this.announcedCStatuses.clear();
     this.announcedSpeechRequests.clear();
@@ -48,29 +41,16 @@ export class SoundAlertTracker {
     const assignedVehicleIds = new Set(state.assignments
       .filter((assignment) => activeEventIds.has(Number(assignment.event_id)))
       .map((assignment) => Number(assignment.vehicle_id)));
-    const warningStatuses = new Set(config.unassignedVehicleStatuses);
-    const warningExceptions = new Set(config.unassignedVehicleExceptions);
-    const unassignedVehicleStatuses = new Map(state.vehicles
-      .filter((vehicle) => warningStatuses.has(Number(vehicle.status))
-        && !assignedVehicleIds.has(vehicle.id)
-        && !warningExceptions.has(vehicle.game_vehicle_id.trim().toUpperCase()))
-      .map((vehicle) => [vehicle.id, Number(vehicle.status)]));
-
-    const trackedUnassignedVehicles = new Map<number, UnassignedVehicleState>();
-    for (const [id, status] of unassignedVehicleStatuses) {
-      const previous = this.unassignedVehicleStatuses.get(id);
-      const tracked = previous?.status === status
-        ? previous
-        : { status, since: now, announced: false };
-
-      if (!tracked.announced && now - tracked.since >= UNASSIGNED_VEHICLE_GRACE_MS) {
-        if (status === 3) addCue(cues, 'unassigned-vehicle-status-3');
-        if (status === 4) addCue(cues, 'unassigned-vehicle-status-4');
-        tracked.announced = true;
-      }
-      trackedUnassignedVehicles.set(id, tracked);
+    const vehicleWarnings = this.unassignedVehicleWarnings.update(
+      state.vehicles,
+      assignedVehicleIds,
+      now,
+      config,
+    );
+    for (const status of vehicleWarnings.activatedStatuses) {
+      if (status === 3) addCue(cues, 'unassigned-vehicle-status-3');
+      if (status === 4) addCue(cues, 'unassigned-vehicle-status-4');
     }
-    this.unassignedVehicleStatuses = trackedUnassignedVehicles;
 
     const vehiclesInC = new Set<number>();
     for (const vehicle of state.vehicles) {

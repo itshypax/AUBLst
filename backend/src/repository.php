@@ -24,7 +24,13 @@ function ensure_mod_row(PDO $pdo, ?string $mod_id): void {
 }
 
 function touch_session(PDO $pdo, $session_id): void {
-    $stmt = $pdo->prepare('UPDATE sessions SET revision = revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    $stmt = $pdo->prepare('UPDATE sessions SET revision = revision + 1,
+        last_activity_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    $stmt->execute([$session_id]);
+}
+
+function mark_session_activity(PDO $pdo, $session_id): void {
+    $stmt = $pdo->prepare('UPDATE sessions SET last_activity_at = CURRENT_TIMESTAMP WHERE id = ?');
     $stmt->execute([$session_id]);
 }
 
@@ -58,66 +64,126 @@ function vehicle_update_requires_leader_reconcile($saved, array $veh): bool {
     return $status_changed || $type_changed;
 }
 
-function upsert_vehicle(PDO $pdo, $session_id, array $veh, ?bool &$leaders_dirty = null) {
-    $stmt = $pdo->prepare('SELECT * FROM vehicles WHERE session_id = ? AND game_vehicle_id = ?');
-    $stmt->execute([$session_id, $veh['game_vehicle_id']]);
-    $saved = $stmt->fetch();
-    if (vehicle_update_requires_leader_reconcile($saved, $veh)) $leaders_dirty = true;
+function sql_placeholders(array $values): string {
+    return implode(',', array_fill(0, count($values), '?'));
+}
 
-    $stmt = $pdo->prepare('INSERT INTO vehicles (session_id, game_vehicle_id, name, type, modes, x, y, status)
+function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders_dirty = null, ?array &$leader_event_ids = null): array {
+    $updates = [];
+    foreach ($vehicles as $vehicle) {
+        if (!is_array($vehicle)) continue;
+        $gameId = trim((string)($vehicle['game_vehicle_id'] ?? ''));
+        if ($gameId === '') continue;
+        $vehicle['game_vehicle_id'] = $gameId;
+        $updates[$gameId] = $vehicle;
+    }
+    if (!$updates) return [];
+
+    $gameIds = array_keys($updates);
+    $lookup = $pdo->prepare('SELECT * FROM vehicles WHERE session_id = ? AND game_vehicle_id IN (' . sql_placeholders($gameIds) . ')');
+    $lookup->execute(array_merge([$session_id], $gameIds));
+    $savedByGameId = [];
+    foreach ($lookup->fetchAll() as $row) $savedByGameId[(string)$row['game_vehicle_id']] = $row;
+
+    $upsert = $pdo->prepare('INSERT INTO vehicles (session_id, game_vehicle_id, name, type, modes, x, y, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE name = VALUES(name), type = VALUES(type), modes = VALUES(modes),
-            x = VALUES(x), y = VALUES(y), status = VALUES(status), updated_at = CURRENT_TIMESTAMP');
-    $stmt->execute([
-        $session_id,
-        $veh['game_vehicle_id'],
-        check_options('name', $saved, $veh, $veh['game_vehicle_id']),
-        check_options('type', $saved, $veh, 'None'),
-        check_options('modes', $saved, $veh, null),
-        check_options('x', $saved, $veh, 0),
-        check_options('y', $saved, $veh, 0),
-        check_options('status', $saved, $veh, 2),
-    ]);
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), name = VALUES(name), type = VALUES(type),
+            modes = VALUES(modes), x = VALUES(x), y = VALUES(y), status = VALUES(status), updated_at = CURRENT_TIMESTAMP');
+    $history = $pdo->prepare('INSERT INTO vehicle_status_history
+        (session_id, vehicle_id, game_vehicle_id, vehicle_name, status) VALUES (?, ?, ?, ?, ?)');
 
-    $current = get_vehicle_by_game_id($pdo, $session_id, $veh['game_vehicle_id']);
+    $currentRows = [];
+    $changedLeaderVehicleIds = [];
+    $arrivedVehicleIds = [];
+    $clearedVehicleIds = [];
+    $returnedVehicleIds = [];
+    foreach ($updates as $gameId => $vehicle) {
+        $saved = $savedByGameId[$gameId] ?? false;
+        $row = [
+            'name' => check_options('name', $saved, $vehicle, $gameId),
+            'type' => check_options('type', $saved, $vehicle, 'None'),
+            'modes' => check_options('modes', $saved, $vehicle, null),
+            'x' => check_options('x', $saved, $vehicle, 0),
+            'y' => check_options('y', $saved, $vehicle, 0),
+            'status' => check_options('status', $saved, $vehicle, 2),
+        ];
+        $upsert->execute([$session_id, $gameId, $row['name'], $row['type'], $row['modes'], $row['x'], $row['y'], $row['status']]);
+        $vehicleId = $saved ? (int)$saved['id'] : (int)$pdo->lastInsertId();
+        $current = array_merge($saved ?: [], $row, [
+            'id' => $vehicleId,
+            'session_id' => $session_id,
+            'game_vehicle_id' => $gameId,
+        ]);
+        $currentRows[] = $current;
 
-    if ($current && array_key_exists('status', $veh) && valid_vehicle_status($veh['status'])) {
-        $status = (int)$veh['status'];
-        $previous_status = $saved !== false && isset($saved['status']) ? (int)$saved['status'] : null;
-        if ($previous_status === null || $previous_status !== $status) {
-            $stmt = $pdo->prepare('INSERT INTO vehicle_status_history
-                (session_id, vehicle_id, game_vehicle_id, vehicle_name, status)
-                VALUES (?, ?, ?, ?, ?)');
-            $stmt->execute([
-                $session_id,
-                $current['id'],
-                $current['game_vehicle_id'],
-                $current['name'],
-                $status,
-            ]);
+        if (vehicle_update_requires_leader_reconcile($saved, $vehicle)) {
+            $leaders_dirty = true;
+            $changedLeaderVehicleIds[] = $vehicleId;
+        }
+        if (array_key_exists('status', $vehicle) && valid_vehicle_status($vehicle['status'])) {
+            $status = (int)$vehicle['status'];
+            $previousStatus = $saved !== false && isset($saved['status']) ? (int)$saved['status'] : null;
+            if ($previousStatus === null || $previousStatus !== $status) {
+                $history->execute([$session_id, $vehicleId, $gameId, $row['name'], $status]);
+            }
+            if ($status === 8) $arrivedVehicleIds[] = $vehicleId;
+            if (in_array($status, [1, 2], true)) $clearedVehicleIds[] = $vehicleId;
+            if ($status === 2) $returnedVehicleIds[] = $vehicleId;
         }
     }
 
-    if (isset($veh['status']) && $current) {
-        $status = (int)$veh['status'];
-        if ($status === 8) {
-            $stmt = $pdo->prepare("UPDATE hospital_reservations
-                SET status = 'arrived', arrived_at = COALESCE(arrived_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
-                WHERE session_id = ? AND vehicle_id = ? AND status = 'reserved'");
-            $stmt->execute([$session_id, $current['id']]);
-        } elseif (in_array($status, [1, 2], true)) {
-            $stmt = $pdo->prepare("DELETE FROM hospital_reservations
-                WHERE session_id = ? AND vehicle_id = ?");
-            $stmt->execute([$session_id, $current['id']]);
-        }
+    $allVehicleIds = array_values(array_unique(array_map(static fn(array $row): int => (int)$row['id'], $currentRows)));
+    $sample = $pdo->prepare('INSERT INTO vehicle_position_history (session_id, event_id, vehicle_id, x, y, status)
+        SELECT a.session_id, a.event_id, v.id, v.x, v.y, v.status
+        FROM assignments a
+        JOIN events e ON e.id = a.event_id AND e.session_id = a.session_id AND e.status = \'active\'
+        JOIN vehicles v ON v.id = a.vehicle_id AND v.session_id = a.session_id
+        WHERE a.session_id = ? AND a.vehicle_id IN (' . sql_placeholders($allVehicleIds) . ')
+          AND (a.last_position_sample_at IS NULL OR a.last_position_sample_at <= DATE_SUB(NOW(6), INTERVAL 10 SECOND))');
+    $sample->execute(array_merge([$session_id], $allVehicleIds));
+    if ($sample->rowCount() > 0) {
+        $stamp = $pdo->prepare('UPDATE assignments SET last_position_sample_at = NOW(6)
+            WHERE session_id = ? AND vehicle_id IN (' . sql_placeholders($allVehicleIds) . ')
+              AND (last_position_sample_at IS NULL OR last_position_sample_at <= DATE_SUB(NOW(6), INTERVAL 10 SECOND))');
+        $stamp->execute(array_merge([$session_id], $allVehicleIds));
     }
 
-    // Status 2 = back at station, drop any assignment
-    if (isset($veh['status']) && $veh['status'] == 2 && isset($saved['id'])) {
-        if (unassign_vehicle($pdo, $session_id, $saved['id']) > 0) $leaders_dirty = true;
+    if ($changedLeaderVehicleIds) {
+        $ids = array_values(array_unique($changedLeaderVehicleIds));
+        $affected = $pdo->prepare('SELECT DISTINCT event_id FROM assignments
+            WHERE session_id = ? AND vehicle_id IN (' . sql_placeholders($ids) . ')');
+        $affected->execute(array_merge([$session_id], $ids));
+        $leader_event_ids = array_values(array_unique(array_merge(
+            $leader_event_ids ?? [],
+            array_map('intval', $affected->fetchAll(PDO::FETCH_COLUMN))
+        )));
     }
+    if ($arrivedVehicleIds) {
+        $stmt = $pdo->prepare("UPDATE hospital_reservations SET status = 'arrived',
+            arrived_at = COALESCE(arrived_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+            WHERE session_id = ? AND status = 'reserved' AND vehicle_id IN (" . sql_placeholders($arrivedVehicleIds) . ')');
+        $stmt->execute(array_merge([$session_id], $arrivedVehicleIds));
+    }
+    if ($clearedVehicleIds) {
+        $stmt = $pdo->prepare('DELETE FROM hospital_reservations WHERE session_id = ? AND vehicle_id IN (' . sql_placeholders($clearedVehicleIds) . ')');
+        $stmt->execute(array_merge([$session_id], $clearedVehicleIds));
+    }
+    if ($returnedVehicleIds) {
+        $stmt = $pdo->prepare('SELECT DISTINCT event_id FROM assignments WHERE session_id = ? AND vehicle_id IN (' . sql_placeholders($returnedVehicleIds) . ')');
+        $stmt->execute(array_merge([$session_id], $returnedVehicleIds));
+        $leader_event_ids = array_values(array_unique(array_merge(
+            $leader_event_ids ?? [],
+            array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN))
+        )));
+        $stmt = $pdo->prepare('DELETE FROM assignments WHERE session_id = ? AND vehicle_id IN (' . sql_placeholders($returnedVehicleIds) . ')');
+        $stmt->execute(array_merge([$session_id], $returnedVehicleIds));
+        if ($stmt->rowCount() > 0) $leaders_dirty = true;
+    }
+    return $currentRows;
+}
 
-    return $current;
+function upsert_vehicle(PDO $pdo, $session_id, array $vehicle, ?bool &$leaders_dirty = null, ?array &$leader_event_ids = null) {
+    return upsert_vehicles($pdo, $session_id, [$vehicle], $leaders_dirty, $leader_event_ids)[0] ?? false;
 }
 
 function unassign_vehicle(PDO $pdo, $session_id, $vehicle_id): int {
@@ -183,10 +249,55 @@ function record_event_leader_change(
     if ($content === null) return;
     $stmt = $pdo->prepare('INSERT INTO event_feedback (session_id, event_id, content) VALUES (?, ?, ?)');
     $stmt->execute([$session_id, $event_id, $content]);
+    if ($automatic) {
+        record_event_journal($pdo, $session_id, $event_id, 'system', 'leader_changed', $content);
+    }
 }
 
-function reconcile_event_leaders(PDO $pdo, $session_id, bool $record_feedback = true): bool {
+function record_event_journal(
+    PDO $pdo,
+    $session_id,
+    int $event_id,
+    string $source,
+    string $action_type,
+    string $summary,
+    array $payload = []
+): void {
+    if (!in_array($source, ['dispatcher', 'game', 'system'], true)) $source = 'system';
+    $stmt = $pdo->prepare('INSERT INTO event_journal
+        (session_id, event_id, source, action_type, summary, payload) VALUES (?, ?, ?, ?, ?, ?)');
+    $stmt->execute([
+        $session_id,
+        $event_id,
+        $source,
+        substr($action_type, 0, 64),
+        substr($summary, 0, 1000),
+        $payload ? json_encode($payload, JSON_UNESCAPED_UNICODE) : null,
+    ]);
+}
+
+function record_vehicle_event_journal(
+    PDO $pdo,
+    $session_id,
+    int $vehicle_id,
+    string $action_type,
+    string $summary
+): void {
+    $stmt = $pdo->prepare("SELECT DISTINCT a.event_id FROM assignments a
+        JOIN events e ON e.id = a.event_id AND e.session_id = a.session_id AND e.status = 'active'
+        WHERE a.session_id = ? AND a.vehicle_id = ?");
+    $stmt->execute([$session_id, $vehicle_id]);
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $eventId) {
+        record_event_journal($pdo, $session_id, (int)$eventId, 'dispatcher', $action_type, $summary);
+    }
+}
+
+function reconcile_event_leaders(PDO $pdo, $session_id, bool $record_feedback = true, ?array $event_ids = null): bool {
     $changed = false;
+    $event_ids = $event_ids === null ? null : array_values(array_unique(array_filter(array_map('intval', $event_ids))));
+    if ($event_ids !== null && !$event_ids) return false;
+    $leaderFilter = $event_ids === null ? '' : ' AND leaders.event_id IN (' . sql_placeholders($event_ids) . ')';
+    $leaderParams = $event_ids === null ? [$session_id] : array_merge([$session_id], $event_ids);
     $invalid = $pdo->prepare('SELECT leaders.event_id, leaders.role, leaders.vehicle_id, e.status AS event_status
         FROM event_leaders leaders
         LEFT JOIN assignments a ON a.session_id = leaders.session_id
@@ -194,8 +305,8 @@ function reconcile_event_leaders(PDO $pdo, $session_id, bool $record_feedback = 
         LEFT JOIN vehicles v ON v.session_id = leaders.session_id AND v.id = leaders.vehicle_id
         LEFT JOIN events e ON e.session_id = leaders.session_id AND e.id = leaders.event_id
         WHERE leaders.session_id = ?
-          AND (a.id IS NULL OR v.status NOT IN (3, 4) OR e.status <> \'active\')');
-    $invalid->execute([$session_id]);
+          AND (a.id IS NULL OR v.status NOT IN (3, 4) OR e.status <> \'active\')' . $leaderFilter);
+    $invalid->execute($leaderParams);
     $invalidLeaders = $invalid->fetchAll();
 
     $stmt = $pdo->prepare('DELETE leaders FROM event_leaders leaders
@@ -204,8 +315,8 @@ function reconcile_event_leaders(PDO $pdo, $session_id, bool $record_feedback = 
         LEFT JOIN vehicles v ON v.session_id = leaders.session_id AND v.id = leaders.vehicle_id
         LEFT JOIN events e ON e.session_id = leaders.session_id AND e.id = leaders.event_id
         WHERE leaders.session_id = ?
-          AND (a.id IS NULL OR v.status NOT IN (3, 4) OR e.status <> \'active\')');
-    $stmt->execute([$session_id]);
+          AND (a.id IS NULL OR v.status NOT IN (3, 4) OR e.status <> \'active\')' . $leaderFilter);
+    $stmt->execute($leaderParams);
     $changed = $stmt->rowCount() > 0;
 
     $previousLeaders = ['fire' => [], 'medical' => []];
@@ -217,8 +328,9 @@ function reconcile_event_leaders(PDO $pdo, $session_id, bool $record_feedback = 
         if (isset($previousLeaders[$role])) $previousLeaders[$role][$eventId] = $vehicleId;
     }
 
-    $events = $pdo->prepare("SELECT id FROM events WHERE session_id = ? AND status = 'active'");
-    $events->execute([$session_id]);
+    $activeFilter = $event_ids === null ? '' : ' AND id IN (' . sql_placeholders($event_ids) . ')';
+    $events = $pdo->prepare("SELECT id FROM events WHERE session_id = ? AND status = 'active'" . $activeFilter);
+    $events->execute($event_ids === null ? [$session_id] : array_merge([$session_id], $event_ids));
     $vehicles = $pdo->prepare('SELECT v.id, v.game_vehicle_id, v.name, v.type, v.status,
             COALESCE(
                 MIN(CASE WHEN h.status = 4 AND h.created_at >= a.created_at THEN h.created_at END),

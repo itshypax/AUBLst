@@ -32,10 +32,12 @@ Spiele gleichzeitig bedienen.
 3. Für den öffentlichen Betrieb in derselben Datei die Frontend-Adresse bei
    `CORS_ALLOW_ORIGIN` eintragen und `REQUIRE_SESSION_PIN` aktivieren.
 
-Beim ersten Request legt das Backend Datenbank und Tabellen selbst an
-(`backend/src/schema.sql`), sofern der DB-Benutzer die Rechte dazu hat.
-Spätere Schemaänderungen laufen einmalig über die versionierten Migrationen.
-Sessions ohne Aktivität werden nach einer Stunde automatisch aufgeräumt.
+Vor dem ersten Start und nach Updates wird das Schema einmalig mit
+`php backend/bin/maintenance.php migrate` eingespielt. Im Docker-Image passiert
+das beim Containerstart. Normale API-Requests führen deshalb keine DDL-Abfragen
+mehr aus. `php backend/bin/maintenance.php cleanup` entfernt abgelaufene
+Sessions anhand von `last_activity_at`; Docker ruft den Befehl alle fünf Minuten
+auf.
 Wiederholte falsche Sitzungs- oder PIN-Eingaben werden vorübergehend gesperrt.
 
 ### Kartenbilder
@@ -71,15 +73,11 @@ geschrieben. Ein automatisches Deployment muss deshalb nach `git pull` auch
 `npm run build` ausführen. Falls dort kein Git-Verzeichnis verfügbar ist,
 kann die ID über `VITE_APP_COMMIT` gesetzt werden.
 
-Den Inhalt von `frontend/dist/` neben den `backend/`-Ordner legen — als
-Unterordner (z. B. `frontend/`) oder direkt ins Webroot neben `backend/`.
-Die Oberfläche sucht die API standardmäßig unter `../backend/api.php`, was
-in beiden Fällen passt; ein anderer Pfad lässt sich per URL-Parameter
-`api_base` setzen.
-
-Liegt die Oberfläche im Webroot, zeigt der Öffnen-Button des EMLstAdapters
-weiter auf `/frontend` — dafür eine Weiterleitung von `/frontend` auf `/`
-einrichten oder den Link im Adapter ignorieren.
+Den Inhalt von `frontend/dist/` direkt ins Webroot neben `backend/` legen. Die
+Leitstelle läuft dann unter `/`, die API bleibt unter `/backend/api.php`. Das
+Release-Paket enthält eine Weiterleitung von `/frontend/` nach `/`. Querystring
+und URL-Fragment bleiben erhalten, daher funktionieren alte Adapterlinks mit
+`session_token`, `pin`, `view`, `monitor`, `api_base` und `workspace` weiter.
 
 Aufruf dann z. B.:
 
@@ -161,8 +159,9 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
 - `POST api.php?action=vehicles_alarm` – Einheit ohne Einsatz alarmieren
   (für Aktionen wie Sperrungen; der Adapter erhält ein assign mit event_id -1)
 
-Schreibende Leitstellen-Actions prüfen die Session-PIN, sofern eine gesetzt
-ist. Befehle an das Spiel landen in der `commands`-Tabelle und werden per
+Schreibende Leitstellen-Actions prüfen die Session-PIN zentral, sofern die
+Sitzung eine PIN hat. Ohne gesetzte PIN reicht weiterhin der vierstellige Code.
+Befehle an das Spiel landen in der `commands`-Tabelle und werden per
 `commands_pending`/`commands_ack` abgeholt – daran hat sich gegenüber
 EMDispatch nichts geändert, bestehende Spielanbindungen laufen unverändert
 weiter.
@@ -282,8 +281,9 @@ und die verbleibenden Schritte stehen in
 
 ### Manuelles Plesk-Release
 
-Das Release-Skript prüft das Frontend, baut `dist` und legt ein ZIP mit genau
-den beiden Plesk-Ordnern `backend/` und `frontend/` unter `.release/` ab:
+Das Release-Skript prüft das Frontend, baut `dist` und legt unter `.release/`
+ein ZIP für das Document Root an. Der Build liegt auf `/`, `backend/` bleibt
+ein Unterordner und `frontend/` enthält nur die alte Weiterleitung:
 
 ```powershell
 .\scripts\build-release.ps1

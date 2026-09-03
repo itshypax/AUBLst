@@ -6,17 +6,18 @@ function action_update_vehicles(PDO $pdo): void {
     $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
     $sid = $session['id'];
 
-    $leaders_dirty = false;
-    foreach (($data['updates'] ?? []) as $u) {
+    $updates = $data['updates'] ?? [];
+    foreach ($updates as $u) {
         if (isset($u['status'])) {
             if (!valid_vehicle_status($u['status'])) {
                 respond_json(400, ['error' => 'Ungültiger Fahrzeugstatus.']);
             }
         }
-
-        upsert_vehicle($pdo, $sid, $u, $leaders_dirty);
     }
-    if ($leaders_dirty) reconcile_event_leaders($pdo, $sid);
+    $leaders_dirty = false;
+    $leader_event_ids = [];
+    upsert_vehicles($pdo, $sid, $updates, $leaders_dirty, $leader_event_ids);
+    if ($leaders_dirty) reconcile_event_leaders($pdo, $sid, true, $leader_event_ids);
     touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }
@@ -56,7 +57,7 @@ function action_vehicles_alarm(PDO $pdo): void {
 
 function action_vehicles_assign_player(PDO $pdo): void {
     $data = get_json_input();
-    $session = require_session($pdo, $data['session_token'] ?? null);
+    $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
     $sid = $session['id'];
 
     $vehicle_id = $data['vehicle_id'] ?? null;
@@ -65,6 +66,13 @@ function action_vehicles_assign_player(PDO $pdo): void {
 
     $stmt = $pdo->prepare('UPDATE vehicles SET assigned_player_id = ? WHERE id = ? AND session_id = ?');
     $stmt->execute([$player_id, $vehicle_id, $sid]);
+    $vehicle = $pdo->prepare('SELECT game_vehicle_id, name FROM vehicles WHERE session_id = ? AND id = ?');
+    $vehicle->execute([$sid, $vehicle_id]);
+    $vehicle = $vehicle->fetch();
+    if ($vehicle) {
+        $label = trim((string)($vehicle['name'] ?? '')) ?: (string)$vehicle['game_vehicle_id'];
+        record_vehicle_event_journal($pdo, $sid, (int)$vehicle_id, 'player_assigned', $label . ' einem Spieler zugewiesen');
+    }
     touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }

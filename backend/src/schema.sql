@@ -1,4 +1,4 @@
--- Wird beim ersten Request automatisch eingespielt (siehe src/database.php).
+-- Wird vor dem Webserver-Start oder mit backend/bin/maintenance.php migrate eingespielt.
 
 SET NAMES utf8mb4;
 
@@ -24,8 +24,10 @@ CREATE TABLE IF NOT EXISTS sessions (
   max_y DOUBLE DEFAULT 1000,
   monitor_show_hospital_capacity TINYINT(1) NOT NULL DEFAULT 0,
   revision BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  last_activity_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_sessions_activity (last_activity_at),
   CONSTRAINT fk_sessions_mod FOREIGN KEY (mod_id) REFERENCES mods(mod_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -133,6 +135,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   vehicle_id INT NOT NULL,
   assigned_player_id INT NULL,
   status ENUM('enroute','on_scene','completed','canceled') DEFAULT 'enroute',
+  last_position_sample_at TIMESTAMP(6) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uniq_assignment (event_id, vehicle_id),
@@ -182,6 +185,36 @@ CREATE TABLE IF NOT EXISTS event_feedback (
   INDEX idx_event_feedback (session_id, event_id, created_at, id),
   CONSTRAINT fk_event_feedback_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
   CONSTRAINT fk_event_feedback_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS event_journal (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  session_id INT NOT NULL,
+  event_id INT NOT NULL,
+  source ENUM('dispatcher','game','system') NOT NULL,
+  action_type VARCHAR(64) NOT NULL,
+  summary VARCHAR(1000) NOT NULL,
+  payload JSON NULL,
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  INDEX idx_event_journal (session_id, event_id, created_at, id),
+  CONSTRAINT fk_event_journal_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_event_journal_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS vehicle_position_history (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  session_id INT NOT NULL,
+  event_id INT NOT NULL,
+  vehicle_id INT NOT NULL,
+  x DOUBLE NOT NULL,
+  y DOUBLE NOT NULL,
+  status TINYINT UNSIGNED NOT NULL,
+  recorded_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  INDEX idx_position_replay (session_id, event_id, recorded_at, id),
+  INDEX idx_position_vehicle (session_id, vehicle_id, recorded_at),
+  CONSTRAINT fk_position_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_position_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+  CONSTRAINT fk_position_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS commands (

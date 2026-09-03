@@ -50,6 +50,36 @@ beforeEach(() => {
 });
 
 describe('Kartenabruf', () => {
+  it('sendet die bekannte Revision und übernimmt eine unveränderte Antwort ohne Neuaufbau', async () => {
+    const state = {
+      session: {
+        token: 'demo',
+        revision: 7,
+        mod_id: null,
+        map_bounds: { min_x: 0, min_y: 0, max_x: 1000, max_y: 1000 },
+      },
+      players: [],
+      vehicles: [],
+      hospitals: [],
+      events: [],
+      assignments: [],
+      hospital_reservations: [],
+      status_history: [],
+      time: null,
+    };
+    mocks.apiGet.mockResolvedValueOnce(state).mockResolvedValueOnce({ unchanged: true, revision: 7 });
+    const { refreshState, switchSession } = await import('./polling');
+
+    await switchSession('/backend/api.php', 'demo', '', { readOnly: true });
+    await refreshState();
+    const vehicles = app.vehicles;
+    await refreshState();
+
+    expect(mocks.apiGet).toHaveBeenLastCalledWith('monitor_state', { known_revision: 7 }, expect.any(Object));
+    expect(app.vehicles).toBe(vehicles);
+    expect(app.stateHealthy).toBe(true);
+  });
+
   it('verwendet für den Alarmmonitor nur den schlanken Zustandsabruf', async () => {
     const state = {
       session: {
@@ -86,7 +116,9 @@ describe('Kartenabruf', () => {
   });
 
   it('lädt den Fahrzeugstatusverlauf getrennt vom Live-Zustand', async () => {
-    const history = [{ id: 9, game_vehicle_id: '1_HLF_1', vehicle_name: '1-HLF-1', status: 4, created_at: '2026-08-29 20:00:00' }];
+    const history = [
+      { id: 9, game_vehicle_id: '1_HLF_1', vehicle_name: '1-HLF-1', status: 4, created_at: '2026-08-29 20:00:00' },
+    ];
     mocks.apiGet.mockResolvedValue({ status_history: history });
     const { refreshStatusHistory } = await import('./polling');
 
@@ -190,7 +222,10 @@ describe('Kartenabruf', () => {
       {
         coordinate_space: 'world',
         meters_per_world_unit: 0.1,
-        nodes: [{ id: 'a', x: 0, y: 0 }, { id: 'b', x: 100, y: 0 }],
+        nodes: [
+          { id: 'a', x: 0, y: 0 },
+          { id: 'b', x: 100, y: 0 },
+        ],
         edges: [{ id: 'ab', from: 'a', to: 'b', kind: 'road', name: 'Hauptstraße' }],
       },
     ];

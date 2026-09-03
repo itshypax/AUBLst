@@ -27,10 +27,13 @@ function action_log_viewed(PDO $pdo): void {
     $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
     $sid = $session['id'];
 
-    $stmt = $pdo->prepare('SELECT id, occurrence_id FROM activity_logs WHERE session_id = ? AND id = ?');
+    $stmt = $pdo->prepare('SELECT id, occurrence_id, event_id FROM activity_logs WHERE session_id = ? AND id = ?');
     $stmt->execute([$sid, $mid]);
     $log = $stmt->fetch();
     if (!$log) respond_json(404, ['error' => 'Log entry not found']);
+    if (!empty($log['event_id'])) {
+        record_event_journal($pdo, $sid, (int)$log['event_id'], 'dispatcher', 'radio_closed', 'Funkmeldung abgeschlossen');
+    }
 
     $occurrenceId = (int)($log['occurrence_id'] ?? 0);
     if ($occurrenceId > 0) {
@@ -67,10 +70,13 @@ function action_log_acknowledge(PDO $pdo): void {
     $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
     $sid = $session['id'];
 
-    $stmt = $pdo->prepare('SELECT id, occurrence_id FROM activity_logs WHERE session_id = ? AND id = ?');
+    $stmt = $pdo->prepare('SELECT id, occurrence_id, event_id FROM activity_logs WHERE session_id = ? AND id = ?');
     $stmt->execute([$sid, $mid]);
     $log = $stmt->fetch();
     if (!$log) respond_json(404, ['error' => 'Log entry not found']);
+    if (!empty($log['event_id'])) {
+        record_event_journal($pdo, $sid, (int)$log['event_id'], 'dispatcher', 'radio_acknowledged', 'Funkmeldung angenommen');
+    }
 
     $occurrenceId = (int)($log['occurrence_id'] ?? 0);
     if ($occurrenceId > 0) {

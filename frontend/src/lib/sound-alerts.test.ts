@@ -35,23 +35,23 @@ function state(vehicles: Vehicle[], assignments: Assignment[] = [], logs: LogRow
 }
 
 describe('zeitabhängige Tonhinweise', () => {
-  it('meldet ein unzugeordnetes Fahrzeug in Status 3 oder 4 erst nach zehn Sekunden', () => {
+  it('meldet ein unzugeordnetes Fahrzeug in Status 3 oder 4 zusammen mit der Warnanzeige nach 90 Sekunden', () => {
     const tracker = new SoundAlertTracker();
     expect(tracker.update(state([vehicle(1, 1)]), 0, config)).toEqual([]);
     expect(tracker.update(state([vehicle(1, 3)]), 1_000, config)).toEqual([]);
-    expect(tracker.update(state([vehicle(1, 3)]), 10_999, config)).toEqual([]);
-    expect(tracker.update(state([vehicle(1, 3)]), 11_000, config)).toEqual(['unassigned-vehicle-status-3']);
-    expect(tracker.update(state([vehicle(1, 3)]), 12_000, config)).toEqual([]);
-    expect(tracker.update(state([vehicle(1, 3)], [{ event_id: 10, vehicle_id: 1 }]), 13_000, config)).toEqual([]);
-    expect(tracker.update(state([vehicle(1, 4)]), 14_000, config)).toEqual([]);
-    expect(tracker.update(state([vehicle(1, 4)]), 24_000, config)).toEqual(['unassigned-vehicle-status-4']);
+    expect(tracker.update(state([vehicle(1, 3)]), 90_999, config)).toEqual([]);
+    expect(tracker.update(state([vehicle(1, 3)]), 91_000, config)).toEqual(['unassigned-vehicle-status-3']);
+    expect(tracker.update(state([vehicle(1, 3)]), 92_000, config)).toEqual([]);
+    expect(tracker.update(state([vehicle(1, 3)], [{ event_id: 10, vehicle_id: 1 }]), 93_000, config)).toEqual([]);
+    expect(tracker.update(state([vehicle(1, 4)]), 94_000, config)).toEqual([]);
+    expect(tracker.update(state([vehicle(1, 4)]), 184_000, config)).toEqual(['unassigned-vehicle-status-4']);
   });
 
   it('fasst mehrere neue Fahrzeuge je Status zu höchstens einem Ton zusammen', () => {
     const tracker = new SoundAlertTracker();
     expect(tracker.update(state([vehicle(1, 1), vehicle(2, 1), vehicle(3, 1)]), 0, config)).toEqual([]);
     expect(tracker.update(state([vehicle(1, 3), vehicle(2, 3), vehicle(3, 4)]), 1_000, config)).toEqual([]);
-    expect(tracker.update(state([vehicle(1, 3), vehicle(2, 3), vehicle(3, 4)]), 11_000, config)).toEqual([
+    expect(tracker.update(state([vehicle(1, 3), vehicle(2, 3), vehicle(3, 4)]), 91_000, config)).toEqual([
       'unassigned-vehicle-status-3',
       'unassigned-vehicle-status-4',
     ]);
@@ -61,9 +61,9 @@ describe('zeitabhängige Tonhinweise', () => {
     const tracker = new SoundAlertTracker();
     expect(tracker.update(state([vehicle(1, 1)]), 0, config)).toEqual([]);
     expect(tracker.update(state([vehicle(1, 3)]), 1_000, config)).toEqual([]);
-    expect(tracker.update(state([vehicle(1, 4)]), 10_000, config)).toEqual([]);
-    expect(tracker.update(state([vehicle(1, 4)]), 19_999, config)).toEqual([]);
-    expect(tracker.update(state([vehicle(1, 4)]), 20_000, config)).toEqual(['unassigned-vehicle-status-4']);
+    expect(tracker.update(state([vehicle(1, 4)]), 60_000, config)).toEqual([]);
+    expect(tracker.update(state([vehicle(1, 4)]), 149_999, config)).toEqual([]);
+    expect(tracker.update(state([vehicle(1, 4)]), 150_000, config)).toEqual(['unassigned-vehicle-status-4']);
   });
 
   it('ignoriert konfigurierte Fahrzeuge ohne Einsatz', () => {
@@ -71,14 +71,14 @@ describe('zeitabhängige Tonhinweise', () => {
     const ignored = { ...config, unassignedVehicleExceptions: ['1_TEST_1'] };
     expect(tracker.update(state([vehicle(1, 1), vehicle(2, 1)]), 0, ignored)).toEqual([]);
     expect(tracker.update(state([vehicle(1, 3), vehicle(2, 3)]), 1_000, ignored)).toEqual([]);
-    expect(tracker.update(state([vehicle(1, 3), vehicle(2, 3)]), 11_000, ignored)).toEqual([
+    expect(tracker.update(state([vehicle(1, 3), vehicle(2, 3)]), 91_000, ignored)).toEqual([
       'unassigned-vehicle-status-3',
     ]);
 
     const onlyIgnored = new SoundAlertTracker();
     expect(onlyIgnored.update(state([vehicle(1, 1)]), 0, ignored)).toEqual([]);
     expect(onlyIgnored.update(state([vehicle(1, 4)]), 1_000, ignored)).toEqual([]);
-    expect(onlyIgnored.update(state([vehicle(1, 4)]), 11_000, ignored)).toEqual([]);
+    expect(onlyIgnored.update(state([vehicle(1, 4)]), 91_000, ignored)).toEqual([]);
   });
 
   it('meldet Status C nach 120 Sekunden und berücksichtigt Fahrzeugausnahmen', () => {

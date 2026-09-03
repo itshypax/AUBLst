@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>Leitstelle wird geöffnet</title>
+    <script>
+      location.replace('../' + location.search + location.hash);
+    </script>
+  </head>
+  <body>
+    <a id="continue" href="../">Leitstelle öffnen</a>
+    <script>
+      document.getElementById('continue').href = '../' + location.search + location.hash;
+    </script>
+  </body>
+</html>

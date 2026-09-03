@@ -35,8 +35,10 @@ function state_assignments(PDO $pdo, $session_id): array {
 function state_session_data(array $session): array {
     return [
         'token' => $session['token'],
+        'revision' => (int)($session['revision'] ?? 0),
         'mod_id' => $session['mod_id'],
         'routing_version' => routing_version_for_mod($session['mod_id'] ?? null),
+        'map_image_version' => map_image_version_for_mod($session['mod_id'] ?? null),
         'monitor_show_hospital_capacity' => (bool)($session['monitor_show_hospital_capacity'] ?? false),
         'map_content_rect' => map_content_rect_for_mod($session['mod_id'] ?? null),
         'map_bounds' => [
@@ -46,6 +48,25 @@ function state_session_data(array $session): array {
             'max_y' => (float)$session['max_y'],
         ],
     ];
+}
+
+function state_not_modified(array $session): bool {
+    $known = request_value('known_revision');
+    if ($known === null || $known === '') return false;
+    if ((int)$known !== (int)($session['revision'] ?? 0)) return false;
+    respond_json(200, ['unchanged' => true, 'revision' => (int)$session['revision']]);
+}
+
+function state_cache_fetch(int $session_id, int $revision, string $profile): ?array {
+    if ((int)STATE_CACHE_SECONDS <= 0 || !function_exists('apcu_fetch')) return null;
+    $success = false;
+    $value = apcu_fetch("aublst:state:$profile:$session_id:$revision", $success);
+    return $success && is_array($value) ? $value : null;
+}
+
+function state_cache_store(int $session_id, int $revision, string $profile, array $payload): void {
+    if ((int)STATE_CACHE_SECONDS <= 0 || !function_exists('apcu_store')) return;
+    apcu_store("aublst:state:$profile:$session_id:$revision", $payload, (int)STATE_CACHE_SECONDS);
 }
 
 function state_hospital_capacity_level(int $available): string {
@@ -80,7 +101,11 @@ function state_monitor_hospital_capacities(PDO $pdo, int $session_id): array {
 
 function action_monitor_state(PDO $pdo): void {
     $session = require_session($pdo, request_value('session_token'));
-    $sid = $session['id'];
+    state_not_modified($session);
+    $sid = (int)$session['id'];
+    $revision = (int)($session['revision'] ?? 0);
+    $cached = state_cache_fetch($sid, $revision, 'monitor');
+    if ($cached !== null) respond_json(200, $cached);
 
     $vehicles = $pdo->prepare('SELECT id, game_vehicle_id, name, type, modes, x, y, status, assigned_player_id
         FROM vehicles WHERE session_id = ?');
@@ -95,7 +120,7 @@ function action_monitor_state(PDO $pdo): void {
 
     $show_hospital_capacity = (bool)($session['monitor_show_hospital_capacity'] ?? false);
 
-    respond_json(200, [
+    $payload = [
         'session' => state_session_data($session),
         'players' => [],
         'vehicles' => $vehicles->fetchAll(),
@@ -107,24 +132,33 @@ function action_monitor_state(PDO $pdo): void {
             ? state_monitor_hospital_capacities($pdo, (int)$sid)
             : [],
         'time' => $time->fetch() ?: null,
-    ]);
+    ];
+    state_cache_store($sid, $revision, 'monitor', $payload);
+    respond_json(200, $payload);
 }
 
 function action_state(PDO $pdo): void {
     $token = request_value('session_token');
     $session = require_session($pdo, $token);
-    $sid = $session['id'];
+    state_not_modified($session);
+    $sid = (int)$session['id'];
+    $revision = (int)($session['revision'] ?? 0);
+    $cached = state_cache_fetch($sid, $revision, 'control');
+    if ($cached !== null) respond_json(200, $cached);
 
     $players = $pdo->prepare('SELECT id, player_uid as player_id, name FROM players WHERE session_id = ? ORDER BY name');
     $players->execute([$sid]);
     $players = $players->fetchAll();
 
-    $vehicles = $pdo->prepare('SELECT v.*,
-        (SELECT h.created_at FROM vehicle_status_history h
-            WHERE h.session_id = v.session_id AND h.vehicle_id = v.id
-            ORDER BY h.created_at DESC, h.id DESC LIMIT 1) AS status_since
-        FROM vehicles v WHERE v.session_id = ?');
-    $vehicles->execute([$sid]);
+    $vehicles = $pdo->prepare('SELECT v.*, h.created_at AS status_since
+        FROM vehicles v
+        LEFT JOIN (
+            SELECT vehicle_id, MAX(id) AS latest_id
+            FROM vehicle_status_history WHERE session_id = ? GROUP BY vehicle_id
+        ) latest ON latest.vehicle_id = v.id
+        LEFT JOIN vehicle_status_history h ON h.id = latest.latest_id
+        WHERE v.session_id = ?');
+    $vehicles->execute([$sid, $sid]);
     $vehicles = $vehicles->fetchAll();
 
     $hospitals = $pdo->prepare('SELECT * FROM hospitals WHERE session_id = ?');
@@ -150,7 +184,7 @@ function action_state(PDO $pdo): void {
     $time->execute([$sid]);
     $time = $time->fetch();
 
-    respond_json(200, [
+    $payload = [
         'session' => state_session_data($session),
         'players' => $players,
         'vehicles' => $vehicles,
@@ -160,7 +194,9 @@ function action_state(PDO $pdo): void {
         'hospital_reservations' => $hospital_reservations,
         'monitor_hospital_capacities' => [],
         'time' => $time,
-    ]);
+    ];
+    state_cache_store($sid, $revision, 'control', $payload);
+    respond_json(200, $payload);
 }
 
 function action_status_history(PDO $pdo): void {

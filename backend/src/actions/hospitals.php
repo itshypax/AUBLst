@@ -63,6 +63,15 @@ function action_hospital_reservation_set(PDO $pdo): void {
             status = 'reserved', baseline_available = VALUES(baseline_available), arrived_at = NULL,
             updated_at = CURRENT_TIMESTAMP");
     $stmt->execute([$sid, $vehicle_id, $hospital_id, $bed_type, (int)$hospital[$available_column]]);
+    $vehicleLabel = trim((string)($vehicle['name'] ?? '')) ?: (string)$vehicle['game_vehicle_id'];
+    $hospitalLabel = trim((string)($hospital['name'] ?? '')) ?: 'Klinik #' . $hospital_id;
+    record_vehicle_event_journal(
+        $pdo,
+        $sid,
+        $vehicle_id,
+        'hospital_assigned',
+        $vehicleLabel . ' für ' . $hospitalLabel . ' vorgemerkt (' . ($bed_type === 'icu' ? 'Intensiv' : 'Normal') . ')'
+    );
     touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }
@@ -73,8 +82,15 @@ function action_hospital_reservation_clear(PDO $pdo): void {
     $sid = $session['id'];
     $vehicle_id = (int)($data['vehicle_id'] ?? 0);
     if (!$vehicle_id) respond_json(400, ['error' => 'Fahrzeug fehlt.']);
+    $vehicle = $pdo->prepare('SELECT game_vehicle_id, name FROM vehicles WHERE session_id = ? AND id = ?');
+    $vehicle->execute([$sid, $vehicle_id]);
+    $vehicle = $vehicle->fetch();
     $stmt = $pdo->prepare('DELETE FROM hospital_reservations WHERE session_id = ? AND vehicle_id = ?');
     $stmt->execute([$sid, $vehicle_id]);
+    if ($vehicle) {
+        $vehicleLabel = trim((string)($vehicle['name'] ?? '')) ?: (string)$vehicle['game_vehicle_id'];
+        record_vehicle_event_journal($pdo, $sid, $vehicle_id, 'hospital_cleared', 'Klinikvormerkung für ' . $vehicleLabel . ' aufgehoben');
+    }
     touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }

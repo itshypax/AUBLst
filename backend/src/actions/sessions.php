@@ -166,7 +166,8 @@ function action_sync(PDO $pdo): void {
         }
     }
     $leaders_dirty = false;
-    foreach (($data['vehicles'] ?? []) as $v) { upsert_vehicle($pdo, $sid, $v, $leaders_dirty); }
+    $leader_event_ids = [];
+    upsert_vehicles($pdo, $sid, $data['vehicles'] ?? [], $leaders_dirty, $leader_event_ids);
     foreach (($data['hospitals'] ?? []) as $h) { upsert_hospital($pdo, $sid, $h); }
     foreach (($data['messages'] ?? []) as $m) { upsert_message($pdo, $sid, $m); }
     foreach (($data['events'] ?? []) as $e) {
@@ -183,7 +184,7 @@ function action_sync(PDO $pdo): void {
         $stmt->execute([$sid, $data['time']['h'], $data['time']['m']]);
     }
 
-    if ($leaders_dirty) reconcile_event_leaders($pdo, $sid);
+    if ($leaders_dirty) reconcile_event_leaders($pdo, $sid, true, $leader_event_ids);
     touch_session($pdo, $sid);
     $pdo->commit();
     respond_json(200, ['ok' => true, 'session_id' => $sid]);

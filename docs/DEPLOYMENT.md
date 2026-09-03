@@ -2,7 +2,7 @@
 
 ## Docker Compose
 
-Die produktive Compose-Datei startet MariaDB und eine Apache/PHP-Instanz. Das Frontend wird beim Image-Build erstellt und liegt unter `/frontend/`, die API unter `/backend/api.php`.
+Die produktive Compose-Datei startet MariaDB und eine Apache/PHP-Instanz. Das Frontend liegt unter `/`, die API unter `/backend/api.php`. Alte Aufrufe von `/frontend/` werden unter Erhalt aller URL-Parameter nach `/` umgeleitet.
 
 ```bash
 cp .env.docker.example .env
@@ -10,7 +10,7 @@ cp .env.docker.example .env
 docker compose up -d --build
 ```
 
-Danach ist die Leitstelle unter `http://localhost:8080/` erreichbar. Die Datenbank liegt im Volume `aublst-db`. Vor einem Update sollte dieses Volume gesichert werden.
+Beim Start spielt der App-Container ausstehende Migrationen ein. Danach ist die Leitstelle unter `http://localhost:8080/` erreichbar. Die Datenbank liegt im Volume `aublst-db`. Vor einem Update sollte dieses Volume gesichert werden.
 
 ```bash
 docker compose exec db mariadb-dump -uaublst -p game_ops_dashboard > aublst-backup.sql
@@ -20,7 +20,21 @@ docker compose up -d --build
 
 ## Plesk oder klassisches Webhosting
 
-Für Plesk bleibt `scripts/build-release.ps1` der kürzeste Weg. Das erzeugte ZIP enthält nur `backend/` und das gebaute `frontend/`; `backend/config.local.php` und Tests werden ausgelassen.
+Für Plesk bleibt `scripts/build-release.ps1` der kürzeste Weg. Das ZIP wird direkt ins Document Root entpackt. Es enthält den Frontend-Build auf oberster Ebene, `backend/`, die Weiterleitungsregeln und eine kleine `/frontend/`-Rückfallseite. `backend/config.local.php` und Tests werden ausgelassen.
+
+Nach dem Upload einmal ausführen:
+
+```bash
+php backend/bin/maintenance.php migrate
+```
+
+Für die Bereinigung eignet sich ein Cronjob im Abstand von fünf Minuten:
+
+```bash
+php /pfad/zum/document-root/backend/bin/maintenance.php cleanup
+```
+
+Ohne Cronjob bleiben alte Sitzungen liegen; normale API-Anfragen übernehmen die Bereinigung bewusst nicht mehr.
 
 Die API braucht PHP 8.3 mit `pdo_mysql`. Für SSE sollte der Webserver Antworten vom Typ `text/event-stream` nicht puffern. Bei nginx gehört in den API-Standort beispielsweise `proxy_buffering off;`. Die Verbindung endet nach spätestens 25 Sekunden und wird vom Browser neu aufgebaut. Falls das Hosting lang laufende PHP-Anfragen blockiert, kann `ENABLE_REALTIME_STREAM=false` gesetzt werden; das Frontend schaltet selbst auf HTTP-Polling zurück.
 
@@ -78,3 +92,16 @@ ORDER BY metric_day DESC, metric_name;
 
 Mit `ENABLE_ANONYMOUS_METRICS=false` lässt sich die Sammlung vollständig
 abschalten. Vorhandene Zeilen werden dabei nicht automatisch gelöscht.
+
+## Lasttest
+
+Der Smoke-Test legt ohne angegebenen Sitzungscode eine kurzlebige Testsitzung
+mit 60 Fahrzeugen an und prüft parallel zwei Leitstellen sowie fünf
+Alarmmonitore. Er testet dabei auch Alarmierung, Disponentenprotokoll und die
+erste Positionsaufzeichnung:
+
+```bash
+node scripts/load-smoke.mjs https://example.org/backend/api.php '' 40
+```
+
+Der Test schlägt bei Requestfehlern oder einer p95-Laufzeit über 500 ms fehl.

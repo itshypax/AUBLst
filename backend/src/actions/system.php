@@ -94,7 +94,7 @@ function action_stream(PDO $pdo): void {
             $sendFrame(": heartbeat\n\n");
             $nextHeartbeat = microtime(true) + 10.0;
         }
-        usleep(500000);
+        usleep(1000000);
     }
     exit;
 }

@@ -34,6 +34,7 @@ function action_events_create(PDO $pdo): void {
         'name' => em4_safe_text((string)($data['name'] ?? 'Event')),
         'target' => ['x' => (float)$data['x'], 'y' => (float)$data['y']],
     ]);
+    record_event_journal($pdo, $sid, (int)$event['id'], 'dispatcher', 'event_created', 'Einsatz in der Leitstelle angelegt');
     touch_session($pdo, $sid);
 
     respond_json(200, ['ok' => true, 'event' => $event]);
@@ -60,6 +61,7 @@ function action_events_finish(PDO $pdo): void {
         'event_id' => (int)$event_id,
         'event_game_id' => (int)$ev['game_event_id'],
     ]);
+    record_event_journal($pdo, $sid, (int)$event_id, 'dispatcher', 'event_finished', 'Einsatz abgeschlossen');
     reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
 
@@ -167,6 +169,19 @@ function action_events_assign(PDO $pdo): void {
             $stmt->execute([$player_id, $vid, $sid]);
         }
     }
+    $alarmNames = array_map(
+        static fn(int $id): string => (string)($vehicles_by_id[$id]['name'] ?? $vehicles_by_id[$id]['game_vehicle_id'] ?? "Fahrzeug #$id"),
+        $vehicle_ids
+    );
+    record_event_journal(
+        $pdo,
+        $sid,
+        (int)$event_id,
+        'dispatcher',
+        'vehicles_dispatched',
+        'Alarmiert: ' . implode(', ', $alarmNames),
+        ['vehicle_ids' => $vehicle_ids]
+    );
     reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
     $pdo->commit();
@@ -193,7 +208,7 @@ function action_events_reassign(PDO $pdo): void {
         respond_json(404, ['error' => 'Der ausgewählte Einsatz ist nicht mehr aktiv.']);
     }
 
-    $stmt = $pdo->prepare('SELECT id, status FROM vehicles WHERE id = ? AND session_id = ? FOR UPDATE');
+    $stmt = $pdo->prepare('SELECT id, game_vehicle_id, name, status FROM vehicles WHERE id = ? AND session_id = ? FOR UPDATE');
     $stmt->execute([$vehicle_id, $sid]);
     $vehicle = $stmt->fetch();
     if (!$vehicle) {
@@ -219,6 +234,18 @@ function action_events_reassign(PDO $pdo): void {
         $previous['assigned_player_id'] ?? null,
         (int)$vehicle['status'] === 4 ? 'on_scene' : 'enroute',
     ]);
+    $vehicleLabel = trim((string)($vehicle['name'] ?? '')) ?: (string)$vehicle['game_vehicle_id'];
+    record_event_journal($pdo, $sid, $event_id, 'dispatcher', 'vehicle_reassigned', $vehicleLabel . ' diesem Einsatz zugeordnet');
+    if ($previous && (int)$previous['event_id'] !== $event_id) {
+        record_event_journal(
+            $pdo,
+            $sid,
+            (int)$previous['event_id'],
+            'dispatcher',
+            'vehicle_reassigned',
+            $vehicleLabel . ' zu Einsatz #' . $event_id . ' umdisponiert'
+        );
+    }
     reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
     $pdo->commit();
@@ -341,6 +368,16 @@ function action_events_set_leader(PDO $pdo): void {
         $next_vehicle_id,
         $vehicle_id === null || $vehicle_id <= 0
     );
+    $leaderLabel = event_leader_vehicle_label($pdo, $sid, $next_vehicle_id);
+    $roleLabel = $role === 'medical' ? 'Einsatzleiter RD' : 'Einsatzleiter FW';
+    record_event_journal(
+        $pdo,
+        $sid,
+        $event_id,
+        'dispatcher',
+        'leader_changed',
+        $leaderLabel === null ? $roleLabel . ' auf Automatik gesetzt' : $roleLabel . ': ' . $leaderLabel
+    );
     touch_session($pdo, $sid);
     $pdo->commit();
     respond_json(200, ['ok' => true]);
@@ -360,14 +397,25 @@ function action_events_unassign(PDO $pdo): void {
         respond_json(400, ['error' => 'Ungültige event_id']);
     }
 
-    $vehLookup = $pdo->prepare('SELECT id, game_vehicle_id FROM vehicles WHERE id = ? AND session_id = ?');
+    $vehLookup = $pdo->prepare('SELECT id, game_vehicle_id, name FROM vehicles WHERE id = ? AND session_id = ?');
 
     $pdo->beginTransaction();
+    $removedByEvent = [];
     foreach ($vehicle_ids as $vid) {
         $vehLookup->execute([$vid, $sid]);
         $veh = $vehLookup->fetch();
         if (!$veh) {
             continue;
+        }
+        $label = trim((string)($veh['name'] ?? '')) ?: (string)$veh['game_vehicle_id'];
+        if ($event_id !== null) {
+            $removedByEvent[$event_id][] = $label;
+        } else {
+            $assigned = $pdo->prepare('SELECT event_id FROM assignments WHERE session_id = ? AND vehicle_id = ?');
+            $assigned->execute([$sid, $vid]);
+            foreach ($assigned->fetchAll(PDO::FETCH_COLUMN) as $assignedEventId) {
+                $removedByEvent[(int)$assignedEventId][] = $label;
+            }
         }
         if ($event_id !== null) {
             unassign_vehicle_from_event($pdo, $sid, $vid, $event_id);
@@ -380,6 +428,16 @@ function action_events_unassign(PDO $pdo): void {
             'game_vehicle_id' => $veh['game_vehicle_id'],
             'assign_to_player_id' => null,
         ]);
+    }
+    foreach ($removedByEvent as $removedEventId => $labels) {
+        record_event_journal(
+            $pdo,
+            $sid,
+            (int)$removedEventId,
+            'dispatcher',
+            'vehicles_unassigned',
+            'Aus Einsatz gelöst: ' . implode(', ', array_values(array_unique($labels)))
+        );
     }
     reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
@@ -429,6 +487,7 @@ function action_events_set_note(PDO $pdo): void {
     $sid = $session['id'];
 
     $note = upsert_note($pdo, $sid, $data);
+    record_event_journal($pdo, $sid, (int)$event_id, 'dispatcher', 'note_changed', 'Einsatznotiz geändert');
     touch_session($pdo, $sid);
     respond_json(200, ['ok' => true, 'note' => $note]);
 }
@@ -482,7 +541,28 @@ function action_event_record(PDO $pdo): void {
     $stmt->execute([$sid, $event_id]);
     $feedback = $stmt->fetchAll();
 
-    respond_json(200, ['event' => $event, 'alarms' => $alarms, 'logs' => $logs, 'note' => $note, 'feedback' => $feedback]);
+    $stmt = $pdo->prepare('SELECT id, event_id, source, action_type, summary, payload, created_at
+        FROM event_journal WHERE session_id = ? AND event_id = ? ORDER BY created_at ASC, id ASC');
+    $stmt->execute([$sid, $event_id]);
+    $journal = $stmt->fetchAll();
+
+    $stmt = $pdo->prepare('SELECT p.id, p.event_id, p.vehicle_id, p.x, p.y, p.status, p.recorded_at,
+            v.game_vehicle_id, v.name AS vehicle_name
+        FROM vehicle_position_history p
+        JOIN vehicles v ON v.id = p.vehicle_id AND v.session_id = p.session_id
+        WHERE p.session_id = ? AND p.event_id = ? ORDER BY p.recorded_at ASC, p.id ASC');
+    $stmt->execute([$sid, $event_id]);
+    $positions = $stmt->fetchAll();
+
+    respond_json(200, [
+        'event' => $event,
+        'alarms' => $alarms,
+        'logs' => $logs,
+        'note' => $note,
+        'feedback' => $feedback,
+        'journal' => $journal,
+        'positions' => $positions,
+    ]);
 }
 
 function action_events_get_feedback(PDO $pdo): void {
@@ -518,6 +598,7 @@ function action_events_add_feedback(PDO $pdo): void {
     $stmt = $pdo->prepare('INSERT INTO event_feedback (session_id, event_id, content) VALUES (?, ?, ?)');
     $stmt->execute([$sid, $event_id, $content]);
     $id = (int)$pdo->lastInsertId();
+    record_event_journal($pdo, $sid, $event_id, 'dispatcher', 'feedback_added', 'Rückmeldung ergänzt');
     touch_session($pdo, $sid);
 
     $stmt = $pdo->prepare('SELECT id, event_id, content, created_at FROM event_feedback WHERE session_id = ? AND id = ?');

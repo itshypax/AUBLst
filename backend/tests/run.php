@@ -84,6 +84,7 @@ test_case('Migrationen haben eine feste Reihenfolge', static function (): void {
 test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', static function (): void {
     $result = state_session_data([
         'token' => 'a1b2',
+        'revision' => 0,
         'mod_id' => 'AUBMP',
         'monitor_show_hospital_capacity' => '1',
         'min_x' => '-100.5',
@@ -94,8 +95,10 @@ test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', s
     ]);
     expect_same([
         'token' => 'a1b2',
+        'revision' => 0,
         'mod_id' => 'AUBMP',
         'routing_version' => routing_version_for_mod('AUBMP'),
+        'map_image_version' => map_image_version_for_mod('AUBMP'),
         'monitor_show_hospital_capacity' => true,
         'map_content_rect' => [
             'x' => 52.0,
@@ -115,7 +118,7 @@ test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', s
 test_case('AUBMP verwendet das neue Kartenbild mit separater Spielarea', static function (): void {
     $map = local_map_definition('AUBMP');
     expect_true($map !== null);
-    expect_same('AUBMP_2.png', basename((string)$map['file']));
+    expect_same('AUBMP_2.webp', basename((string)$map['file']));
     expect_same(['x' => 52.0, 'y' => 100.0, 'width' => 2048.0, 'height' => 2048.0], $map['content_rect']);
 });
 

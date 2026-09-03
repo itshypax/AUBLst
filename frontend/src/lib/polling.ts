@@ -4,7 +4,15 @@ import { SoundAlertTracker } from './sound-alerts';
 import { soundCuesForLogs } from './sound-events';
 import { app, clearCurrentEvent, persistSettings, resetSessionData } from './state.svelte';
 import { getSoundAlertConfig, playPhone, playSoundCue, playSoundCues } from './sounds';
-import type { LogRow, MapBounds, MapContentRect, StateResponse, StatusHistoryResponse, VehicleStatusChange } from './types';
+import type {
+  LogRow,
+  MapBounds,
+  MapContentRect,
+  StateResponse,
+  StatusHistoryResponse,
+  UnchangedStateResponse,
+  VehicleStatusChange,
+} from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 import {
   broadcastLogAcknowledged,
@@ -78,6 +86,7 @@ let readOnlySession =
   (new URLSearchParams(location.search).get('view') === 'monitor' ||
     new URLSearchParams(location.search).get('monitor') === '1');
 let lastState: StateResponse | null = null;
+let lastRevision = -1;
 let realtimeConnected = false;
 let stopRealtime: (() => void) | null = null;
 let realtimeRefreshTimer = 0;
@@ -94,6 +103,7 @@ function resetCursors(): void {
   statusHistoryFailures = 0;
   dismissedLogVersions.clear();
   soundAlertTracker.reset();
+  lastRevision = -1;
 }
 
 function applyDismissedLogState(rows: LogRow[]): LogRow[] {
@@ -297,7 +307,7 @@ export async function switchSession(
   app.sessionChanging = true;
   resetSessionData();
   resetCursors();
-  app.apiBase = apiBase.trim() || '../backend/api.php';
+  app.apiBase = apiBase.trim() || '/backend/api.php';
   app.sessionToken = normalizeSessionToken(token);
   app.pin = pin.trim();
   readOnlySession = options.readOnly ?? false;
@@ -338,6 +348,7 @@ async function applyState(
   app.monitorHospitalCapacities = data.monitor_hospital_capacities ?? [];
   app.monitorShowHospitalCapacity = Boolean(data.session.monitor_show_hospital_capacity);
   app.clock = data.time ?? null;
+  lastRevision = Number(data.session.revision ?? lastRevision);
   app.connected = true;
   app.stateHealthy = true;
   app.lastSuccessfulSync = receivedAt;
@@ -361,17 +372,27 @@ async function applyState(
 
   const newMod = data.session.mod_id ?? null;
   const nextRoutingVersion = data.session.routing_version ?? null;
+  const nextMapImageVersion = data.session.map_image_version ?? null;
   const modChanged = app.modId !== newMod;
   const routingVersionChanged = Boolean(newMod && nextRoutingVersion && app.routingVersion !== nextRoutingVersion);
+  const mapImageVersionChanged = Boolean(newMod && nextMapImageVersion && app.mapImageVersion !== nextMapImageVersion);
   const mapMissing = Boolean(newMod && !app.mapImageUrl);
-  if (modChanged || routingVersionChanged || mapMissing || (newMod && (mapBoundsChanged || mapContentRectChanged))) {
-    const reloadMapImage = modChanged || mapMissing || mapContentRectChanged;
+  if (
+    modChanged ||
+    routingVersionChanged ||
+    mapImageVersionChanged ||
+    mapMissing ||
+    (newMod && (mapBoundsChanged || mapContentRectChanged))
+  ) {
+    const reloadMapImage = modChanged || mapImageVersionChanged || mapMissing || mapContentRectChanged;
     if (modChanged && app.mapImageUrl.startsWith('blob:')) URL.revokeObjectURL(app.mapImageUrl);
     app.modId = newMod;
     if (newMod) {
       try {
         const [mapImageUrl, routing] = await Promise.all([
-          reloadMapImage ? fetchMapImage(signal) : Promise.resolve(app.mapImageUrl),
+          reloadMapImage
+            ? fetchMapImage(newMod, data.session.map_image_version, signal)
+            : Promise.resolve(app.mapImageUrl),
           apiGet<RoutingConfig>('routing_get', {}, { signal, requireFresh: false }),
         ]);
         if (signal?.aborted || applyGeneration !== generation) {
@@ -379,6 +400,7 @@ async function applyState(
           return;
         }
         app.mapImageUrl = mapImageUrl;
+        app.mapImageVersion = nextMapImageVersion;
         app.routing = routing;
         app.routingVersion = nextRoutingVersion;
       } catch (error) {
@@ -389,6 +411,7 @@ async function applyState(
       }
     } else {
       app.mapImageUrl = '';
+      app.mapImageVersion = null;
       app.routing = cloneRoutingConfig(DEFAULT_ROUTING_CONFIG);
       app.routingVersion = null;
     }
@@ -422,13 +445,26 @@ export async function refreshState(): Promise<void> {
   const startedAt = performance.now();
   try {
     const profile = currentPollingProfile();
-    const data = await apiGet<StateResponse>(profile.stateAction, {}, { signal: controller.signal });
+    const data = await apiGet<StateResponse | UnchangedStateResponse>(
+      profile.stateAction,
+      lastRevision >= 0 ? { known_revision: lastRevision } : {},
+      { signal: controller.signal },
+    );
     if (requestGeneration !== generation) return;
     const receivedAt = Date.now();
-    await applyState(data, isPollingLeader(), receivedAt, controller.signal);
+    if ('unchanged' in data && data.unchanged) {
+      app.connected = true;
+      app.stateHealthy = true;
+      app.lastSuccessfulSync = receivedAt;
+      app.lastError = '';
+      stateFailures = 0;
+      return;
+    }
+    const state = data as StateResponse;
+    await applyState(state, isPollingLeader(), receivedAt, controller.signal);
     if (requestGeneration !== generation) return;
-    broadcastPollingState(data, receivedAt);
-    if (!readOnlySession) recordAnonymousMetrics(performance.now() - startedAt, data.events?.length ?? 0);
+    broadcastPollingState(state, receivedAt);
+    if (!readOnlySession) recordAnonymousMetrics(performance.now() - startedAt, state.events?.length ?? 0);
   } catch (error) {
     if (controller.signal.aborted || requestGeneration !== generation) return;
     stateFailures += 1;

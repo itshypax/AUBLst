@@ -1,0 +1,12 @@
+Options -Indexes
+RewriteEngine On
+RewriteRule ^frontend(?:/(.*))?$ /$1 [R=308,L,NE]
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(?:js|css|webp|png|jpg|jpeg|svg|woff2|mp3|m4a|wav)$">
+    Header set Cache-Control "public, max-age=3600"
+  </FilesMatch>
+  <FilesMatch "^(?:index\.html|manifest\.webmanifest|sw\.js)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>

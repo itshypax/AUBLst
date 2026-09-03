@@ -55,6 +55,38 @@ function map_content_rect_for_mod(?string $mod_id): ?array {
     return local_map_definition($mod_id)['content_rect'] ?? null;
 }
 
+function map_image_version_for_mod(?string $mod_id): ?string {
+    if (!$mod_id) return null;
+    $definition = local_map_definition($mod_id);
+    if (!$definition) return null;
+    return dechex((int)filemtime($definition['file'])) . '-' . dechex((int)filesize($definition['file']));
+}
+
+function action_map_asset(): void {
+    $mod_id = trim((string)request_value('mod_id', ''));
+    $local_map = local_map_definition($mod_id);
+    if (!$local_map) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Map image not found';
+        exit;
+    }
+    $mimes = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
+    $ext = strtolower((string)pathinfo($local_map['file'], PATHINFO_EXTENSION));
+    $etag = '"' . map_image_version_for_mod($mod_id) . '"';
+    if (trim((string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) === $etag) {
+        http_response_code(304);
+        exit;
+    }
+    send_cors_headers();
+    header('Content-Type: ' . ($mimes[$ext] ?? 'application/octet-stream'));
+    header('Cache-Control: public, max-age=31536000, immutable');
+    header('ETag: ' . $etag);
+    header('Content-Length: ' . filesize($local_map['file']));
+    readfile($local_map['file']);
+    exit;
+}
+
 function action_map_image(PDO $pdo): void {
     $token = request_value('session_token');
     $session = require_session($pdo, $token);

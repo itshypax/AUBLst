@@ -51,6 +51,7 @@ function clear_auth_failures(PDO $pdo, bool $writeAccess, ?string $token): void 
 }
 
 function require_session(PDO $pdo, ?string $token, ?string $pin = null, bool $enforce_pin = false): array {
+    static $requestSessions = [];
     if (!$token) {
         respond_json(400, ['error' => 'Missing session_token']);
     }
@@ -58,9 +59,13 @@ function require_session(PDO $pdo, ?string $token, ?string $pin = null, bool $en
 
     // Ein Session-Code kann bereits vor dem eigentlichen Spielstart bekannt sein.
     // Solange der Adapter noch nicht synchronisiert hat, ist das kein Login-Fehler.
-    $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ?');
-    $stmt->execute([$token]);
-    $session = $stmt->fetch();
+    $session = $requestSessions[$token] ?? null;
+    if ($session === null) {
+        $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ?');
+        $stmt->execute([$token]);
+        $session = $stmt->fetch();
+        if ($session) $requestSessions[$token] = $session;
+    }
     if (!$session) {
         respond_json(404, ['error' => 'Session not found. Waiting for initial sync.']);
     }
