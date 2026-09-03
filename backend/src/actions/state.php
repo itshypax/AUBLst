@@ -40,6 +40,7 @@ function state_session_data(array $session): array {
         'routing_version' => routing_version_for_mod($session['mod_id'] ?? null),
         'map_image_version' => map_image_version_for_mod($session['mod_id'] ?? null),
         'monitor_show_hospital_capacity' => (bool)($session['monitor_show_hospital_capacity'] ?? false),
+        'bridge' => session_bridge_descriptor($session),
         'map_content_rect' => map_content_rect_for_mod($session['mod_id'] ?? null),
         'map_bounds' => [
             'min_x' => (float)$session['min_x'],

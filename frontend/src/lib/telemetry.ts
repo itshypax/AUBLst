@@ -7,9 +7,12 @@ export function recordAnonymousMetrics(stateLoadMs: number, activeEvents: number
   const now = Date.now();
   if (!app.sessionToken || now - lastReportAt < REPORT_INTERVAL_MS) return;
   lastReportAt = now;
-  void fetch(`${app.apiBase}?action=metrics_record`, {
+  const v2 = app.apiMode === 'v2';
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (v2) headers['X-Session-Code'] = app.sessionToken;
+  void fetch(v2 ? `${app.apiV2Base}/sessions/${encodeURIComponent(app.sessionId)}/metrics` : `${app.apiBase}?action=metrics_record`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       session_token: app.sessionToken,
       metrics: {

@@ -1,18 +1,28 @@
 <?php
 declare(strict_types=1);
 
+function request_bridge_descriptor(array $data): array {
+    if (!array_key_exists('bridge', $data)) return legacy_bridge_descriptor();
+
+    $bridge = normalize_bridge_descriptor($data['bridge']);
+    if ($bridge === null) respond_json(400, ['error' => 'Ungültiges bridge-Objekt.']);
+    return $bridge;
+}
+
 function action_session_create(PDO $pdo): void {
     $data = get_json_input();
     $pin = isset($data['pin']) ? trim((string)$data['pin']) : null;
     if (REQUIRE_SESSION_PIN && !$pin) {
         respond_json(400, ['error' => 'Für neue Sitzungen ist ein PIN erforderlich.']);
     }
-    $session = create_session($pdo, $data['mod_id'] ?? null, $pin ?: null, $data['map_bounds'] ?? null);
+    $bridge = request_bridge_descriptor($data);
+    $session = create_session($pdo, $data['mod_id'] ?? null, $pin ?: null, $data['map_bounds'] ?? null, $bridge);
     respond_json(200, [
         'ok' => true,
         'session_id' => (int)$session['id'],
         'session_token' => $session['token'],
         'mod_id' => $session['mod_id'],
+        'bridge' => session_bridge_descriptor($session),
         'map_bounds' => [
             'min_x' => (float)$session['min_x'],
             'min_y' => (float)$session['min_y'],
@@ -102,6 +112,8 @@ function action_sync(PDO $pdo): void {
     }
 
     $mod_id = $data['mod_id'] ?? null;
+    $bridge = request_bridge_descriptor($data);
+    $bridgeValues = bridge_descriptor_storage_values($bridge);
 
     $pdo->beginTransaction();
     ensure_mod_row($pdo, $mod_id);
@@ -109,8 +121,10 @@ function action_sync(PDO $pdo): void {
     // mod_id is fixed for the lifetime of a session, IFNULL keeps the first value
     $bounds = $data['map_bounds'] ?? null;
     if ($bounds) {
-        $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id, pin, min_x, min_y, max_x, max_y)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+        $stmt = $pdo->prepare('INSERT INTO sessions
+            (token, mod_id, pin, min_x, min_y, max_x, max_y,
+             bridge_kind, bridge_protocol_version, bridge_app_version, bridge_capabilities, bridge_seen_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 min_x = VALUES(min_x),
                 min_y = VALUES(min_y),
@@ -118,20 +132,32 @@ function action_sync(PDO $pdo): void {
                 max_y = VALUES(max_y),
                 updated_at = CURRENT_TIMESTAMP,
                 mod_id = IFNULL(mod_id, VALUES(mod_id)),
-                pin = IFNULL(pin, VALUES(pin))');
-        $stmt->execute([
+                pin = IFNULL(pin, VALUES(pin)),
+                bridge_kind = VALUES(bridge_kind),
+                bridge_protocol_version = VALUES(bridge_protocol_version),
+                bridge_app_version = VALUES(bridge_app_version),
+                bridge_capabilities = VALUES(bridge_capabilities),
+                bridge_seen_at = VALUES(bridge_seen_at)');
+        $stmt->execute(array_merge([
             $token, $mod_id, $pin,
             n($bounds['min_x'] ?? 0), n($bounds['min_y'] ?? 0),
             n($bounds['max_x'] ?? 1000), n($bounds['max_y'] ?? 1000),
-        ]);
+        ], $bridgeValues));
     } else {
-        $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id, pin)
-            VALUES (?, ?, ?)
+        $stmt = $pdo->prepare('INSERT INTO sessions
+            (token, mod_id, pin, bridge_kind, bridge_protocol_version,
+             bridge_app_version, bridge_capabilities, bridge_seen_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 updated_at = CURRENT_TIMESTAMP,
                 mod_id = IFNULL(mod_id, VALUES(mod_id)),
-                pin = IFNULL(pin, VALUES(pin))');
-        $stmt->execute([$token, $mod_id, $pin]);
+                pin = IFNULL(pin, VALUES(pin)),
+                bridge_kind = VALUES(bridge_kind),
+                bridge_protocol_version = VALUES(bridge_protocol_version),
+                bridge_app_version = VALUES(bridge_app_version),
+                bridge_capabilities = VALUES(bridge_capabilities),
+                bridge_seen_at = VALUES(bridge_seen_at)');
+        $stmt->execute(array_merge([$token, $mod_id, $pin], $bridgeValues));
     }
 
     $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ?');
@@ -187,5 +213,9 @@ function action_sync(PDO $pdo): void {
     if ($leaders_dirty) reconcile_event_leaders($pdo, $sid, true, $leader_event_ids);
     touch_session($pdo, $sid);
     $pdo->commit();
-    respond_json(200, ['ok' => true, 'session_id' => $sid]);
+    respond_json(200, [
+        'ok' => true,
+        'session_id' => $sid,
+        'bridge' => session_bridge_descriptor($session),
+    ]);
 }

@@ -13,7 +13,7 @@ FROM php:8.3-apache
 RUN pecl install apcu \
     && docker-php-ext-enable apcu \
     && docker-php-ext-install pdo_mysql \
-    && a2enmod headers rewrite expires
+    && a2enmod headers rewrite expires proxy proxy_http
 
 COPY backend/ /var/www/html/backend/
 COPY --from=frontend-build /build/frontend/dist/ /var/www/html/

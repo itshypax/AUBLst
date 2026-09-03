@@ -35,5 +35,17 @@ services:
     working_dir: /app
     command: ["php", "-S", "0.0.0.0:8080", "-t", "/app"]
 
+  api-v2:
+    build:
+      context: .
+      dockerfile: server/Aublst.Api/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Database: "Server=db;Port=3306;Database=game_ops_dashboard;User ID=aublst;Password=aublst-dev;Pooling=true;Maximum Pool Size=20;Connection Timeout=5;Default Command Timeout=15"
+    ports:
+      - "127.0.0.1:8081:8080"
+
 volumes:
   aublst-dev-db:

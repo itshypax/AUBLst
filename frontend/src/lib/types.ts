@@ -237,6 +237,14 @@ export interface UnchangedStateResponse {
   revision: number;
 }
 
+export interface SessionBridgeDescriptor {
+  kind: 'legacy' | 'aublst-bridge';
+  protocol_version: number;
+  app_version: string | null;
+  capabilities: string[];
+  seen_at: string | null;
+}
+
 export interface StateResponse {
   session: {
     token: string;
@@ -247,6 +255,7 @@ export interface StateResponse {
     map_bounds: MapBounds;
     map_content_rect?: MapContentRect | null;
     monitor_show_hospital_capacity?: boolean;
+    bridge?: SessionBridgeDescriptor;
   };
   players: Player[];
   vehicles: Vehicle[];

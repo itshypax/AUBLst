@@ -11,6 +11,7 @@ import type {
   Player,
   Vehicle,
   VehicleStatusChange,
+  SessionBridgeDescriptor,
 } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
 import { normalizeSessionToken } from './session-token';
@@ -24,6 +25,9 @@ import {
 
 export const app = $state({
   apiBase: '/backend/api.php',
+  apiMode: 'legacy' as 'legacy' | 'v2',
+  apiV2Base: '/api/v2',
+  sessionId: '',
   sessionToken: '',
   pin: '',
   connected: false,
@@ -44,6 +48,13 @@ export const app = $state({
   hospitalReservations: [] as HospitalReservation[],
   monitorHospitalCapacities: [] as MonitorHospitalCapacity[],
   monitorShowHospitalCapacity: false,
+  sessionBridge: {
+    kind: 'legacy',
+    protocol_version: 0,
+    app_version: null,
+    capabilities: [],
+    seen_at: null,
+  } as SessionBridgeDescriptor,
   clock: null as ClockTime | null,
   modId: null as string | null,
   routingVersion: null as string | null,

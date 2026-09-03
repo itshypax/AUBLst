@@ -6,12 +6,18 @@ const mocks = vi.hoisted(() => ({
   api: vi.fn(),
   apiGet: vi.fn(),
   fetchMapImage: vi.fn(),
+  resolveSessionApi: vi.fn().mockResolvedValue(undefined),
   playPhone: vi.fn(),
   playSoundCue: vi.fn(),
   playSoundCues: vi.fn(),
 }));
 
-vi.mock('./api', () => ({ api: mocks.api, apiGet: mocks.apiGet, fetchMapImage: mocks.fetchMapImage }));
+vi.mock('./api', () => ({
+  api: mocks.api,
+  apiGet: mocks.apiGet,
+  fetchMapImage: mocks.fetchMapImage,
+  resolveSessionApi: mocks.resolveSessionApi,
+}));
 vi.mock('./sounds', () => ({
   getSoundAlertConfig: () => ({
     unassignedVehicleStatuses: [3, 4],
