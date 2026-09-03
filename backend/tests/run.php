@@ -69,9 +69,9 @@ test_case('Klinikvormerkung folgt dem Statusablauf', static function (): void {
 });
 
 test_case('CORS erlaubt standardmäßig nur denselben Host', static function (): void {
-    expect_true(cors_origin_allowed('https://aublst.hypax.wtf', '', 'aublst.hypax.wtf'));
-    expect_true(!cors_origin_allowed('https://example.org', '', 'aublst.hypax.wtf'));
-    expect_true(cors_origin_allowed('https://test.example.org', 'https://aublst.hypax.wtf, https://test.example.org', 'aublst.hypax.wtf'));
+    expect_true(cors_origin_allowed('https://game.aublst.de', '', 'game.aublst.de'));
+    expect_true(!cors_origin_allowed('https://example.org', '', 'game.aublst.de'));
+    expect_true(cors_origin_allowed('https://test.example.org', 'https://game.aublst.de, https://test.example.org', 'game.aublst.de'));
 });
 
 test_case('Migrationen haben eine feste Reihenfolge', static function (): void {
