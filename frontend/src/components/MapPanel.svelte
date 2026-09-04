@@ -5,6 +5,7 @@
   import { api } from '../lib/api';
   import { eventCategory, station, type EventCategory } from '../lib/classify';
   import { dismissibleDetails } from '../lib/dismissible-details';
+  import { MapLayerScheduler, drawMarkerLayer, type MapLayer } from '../lib/map-layers';
   import { canvasToWorld, imageDrawRect, mapContentDrawRect, screenPointInMapContent, toScreen, worldToCanvas, type MapView, type Point } from '../lib/mapview';
   import { cloneRoutingConfig, formatDistance, nearestRoadSnap, parseRoutingConfig, roadLocationLabel, roadRoutePreview, validateRoutingNetwork, type BmaZone, type RoadEdge, type RoadKind, type RoadNode, type RoadRoutePreview, type RoadSnap, type RoutingConfig, type RoutingNetworkReport } from '../lib/routing';
   import { app, askConfirm, assignedEventForVehicle, canWrite, openAssign, openVehicleMenu, setHighlightedEvent, setHighlightedVehicle, showNotice } from '../lib/state.svelte';
@@ -18,6 +19,7 @@
   let { standaloneModId = null }: { standaloneModId?: string | null } = $props();
 
   let wrapper: HTMLDivElement;
+  let baseCanvas: HTMLCanvasElement;
   let canvas: HTMLCanvasElement;
   let importInput = $state<HTMLInputElement>();
 
@@ -131,7 +133,7 @@
     let image = iconCache.get(src);
     if (!image) {
       image = new Image();
-      image.onload = () => scheduleRender();
+      image.onload = () => scheduleRender('markers');
       image.src = src;
       iconCache.set(src, image);
     }
@@ -144,8 +146,6 @@
   const maximumZoom = $derived(standaloneModId ? MAX_EDITOR_ZOOM : MAX_CONTROL_ROOM_ZOOM);
   const EDITOR_SNAP_PIXELS = 17;
   const EDITOR_DRAG_PIXELS = 4;
-  const VEHICLE_ICON_SIZE = 54;
-  const VEHICLE_ICON_HIGHLIGHT_SIZE = 66;
   const VEHICLE_HIT_RADIUS = 30;
   const VEHICLE_HIGHLIGHT_HIT_RADIUS = 38;
 
@@ -188,7 +188,7 @@
     let image = eventIconCache.get(kind);
     if (!image) {
       image = new Image();
-      image.onload = () => scheduleRender();
+      image.onload = () => scheduleRender('markers');
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${eventIconNodes[kind]}</svg>`;
       image.src = `data:image/svg+xml,${encodeURIComponent(svg)}`;
       eventIconCache.set(kind, image);
@@ -200,14 +200,11 @@
     return { zoom, pan, natural, contentRect: app.mapContentRect, width: canvas.clientWidth, height: canvas.clientHeight };
   }
 
-  let renderQueued = false;
-  function scheduleRender(): void {
-    if (renderQueued) return;
-    renderQueued = true;
-    requestAnimationFrame(() => {
-      renderQueued = false;
-      render();
-    });
+  const layers = new MapLayerScheduler((which) => drawLayers(which));
+  // Ohne Argument werden beide Ebenen neu gezeichnet. Zustandsupdates aus dem
+  // Spiel markieren nur die Markerebene, damit das Kartenbild stehen bleibt.
+  function scheduleRender(...which: MapLayer[]): void {
+    layers.invalidate(...which);
   }
 
   $effect(() => {
@@ -215,12 +212,12 @@
     const generation = ++vehicleIconManifestGeneration;
     vehicleIconManifest = null;
     iconCache.clear();
-    scheduleRender();
+    scheduleRender('markers');
     if (!modId) return;
     void loadVehicleIconManifest(modId).then((manifest) => {
       if (generation !== vehicleIconManifestGeneration) return;
       vehicleIconManifest = manifest;
-      scheduleRender();
+      scheduleRender('markers');
     });
   });
 
@@ -235,21 +232,26 @@
   }
 
   function resize(): void {
-    if (!canvas || !wrapper) return;
+    if (!canvas || !baseCanvas || !wrapper) return;
     const rect = wrapper.getBoundingClientRect();
     const ratio = window.devicePixelRatio || 1;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
-    canvas.width = Math.max(1, Math.floor(rect.width * ratio));
-    canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+    for (const target of [baseCanvas, canvas]) {
+      target.style.width = `${rect.width}px`;
+      target.style.height = `${rect.height}px`;
+      target.width = Math.max(1, Math.floor(rect.width * ratio));
+      target.height = Math.max(1, Math.floor(rect.height * ratio));
+    }
     canvasSize = { w: rect.width, h: rect.height };
-    render();
+    layers.drawNow();
   }
 
+  // untrack, sonst hängt dieser Effekt an allem, was beim Zeichnen gelesen
+  // wird, und würde bei jedem Zustandsupdate den Observer neu anlegen und
+  // beide Ebenen neu zeichnen.
   $effect(() => {
     const observer = new ResizeObserver(() => scheduleResize());
     observer.observe(wrapper);
-    resize();
+    untrack(() => resize());
     return () => observer.disconnect();
   });
 
@@ -285,16 +287,22 @@
     }
   });
 
+  // Kartengrenzen ändern die Projektion, also beide Ebenen.
+  $effect(() => {
+    void app.mapBounds;
+    void app.mapContentRect;
+    scheduleRender();
+  });
+
+  // Fahrzeuge, Einsätze und Hervorhebungen liegen nur auf der Markerebene.
   $effect(() => {
     void app.vehicles;
     void app.events;
-    void app.mapBounds;
-    void app.mapContentRect;
     void app.highlightedEventId;
     void app.highlightedVehicleId;
     void visibleEvents;
     void visibleVehicles;
-    scheduleRender();
+    scheduleRender('markers');
   });
 
   $effect(() => {
@@ -303,7 +311,7 @@
     void editorGraph;
     void editorSnapTarget;
     void selectedStreetEdgeCount;
-    scheduleRender();
+    scheduleRender('base');
   });
 
   // Fokus einmalig anwenden und verbrauchen; untrack verhindert, dass der
@@ -1210,7 +1218,7 @@
   function toggleSet<T>(values: Set<T>, value: T): Set<T> {
     const next = new Set(values);
     if (next.has(value)) next.delete(value); else next.add(value);
-    scheduleRender();
+    scheduleRender('markers');
     return next;
   }
 
@@ -1220,7 +1228,7 @@
     hiddenStatuses = new Set();
     hiddenCategories = new Set();
     hiddenStations = new Set();
-    scheduleRender();
+    scheduleRender('markers');
   }
 
   function onMapKeydown(e: KeyboardEvent): void {
@@ -1237,18 +1245,32 @@
     scheduleRender();
   }
 
-  function render(): void {
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d', { alpha: true });
-    if (!ctx) return;
+  function drawLayers(which: ReadonlySet<MapLayer>): void {
+    if (which.has('base')) renderBase();
+    if (which.has('markers')) renderMarkers();
+  }
+
+  // Leert das Canvas und setzt die Transformation auf Pan und Zoom.
+  function prepareContext(target: HTMLCanvasElement | undefined): CanvasRenderingContext2D | null {
+    if (!target) return null;
+    const ctx = target.getContext('2d', { alpha: true });
+    if (!ctx) return null;
     const ratio = window.devicePixelRatio || 1;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+    ctx.clearRect(0, 0, target.width, target.height);
     ctx.save();
     ctx.scale(ratio, ratio);
     ctx.translate(pan.x, pan.y);
     ctx.scale(zoom, zoom);
+    return ctx;
+  }
+
+  // Basisebene: Kartenbild und Editor-Overlay. Wird nur bei Pan, Zoom,
+  // Größenänderung, neuem Kartenbild oder Editor-Änderungen neu gezeichnet.
+  function renderBase(): void {
+    if (!canvas) return;
+    const ctx = prepareContext(baseCanvas);
+    if (!ctx) return;
 
     const v = view();
     const d = imageDrawRect(v);
@@ -1529,88 +1551,30 @@
       ctx.restore();
     }
 
-    const vehicleOutline = cssVar('--vehicle-outline', '#dfe7ff');
+    ctx.restore();
+  }
 
-    for (const ev of visibleEvents) {
-      const p = worldToCanvas(ev, app.mapBounds, v);
-      const markerKind: EventMarkerKind = ev.created_by === 'frontend' ? 'control-room' : eventCategory(ev.name);
-      const markerColor = eventColor(markerKind);
-      const isHighlighted = app.highlightedEventId === ev.id;
-      const baseRadius = Math.min(12 / zoom, 12);
-      const radius = isHighlighted ? baseRadius * 1.4 : baseRadius;
-
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = markerColor;
-      ctx.fill();
-      ctx.lineWidth = (isHighlighted ? 3 : 2) / zoom;
-      ctx.strokeStyle = isHighlighted ? '#ffffff' : 'rgba(255, 255, 255, 0.8)';
-      ctx.stroke();
-      const eventIcon = eventIconFor(markerKind);
-      if (eventIcon) {
-        const iconSize = radius * 1.5;
-        ctx.drawImage(eventIcon, p.x - iconSize / 2, p.y - iconSize / 2, iconSize, iconSize);
-      }
-      if (isHighlighted) {
-        ctx.save();
-        ctx.globalAlpha = 0.55;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, radius + 6 / zoom, 0, Math.PI * 2);
-        ctx.lineWidth = 1 / zoom;
-        ctx.strokeStyle = markerColor;
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    // Fahrzeuge als Grafiken; Name und Status kommen per Hover-Tooltip
-    const vehiclesToRender = [...visibleVehicles].sort(
-      (a, b) => Number(a.id === app.highlightedVehicleId) - Number(b.id === app.highlightedVehicleId)
-    );
-    for (const veh of vehiclesToRender) {
-      const p = worldToCanvas(veh, app.mapBounds, v);
-      const icon = iconFor(veh);
-      const isHighlighted = app.highlightedVehicleId === veh.id;
-
-      if (icon) {
-        const base = isHighlighted ? VEHICLE_ICON_HIGHLIGHT_SIZE : VEHICLE_ICON_SIZE;
-        const w = Math.min(base / zoom, base);
-        const h = w * (icon.naturalHeight / icon.naturalWidth);
-        ctx.drawImage(icon, p.x - w / 2, p.y - h / 2, w, h);
-
-        const statusSize = isHighlighted ? 17 : 15;
-        const sq = Math.min(statusSize / zoom, statusSize);
-        const sx = p.x + w / 2 - sq / 2;
-        const sy = p.y + h / 2 - sq / 2;
-        ctx.fillStyle = statusColor(veh.status);
-        ctx.fillRect(sx, sy, sq, sq);
-        ctx.lineWidth = 1 / zoom;
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.strokeRect(sx, sy, sq, sq);
-        ctx.fillStyle = '#ffffff';
-        const statusFontSize = isHighlighted ? 11 : 10;
-        ctx.font = `700 ${Math.min(statusFontSize / zoom, statusFontSize)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(statusDisplay(veh.status), sx + sq / 2, sy + sq / 2 + 0.5 / zoom);
-        continue;
-      }
-
-      const markerSize = isHighlighted ? 15 : 13;
-      const offset = Math.min(markerSize / zoom, markerSize);
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y - offset);
-      ctx.lineTo(p.x + offset, p.y);
-      ctx.lineTo(p.x, p.y + offset);
-      ctx.lineTo(p.x - offset, p.y);
-      ctx.closePath();
-      ctx.fillStyle = statusColor(veh.status);
-      ctx.fill();
-      ctx.lineWidth = 1.5 / zoom;
-      ctx.strokeStyle = vehicleOutline;
-      ctx.stroke();
-    }
-
+  // Markerebene: Einsätze und Fahrzeuge. Wird bei jedem Zustandsupdate neu
+  // gezeichnet, ohne das Kartenbild anzufassen.
+  function renderMarkers(): void {
+    if (!canvas) return;
+    const ctx = prepareContext(canvas);
+    if (!ctx) return;
+    drawMarkerLayer(ctx, {
+      events: visibleEvents,
+      vehicles: visibleVehicles,
+      bounds: app.mapBounds,
+      view: view(),
+      highlightedEventId: app.highlightedEventId,
+      highlightedVehicleId: app.highlightedVehicleId,
+      eventMarkerKind: (ev) => (ev.created_by === 'frontend' ? 'control-room' : eventCategory(ev.name)),
+      eventColor: (kind) => eventColor(kind as EventMarkerKind),
+      eventIcon: (kind) => eventIconFor(kind as EventMarkerKind),
+      vehicleIcon: iconFor,
+      statusColor,
+      statusText: statusDisplay,
+      vehicleOutline: cssVar('--vehicle-outline', '#dfe7ff'),
+    });
     ctx.restore();
   }
 </script>
@@ -1642,6 +1606,7 @@
     class:editor-active={editorOpen}
     class:node-hover={editorOpen && editorHoverNodeId !== null}
   >
+    <canvas bind:this={baseCanvas}></canvas>
     <canvas bind:this={canvas}></canvas>
     <MapToolbar
       {editorAvailable}
@@ -1750,7 +1715,7 @@
             <div class="grid-setting">
               <input id="grid-size-m" type="number" min="1" max="1000" step="5" value={editorGraph.grid_size_m ?? 50} oninput={(event) => updateEditorMetric('grid_size_m', event.currentTarget.value)} />
               <span>m</span>
-              <label class="grid-toggle"><input type="checkbox" bind:checked={showEditorGrid} onchange={scheduleRender} /> <FaIcon icon={Grid3X3} size={13} /> anzeigen</label>
+              <label class="grid-toggle"><input type="checkbox" bind:checked={showEditorGrid} onchange={() => scheduleRender('base')} /> <FaIcon icon={Grid3X3} size={13} /> anzeigen</label>
             </div>
             {#if editorMapMetric}
               <span class="metric-summary">
