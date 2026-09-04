@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "default_profile": "standard",
   "profiles": [
     {
@@ -58,7 +58,15 @@
         "unassigned-vehicle-status-3": "sounds/Marvin/fahrzeug-3-ohne-einsatz.m4a",
         "unassigned-vehicle-status-4": "sounds/Marvin/fahrzeug-4-ohne-einsatz.m4a",
         "vehicle-c-timeout": "sounds/Marvin/fahrzeug-c-zeitueberschreitung.m4a",
-        "speech-request-timeout": "sounds/Marvin/sprechwunsch-zeitueberschreitung.m4a"
+        "speech-request-timeout": "sounds/Marvin/sprechwunsch-zeitueberschreitung.m4a",
+        "alarm-level-increase": "sounds/Marvin/alarmstufenerhoehung.m4a",
+        "resource-shortage": "sounds/Marvin/rettungsmittelknappheit.m4a",
+        "ship-blocked": "sounds/Marvin/schiffsverkehr-eingestellt.m4a",
+        "ship-released": "sounds/Marvin/schiffsverkehr-freigegeben.m4a",
+        "tram-blocked": "sounds/Marvin/schienenverkehr-eingestellt.m4a",
+        "tram-released": "sounds/Marvin/schienenverkehr-freigegeben.m4a",
+        "train-blocked": "sounds/Marvin/schienenverkehr-eingestellt.m4a",
+        "train-released": "sounds/Marvin/schienenverkehr-freigegeben.m4a"
       }
     },
     {
@@ -90,7 +98,14 @@
       "11_HLF_1": 240,
       "11_TLF_1": 240,
       "31_HLF_1": 240,
-      "31_GWL_1": 240
+      "31_GWL_1": 240,
+      "72_RTW_A": 240,
+      "72_RTW_B": 240,
+      "72_NEF_A": 240,
+      "74_RTW_A": 240,
+      "74_RTW_B": 240,
+      "74_NEF_A": 240,
+      "CHRISTOPH_84": 240
     },
     "speech_request_timeout_seconds": 120
   }

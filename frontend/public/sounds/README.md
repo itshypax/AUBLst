@@ -62,7 +62,7 @@ frontend/public/sounds/Jannik/schiffsverkehr-freigegeben.m4a
 
 Die Profile „Marvin“ und „Schwabe“ verwenden dieselben Dateinamen in den
 Ordnern `frontend/public/sounds/Marvin/` und `frontend/public/sounds/Schwabe/`.
-Die Ereignistöne sind derzeit für Jannik und Schwabe eingetragen. Für
+Die Ereignistöne sind für Jannik, Marvin und Schwabe eingetragen. Für
 Schienen- und Tramverkehr wird jeweils dieselbe Audiodatei verwendet.
 
 Normale Funkmeldungen kommen durch `extends: "standard"` weiter aus dem
