@@ -97,7 +97,9 @@ https://example.org/leitstelle/?view=monitor
 
 Dort werden Raumcode und Wache 1–4 gewählt. Der Monitor zeigt nur laufende
 Einsätze, denen mindestens ein Fahrzeug der gewählten Wache zugeordnet ist;
-eine PIN wird dafür nicht benötigt. Der Einstieg ist auch direkt im
+eine PIN wird dafür nicht benötigt. Hat die Leitstelle einem RTW oder ITW eine
+Klinik zugewiesen, steht das Ziel in der Fahrzeugtafel unter dem Fahrzeug,
+solange die Zuweisung besteht. Der Einstieg ist auch direkt im
 Verbindungsdialog und in den Sitzungseinstellungen verlinkt.
 
 Ohne aktive Sitzung erscheint zuerst ein Verbindungsdialog für Token und PIN.

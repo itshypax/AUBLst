@@ -99,6 +99,17 @@ function state_monitor_hospital_capacities(PDO $pdo, int $session_id): array {
     ], $stmt->fetchAll());
 }
 
+function state_hospital_reservations(PDO $pdo, int $session_id): array {
+    $stmt = $pdo->prepare('SELECT r.id, r.vehicle_id, r.hospital_id, r.bed_type, r.status,
+        r.created_at, r.updated_at, r.arrived_at, v.game_vehicle_id, v.name AS vehicle_name, h.name AS hospital_name
+        FROM hospital_reservations r
+        JOIN vehicles v ON v.id = r.vehicle_id AND v.session_id = r.session_id
+        JOIN hospitals h ON h.id = r.hospital_id AND h.session_id = r.session_id
+        WHERE r.session_id = ? ORDER BY r.created_at ASC, r.id ASC');
+    $stmt->execute([$session_id]);
+    return $stmt->fetchAll();
+}
+
 function action_monitor_state(PDO $pdo): void {
     $session = require_session($pdo, request_value('session_token'));
     state_not_modified($session);
@@ -127,7 +138,9 @@ function action_monitor_state(PDO $pdo): void {
         'hospitals' => [],
         'events' => $events->fetchAll(),
         'assignments' => state_assignments($pdo, $sid),
-        'hospital_reservations' => [],
+        // Der Monitor zeigt das Klinikziel am Rettungsmittel, solange die
+        // Reservierung besteht, genau wie das Fahrzeugpanel der Leitstelle.
+        'hospital_reservations' => state_hospital_reservations($pdo, $sid),
         'monitor_hospital_capacities' => $show_hospital_capacity
             ? state_monitor_hospital_capacities($pdo, (int)$sid)
             : [],
@@ -171,14 +184,7 @@ function action_state(PDO $pdo): void {
 
     $assignments = state_assignments($pdo, $sid);
 
-    $hospital_reservations = $pdo->prepare('SELECT r.id, r.vehicle_id, r.hospital_id, r.bed_type, r.status,
-        r.created_at, r.updated_at, r.arrived_at, v.game_vehicle_id, v.name AS vehicle_name, h.name AS hospital_name
-        FROM hospital_reservations r
-        JOIN vehicles v ON v.id = r.vehicle_id AND v.session_id = r.session_id
-        JOIN hospitals h ON h.id = r.hospital_id AND h.session_id = r.session_id
-        WHERE r.session_id = ? ORDER BY r.created_at ASC, r.id ASC');
-    $hospital_reservations->execute([$sid]);
-    $hospital_reservations = $hospital_reservations->fetchAll();
+    $hospital_reservations = state_hospital_reservations($pdo, $sid);
 
     $time = $pdo->prepare('SELECT * FROM clock WHERE session_id = ?');
     $time->execute([$sid]);

@@ -99,6 +99,50 @@ describe('Spieler-Alarmmonitor', () => {
     expect(screen.queryByText('2-HLF-1')).toBeNull();
   });
 
+  it('zeigt das Klinikziel nur bei Rettungsmitteln der Wache', () => {
+    history.replaceState(null, '', '/?view=monitor&wache=1');
+    app.sessionToken = '758c';
+    app.stateHealthy = true;
+    app.lastSuccessfulSync = Date.now();
+    app.vehicles = [
+      { id: 1, game_vehicle_id: '1_RTW_1', name: '1-RTW-1', type: 'RTW', modes: null, x: 10, y: -20, status: 7, assigned_player_id: null },
+      { id: 2, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', type: 'HLF', modes: null, x: 12, y: -22, status: 4, assigned_player_id: null },
+    ];
+    app.hospitalReservations = [
+      {
+        id: 5,
+        vehicle_id: 1,
+        hospital_id: 3,
+        bed_type: 'icu',
+        status: 'reserved',
+        created_at: '2026-09-04 18:50:00',
+        updated_at: '2026-09-04 18:50:00',
+        arrived_at: null,
+        game_vehicle_id: '1_RTW_1',
+        vehicle_name: '1-RTW-1',
+        hospital_name: 'Krankenhaus Nord',
+      },
+      {
+        id: 6,
+        vehicle_id: 2,
+        hospital_id: 4,
+        bed_type: 'ward',
+        status: 'reserved',
+        created_at: '2026-09-04 18:51:00',
+        updated_at: '2026-09-04 18:51:00',
+        arrived_at: null,
+        game_vehicle_id: '1_HLF_1',
+        vehicle_name: '1-HLF-1',
+        hospital_name: 'Krankenhaus Süd',
+      },
+    ];
+
+    render(AlarmMonitorPage);
+
+    expect(screen.getByText('→ Nord · Intensiv')).toBeTruthy();
+    expect(screen.queryByText(/Süd/)).toBeNull();
+  });
+
   it('ersetzt Alarmierungen durch die Klinikverfügbarkeit der Sitzung', () => {
     history.replaceState(null, '', '/?view=monitor&wache=1');
     app.sessionToken = '758c';

@@ -36,7 +36,8 @@
     testMonitorAlarm,
     type MonitorSoundSettings,
   } from '../lib/alarm-monitor-sound';
-  import { eventCategory, type EventCategory, vehicleDisplayName, vehicleTypeLabel } from '../lib/classify';
+  import { eventCategory, type EventCategory, isHospitalTransportUnit, vehicleDisplayName, vehicleTypeLabel } from '../lib/classify';
+  import type { HospitalReservation, Vehicle } from '../lib/types';
   import { switchSession } from '../lib/polling';
   import { roadLocationLabel } from '../lib/routing';
   import { app } from '../lib/state.svelte';
@@ -65,6 +66,18 @@
   let monitorSound = $state<MonitorSoundSettings>(loadMonitorSoundSettings());
 
   const stationVehicles = $derived(selectedStation ? monitorVehicles(app.vehicles, selectedStation) : []);
+
+  // Gleiche Regel wie im Fahrzeugpanel der Leitstelle: Ziel sichtbar, solange
+  // die Reservierung existiert (der Server löscht sie bei Status 1 oder 2).
+  function hospitalReservationFor(vehicle: Vehicle): HospitalReservation | undefined {
+    if (!isHospitalTransportUnit(vehicle)) return undefined;
+    return app.hospitalReservations.find((reservation) => reservation.vehicle_id === vehicle.id);
+  }
+
+  function hospitalDestination(reservation: HospitalReservation): string {
+    const name = (reservation.hospital_name || 'Klinik').replace(/^Krankenhaus\s+/i, '');
+    return `${name}${reservation.bed_type === 'icu' ? ' · Intensiv' : ''}`;
+  }
   const vehicleGridColumns = $derived.by(() => {
     const count = stationVehicles.length;
     if (count <= 1) return 1;
@@ -561,15 +574,17 @@
         <div class="vehicle-list" style={`--vehicle-columns:${vehicleGridColumns}`}>
           {#each stationVehicles as vehicle (vehicle.id)}
             {@const typeLabel = vehicleTypeLabel(vehicle)}
+            {@const reservation = hospitalReservationFor(vehicle)}
             <div
               class="vehicle-row"
               class:status-c-alert={statusCode(vehicle.status) === 0}
-              title={`${vehicleDisplayName(vehicle)} · ${statusLabel(vehicle.status)}`}
+              title={`${vehicleDisplayName(vehicle)} · ${statusLabel(vehicle.status)}${reservation ? ` · Ziel ${hospitalDestination(reservation)}` : ''}`}
             >
               <span class="status-block status-{vehicle.status}">{statusDisplay(vehicle.status)}</span>
               <span class="vehicle-main">
                 <strong class="vehicle-name">{vehicleDisplayName(vehicle)}</strong>
                 <span class="status-text">{statusLabel(vehicle.status)}</span>
+                {#if reservation}<span class="destination" class:intensive={reservation.bed_type === 'icu'}>→ {hospitalDestination(reservation)}</span>{/if}
               </span>
               {#if typeLabel}<span class="vehicle-type">{typeLabel}</span>{/if}
             </div>
@@ -1625,6 +1640,19 @@
     line-height: 1.1;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .destination {
+    padding: 2px 8px 0;
+    overflow: hidden;
+    color: #7fb2ff;
+    font-size: 10px;
+    font-weight: 650;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .destination.intensive {
+    color: #ff9a8f;
   }
   .alarm-queue {
     border-right: 0;
