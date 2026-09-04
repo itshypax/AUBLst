@@ -278,6 +278,13 @@ function migration_definitions(): array {
                     ADD COLUMN sync_fingerprint_at TIMESTAMP NULL AFTER sync_fingerprint');
             }
         },
+        '2026090402_vehicle_unavailable_override' => static function (PDO $pdo): void {
+            if (!database_column_exists($pdo, 'vehicles', 'game_status')) {
+                $pdo->exec('ALTER TABLE vehicles
+                    ADD COLUMN game_status INT NULL AFTER status,
+                    ADD COLUMN unavailable_override TINYINT(1) NOT NULL DEFAULT 0 AFTER game_status');
+            }
+        },
     ];
 }
 

@@ -87,6 +87,7 @@
       const destination = (reservation.hospital_name || 'Klinik').replace(/^Krankenhaus\s+/i, '');
       parts.push(`Ziel: ${destination}${reservation.bed_type === 'icu' ? ' · Intensiv' : ''}`);
     }
+    if (Number(v.unavailable_override ?? 0)) parts.push('Außer Dienst gesetzt vom Disponenten');
     const location = roadLocationLabel(v, app.routing);
     if (location) parts.push(location);
     return parts.join(' · ');

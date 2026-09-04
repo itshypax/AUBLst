@@ -28,6 +28,9 @@ export interface Vehicle {
   y: number;
   status: number;
   status_since?: string | null;
+  // Spielstatus und Disponenten-Override (Status 6 außer Dienst)
+  game_status?: number | null;
+  unavailable_override?: number | boolean;
   assigned_player_id: number | null;
 }
 

@@ -34,11 +34,34 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Fahrzeugmenü', () => {
-  it('bietet keine manuelle StatusÃ¤nderung an', () => {
+  it('setzt ein Fahrzeug per Rechtsklick außer Dienst', async () => {
+    const user = userEvent.setup();
+    mocks.api.mockResolvedValue({ ok: true });
     render(VehicleContextMenu);
 
-    expect(screen.queryByText('Status setzen')).toBeNull();
-    expect(screen.queryByRole('menuitem', { name: /Status \d setzen/ })).toBeNull();
+    await user.click(screen.getByRole('menuitem', { name: 'Außer Dienst setzen (Status 6)' }));
+
+    expect(mocks.api).toHaveBeenCalledWith('vehicles_set_unavailable', { vehicle_id: 1, unavailable: true });
+    expect(mocks.refreshState).toHaveBeenCalled();
+  });
+
+  it('bietet bei manuellem Status 6 den Weg zurück zum Spielstatus an', async () => {
+    const user = userEvent.setup();
+    app.vehicles = [{ ...app.vehicles[0], status: 6, game_status: 4, unavailable_override: 1 }];
+    mocks.api.mockResolvedValue({ ok: true });
+    render(VehicleContextMenu);
+
+    expect(screen.queryByRole('menuitem', { name: 'Außer Dienst setzen (Status 6)' })).toBeNull();
+    await user.click(screen.getByRole('menuitem', { name: 'Wieder in Dienst (Status 4)' }));
+
+    expect(mocks.api).toHaveBeenCalledWith('vehicles_set_unavailable', { vehicle_id: 1, unavailable: false });
+  });
+
+  it('lässt einen vom Spiel gemeldeten Status 6 unangetastet', () => {
+    app.vehicles = [{ ...app.vehicles[0], status: 6, game_status: 6, unavailable_override: 0 }];
+    render(VehicleContextMenu);
+
+    expect(screen.queryByRole('menuitem', { name: /Außer Dienst|Wieder in Dienst/ })).toBeNull();
   });
 
   it('zeigt die Einsatzleiteraktionen nicht in der Fahrzeugübersicht', () => {

@@ -197,8 +197,11 @@ angeklickten Weltkoordinate an.
 
 Rechtsklick auf ein Fahrzeug (Liste oder Karte) öffnet ein Kontextmenü zum
 Fokussieren auf der Karte, für Klinikzuweisungen und zum Einrücken. Der
-FMS-Status kommt ausschließlich aus EM4 und lässt sich in der Leitstelle
-nicht manuell überschreiben.
+FMS-Status kommt aus EM4. Einzige Ausnahme: Der Disponent kann ein Fahrzeug
+über das Kontextmenü außer Dienst setzen (Status 6). Dieser Status bleibt
+stehen, egal was das Spiel meldet, bis das Spiel Status 2 meldet oder der
+Disponent das Fahrzeug über dasselbe Menü wieder in Dienst nimmt. Meldet das
+Spiel selbst Status 6, bleibt das unangetastet.
 
 ### Maßstab und Straßennetz
 

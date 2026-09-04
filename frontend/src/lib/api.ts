@@ -11,6 +11,7 @@ const WRITE_ACTIONS = new Set([
   'events_add_feedback',
   'vehicles_assign_player',
   'vehicles_alarm',
+  'vehicles_set_unavailable',
   'update_vehicles',
   'log_viewed',
   'hospital_reservation_set',

@@ -1,11 +1,12 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
-  import { Crosshair, Hospital, Route, ShieldCheck, Undo2 } from '../lib/fontawesome-icons';
+  import { CircleCheck, Construction, Crosshair, Hospital, Route, ShieldCheck, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
   import { isHospitalTransportUnit, mainTab } from '../lib/classify';
   import { focusTrap } from '../lib/focus';
   import { refreshState } from '../lib/polling';
   import { roadLocationLabel } from '../lib/routing';
+  import { statusDisplay } from '../lib/status';
   import { app, assignedEventForVehicle, canWrite, closeVehicleMenu, focusVehicle, showNotice } from '../lib/state.svelte';
   import type { IncidentLeaderRole } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
@@ -25,12 +26,17 @@
     return mainTab(vehicle) === 'rescue' ? 'medical' : 'fire';
   });
   const reassignableEvents = $derived(app.events.filter((event) => event.status === 'active' && event.id !== currentEvent?.id));
+  // Status 6 vom Disponenten lässt sich zurücknehmen; Status 6 aus dem Spiel bleibt unangetastet.
+  const manualUnavailable = $derived(Boolean(vehicle && Number(vehicle.unavailable_override ?? 0)));
+  const gameReportsUnavailable = $derived(Boolean(vehicle && Number(vehicle.status) === 6 && !manualUnavailable));
+  const restoredStatus = $derived(vehicle?.game_status ?? 2);
 
   let el: HTMLDivElement | undefined = $state();
   let pos = $state({ x: menu.x, y: menu.y });
   let choosingEvent = $state(false);
   let reassigning = $state(false);
   let changingLeader = $state(false);
+  let changingAvailability = $state(false);
 
   $effect(() => {
     if (!vehicle) {
@@ -82,6 +88,21 @@
     } catch (err) {
       app.lastError = (err as Error).message;
       reassigning = false;
+    }
+  }
+
+  async function setUnavailable(unavailable: boolean): Promise<void> {
+    if (!vehicle || changingAvailability) return;
+    changingAvailability = true;
+    const label = vehicle.name || vehicle.game_vehicle_id;
+    try {
+      await api('vehicles_set_unavailable', { vehicle_id: vehicle.id, unavailable });
+      showNotice(unavailable ? `${label} außer Dienst gesetzt` : `${label} wieder in Dienst`);
+      closeVehicleMenu();
+      await refreshState();
+    } catch (err) {
+      app.lastError = (err as Error).message;
+      changingAvailability = false;
     }
   }
 
@@ -180,6 +201,17 @@
       <button class="item" role="menuitem" disabled={!canWrite()} onclick={() => void sendHome()}>
         <FaIcon icon={Undo2} size={14} />
         Einrücken lassen
+      </button>
+    {/if}
+    {#if manualUnavailable}
+      <button class="item" role="menuitem" disabled={!canWrite() || changingAvailability} onclick={() => void setUnavailable(false)}>
+        <FaIcon icon={CircleCheck} size={14} />
+        Wieder in Dienst (Status {statusDisplay(restoredStatus)})
+      </button>
+    {:else if !gameReportsUnavailable}
+      <button class="item" role="menuitem" disabled={!canWrite() || changingAvailability} onclick={() => void setUnavailable(true)}>
+        <FaIcon icon={Construction} size={14} />
+        Außer Dienst setzen (Status 6)
       </button>
     {/if}
   </div>

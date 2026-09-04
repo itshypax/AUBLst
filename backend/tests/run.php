@@ -399,6 +399,23 @@ test_case('Revisionscache: liefert gespeicherte Revisionen oder null', static fu
     expect_same([2, 1], revision_cache_fetch(8));
 });
 
+test_case('Wirkstatus: ohne Override gilt der Spielstatus', static function (): void {
+    expect_same(['status' => 3, 'game_status' => 3, 'override' => false], vehicle_effective_status(['status' => 2, 'game_status' => 2, 'unavailable_override' => 0], 3));
+    expect_same(['status' => 2, 'game_status' => 2, 'override' => false], vehicle_effective_status(false, 2));
+    expect_same(['status' => 2, 'game_status' => 2, 'override' => false], vehicle_effective_status(false, null));
+});
+
+test_case('Wirkstatus: Override hält Status 6, bis das Spiel Status 2 meldet', static function (): void {
+    $saved = ['status' => 6, 'game_status' => 4, 'unavailable_override' => 1];
+    expect_same(['status' => 6, 'game_status' => 3, 'override' => true], vehicle_effective_status($saved, 3));
+    expect_same(['status' => 6, 'game_status' => 4, 'override' => true], vehicle_effective_status($saved, null));
+    expect_same(['status' => 2, 'game_status' => 2, 'override' => false], vehicle_effective_status($saved, 2));
+});
+
+test_case('Wirkstatus: Spielstatus 6 bleibt ohne Override ein Spielstatus', static function (): void {
+    expect_same(['status' => 6, 'game_status' => 6, 'override' => false], vehicle_effective_status(['status' => 4, 'game_status' => 4, 'unavailable_override' => 0], 6));
+});
+
 $failed = 0;
 foreach ($tests as $name => $test) {
     try {

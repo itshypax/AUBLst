@@ -149,10 +149,12 @@ function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders
     $savedByGameId = [];
     foreach ($lookup->fetchAll() as $row) $savedByGameId[(string)$row['game_vehicle_id']] = $row;
 
-    $upsert = $pdo->prepare('INSERT INTO vehicles (session_id, game_vehicle_id, name, type, modes, x, y, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    $upsert = $pdo->prepare('INSERT INTO vehicles (session_id, game_vehicle_id, name, type, modes, x, y, status, game_status, unavailable_override)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), name = VALUES(name), type = VALUES(type),
-            modes = VALUES(modes), x = VALUES(x), y = VALUES(y), status = VALUES(status), updated_at = CURRENT_TIMESTAMP');
+            modes = VALUES(modes), x = VALUES(x), y = VALUES(y), status = VALUES(status),
+            game_status = VALUES(game_status), unavailable_override = VALUES(unavailable_override),
+            updated_at = CURRENT_TIMESTAMP');
     $history = $pdo->prepare('INSERT INTO vehicle_status_history
         (session_id, vehicle_id, game_vehicle_id, vehicle_name, status) VALUES (?, ?, ?, ?, ?)');
 
@@ -163,20 +165,29 @@ function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders
     $returnedVehicleIds = [];
     foreach ($updates as $gameId => $vehicle) {
         $saved = $savedByGameId[$gameId] ?? false;
+        $incomingStatus = array_key_exists('status', $vehicle) && valid_vehicle_status($vehicle['status'])
+            ? (int)$vehicle['status']
+            : null;
+        $effective = vehicle_effective_status($saved, $incomingStatus);
         $row = [
             'name' => check_options('name', $saved, $vehicle, $gameId),
             'type' => check_options('type', $saved, $vehicle, 'None'),
             'modes' => check_options('modes', $saved, $vehicle, null),
             'x' => check_options('x', $saved, $vehicle, 0),
             'y' => check_options('y', $saved, $vehicle, 0),
-            'status' => check_options('status', $saved, $vehicle, 2),
+            'status' => $effective['status'],
+            'game_status' => $effective['game_status'],
+            'unavailable_override' => $effective['override'] ? 1 : 0,
         ];
         $kinds = vehicle_change_kinds($saved, $row);
         if ($changes !== null) {
             $changes['positions'] = ($changes['positions'] ?? false) || $kinds['positions'];
             $changes['data'] = ($changes['data'] ?? false) || $kinds['data'];
         }
-        $upsert->execute([$session_id, $gameId, $row['name'], $row['type'], $row['modes'], $row['x'], $row['y'], $row['status']]);
+        $upsert->execute([
+            $session_id, $gameId, $row['name'], $row['type'], $row['modes'], $row['x'], $row['y'],
+            $row['status'], $row['game_status'], $row['unavailable_override'],
+        ]);
         $vehicleId = $saved ? (int)$saved['id'] : (int)$pdo->lastInsertId();
         $current = array_merge($saved ?: [], $row, [
             'id' => $vehicleId,
@@ -185,12 +196,14 @@ function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders
         ]);
         $currentRows[] = $current;
 
-        if (vehicle_update_requires_leader_reconcile($saved, $vehicle)) {
+        // Leiter, Verlauf und Klinikablauf folgen dem Wirkstatus, nicht dem
+        // Spielstatus; ein Override verdeckt die Meldungen des Spiels.
+        if (vehicle_update_requires_leader_reconcile($saved, array_merge($vehicle, ['status' => $row['status']]))) {
             $leaders_dirty = true;
             $changedLeaderVehicleIds[] = $vehicleId;
         }
-        if (array_key_exists('status', $vehicle) && valid_vehicle_status($vehicle['status'])) {
-            $status = (int)$vehicle['status'];
+        if ($incomingStatus !== null) {
+            $status = (int)$row['status'];
             $previousStatus = $saved !== false && isset($saved['status']) ? (int)$saved['status'] : null;
             if ($previousStatus === null || $previousStatus !== $status) {
                 $history->execute([$session_id, $vehicleId, $gameId, $row['name'], $status]);

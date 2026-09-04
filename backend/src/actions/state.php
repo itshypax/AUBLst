@@ -120,7 +120,7 @@ function action_monitor_state(PDO $pdo): void {
     $cached = state_cache_fetch($sid, $revision, $position_revision, 'monitor');
     if ($cached !== null) respond_json(200, $cached);
 
-    $vehicles = $pdo->prepare('SELECT id, game_vehicle_id, name, type, modes, x, y, status, assigned_player_id
+    $vehicles = $pdo->prepare('SELECT id, game_vehicle_id, name, type, modes, x, y, status, game_status, unavailable_override, assigned_player_id
         FROM vehicles WHERE session_id = ?');
     $vehicles->execute([$sid]);
 

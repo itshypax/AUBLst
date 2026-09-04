@@ -83,3 +83,60 @@ function action_vehicles_assign_player(PDO $pdo): void {
     touch_session($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }
+
+// Disponent setzt ein Fahrzeug außer Dienst (Status 6) oder holt es zurück.
+// Der Override hält, bis das Spiel Status 2 meldet oder der Disponent ihn
+// aufhebt. Vom Spiel gemeldete Status 6 bleiben unangetastet.
+function action_vehicles_set_unavailable(PDO $pdo): void {
+    $data = get_json_input();
+    $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
+    $sid = $session['id'];
+
+    $vehicle_id = (int)($data['vehicle_id'] ?? 0);
+    if ($vehicle_id <= 0) respond_json(400, ['error' => 'Missing vehicle_id']);
+    $unavailable = filter_var($data['unavailable'] ?? null, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+    if ($unavailable === null) respond_json(400, ['error' => 'Missing unavailable']);
+
+    $stmt = $pdo->prepare('SELECT * FROM vehicles WHERE id = ? AND session_id = ?');
+    $stmt->execute([$vehicle_id, $sid]);
+    $vehicle = $stmt->fetch();
+    if (!$vehicle) respond_json(404, ['error' => 'Vehicle not found']);
+
+    $override = (bool)($vehicle['unavailable_override'] ?? 0);
+    $label = trim((string)($vehicle['name'] ?? '')) ?: (string)$vehicle['game_vehicle_id'];
+
+    if ($unavailable) {
+        if ($override) respond_json(200, ['ok' => true, 'status' => 6]);
+        if ((int)$vehicle['status'] === 6) {
+            respond_json(409, ['error' => 'Das Spiel meldet dieses Fahrzeug bereits als nicht einsatzbereit.']);
+        }
+        $update = $pdo->prepare('UPDATE vehicles
+            SET unavailable_override = 1, game_status = COALESCE(game_status, status), status = 6, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND session_id = ?');
+        $update->execute([$vehicle_id, $sid]);
+        $newStatus = 6;
+        record_vehicle_event_journal($pdo, $sid, $vehicle_id, 'vehicle_unavailable', $label . ' außer Dienst gesetzt');
+    } else {
+        if (!$override) respond_json(200, ['ok' => true, 'status' => (int)$vehicle['status']]);
+        $newStatus = (int)($vehicle['game_status'] ?? 2);
+        $update = $pdo->prepare('UPDATE vehicles
+            SET unavailable_override = 0, status = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND session_id = ?');
+        $update->execute([$newStatus, $vehicle_id, $sid]);
+        record_vehicle_event_journal($pdo, $sid, $vehicle_id, 'vehicle_available', $label . ' wieder in Dienst (Status ' . $newStatus . ')');
+    }
+
+    if ($newStatus !== (int)$vehicle['status']) {
+        $history = $pdo->prepare('INSERT INTO vehicle_status_history
+            (session_id, vehicle_id, game_vehicle_id, vehicle_name, status) VALUES (?, ?, ?, ?, ?)');
+        $history->execute([$sid, $vehicle_id, $vehicle['game_vehicle_id'], $vehicle['name'], $newStatus]);
+    }
+
+    $events = $pdo->prepare('SELECT DISTINCT event_id FROM assignments WHERE session_id = ? AND vehicle_id = ?');
+    $events->execute([$sid, $vehicle_id]);
+    $event_ids = array_map('intval', $events->fetchAll(PDO::FETCH_COLUMN));
+    if ($event_ids) reconcile_event_leaders($pdo, $sid, true, $event_ids);
+
+    touch_session($pdo, $sid);
+    respond_json(200, ['ok' => true, 'status' => $newStatus]);
+}

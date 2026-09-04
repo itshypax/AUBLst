@@ -167,3 +167,18 @@ function sync_fingerprint(array $data): string {
     ];
     return hash('sha256', (string)json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 }
+
+// Wirkstatus eines Fahrzeugs. Hat der Disponent das Fahrzeug außer Dienst
+// gesetzt (Status 6), bleibt dieser Status stehen, bis das Spiel Status 2
+// meldet; der echte Spielstatus läuft in game_status mit. Ein vom Spiel
+// gemeldeter Status 6 ist kein Override.
+function vehicle_effective_status($saved, $incoming_status): array {
+    $saved_game = $saved ? (int)($saved['game_status'] ?? $saved['status'] ?? 2) : 2;
+    $game = $incoming_status === null ? $saved_game : (int)$incoming_status;
+    $override = (bool)($saved ? ($saved['unavailable_override'] ?? 0) : 0) && $game !== 2;
+    return [
+        'status' => $override ? 6 : $game,
+        'game_status' => $game,
+        'override' => $override,
+    ];
+}
