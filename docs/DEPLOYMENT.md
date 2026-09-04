@@ -10,7 +10,9 @@ cp .env.docker.example .env
 docker compose up -d --build
 ```
 
-Beim Start spielt der App-Container ausstehende Migrationen ein. Danach ist die Leitstelle unter `http://localhost:8080/` erreichbar. Die Datenbank liegt im Volume `aublst-db`. Vor einem Update sollte dieses Volume gesichert werden.
+`APP_TIMEZONE` (Standard `Europe/Berlin`) legt die Zeitzone für PHP und die
+Datenbankverbindung fest; die Container selbst laufen in UTC. Beim Start
+spielt der App-Container ausstehende Migrationen ein. Danach ist die Leitstelle unter `http://localhost:8080/` erreichbar. Die Datenbank liegt im Volume `aublst-db`. Vor einem Update sollte dieses Volume gesichert werden.
 
 ```bash
 docker compose exec db mariadb-dump -uaublst -p game_ops_dashboard > aublst-backup.sql

@@ -31,6 +31,10 @@ Spiele gleichzeitig bedienen.
    Release-Paket ausgelassen.
 3. Für den öffentlichen Betrieb in derselben Datei die Frontend-Adresse bei
    `CORS_ALLOW_ORIGIN` eintragen und `REQUIRE_SESSION_PIN` aktivieren.
+4. `APP_TIMEZONE` steht auf `Europe/Berlin` und gilt für PHP und jede
+   Datenbankverbindung. Alle Zeitstempel werden in dieser Zone gespeichert
+   und ausgeliefert, unabhängig davon, in welcher Zone Server oder Container
+   laufen.
 
 Vor dem ersten Start und nach Updates wird das Schema einmalig mit
 `php backend/bin/maintenance.php migrate` eingespielt. Im Docker-Image passiert

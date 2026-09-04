@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../src/database.php';
 require_once __DIR__ . '/../src/domain.php';
 require_once __DIR__ . '/../src/http.php';
 require_once __DIR__ . '/../src/migrations.php';
@@ -301,6 +302,21 @@ test_case('Normalisierte Straßenpunkte werden auf Sitzungskoordinaten abgebilde
     $expected_scale = (8192 / 10.5) / 400;
     expect_true(abs($routing['meters_per_world_unit_x'] - $expected_scale) < 0.000001);
     expect_true(abs($routing['meters_per_world_unit_y'] - $expected_scale) < 0.000001);
+});
+
+test_case('Datenbankverbindung bekommt den Offset der App-Zeitzone', static function (): void {
+    $berlin = new DateTimeZone('Europe/Berlin');
+    expect_same('+02:00', db_session_time_zone($berlin, new DateTimeImmutable('2026-09-04 18:50:00', $berlin)));
+    expect_same('+01:00', db_session_time_zone($berlin, new DateTimeImmutable('2026-01-15 18:50:00', $berlin)));
+    expect_same('+00:00', db_session_time_zone(new DateTimeZone('UTC'), new DateTimeImmutable('2026-09-04 18:50:00')));
+    $newYork = new DateTimeZone('America/New_York');
+    expect_same('-04:00', db_session_time_zone($newYork, new DateTimeImmutable('2026-09-04 12:00:00', $newYork)));
+    $kolkata = new DateTimeZone('Asia/Kolkata');
+    expect_same('+05:30', db_session_time_zone($kolkata, new DateTimeImmutable('2026-09-04 12:00:00', $kolkata)));
+});
+
+test_case('Ohne APP_TIMEZONE gilt Europe/Berlin', static function (): void {
+    expect_same('Europe/Berlin', app_time_zone()->getName());
 });
 
 $failed = 0;

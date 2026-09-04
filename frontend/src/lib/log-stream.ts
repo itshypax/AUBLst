@@ -5,7 +5,9 @@ export interface LogCursor {
   id: number;
 }
 
-export const INITIAL_LOG_CURSOR: LogCursor = { timestamp: '1970-01-01 00:00:01', id: 0 };
+// Weit über dem TIMESTAMP-Minimum, weil der Server den Wert in der
+// Verbindungszeitzone vergleicht (siehe backend/src/actions/logs.php).
+export const INITIAL_LOG_CURSOR: LogCursor = { timestamp: '2000-01-01 00:00:00', id: 0 };
 
 export function advanceLogCursor(cursor: LogCursor, rows: LogRow[]): LogCursor {
   const last = rows[rows.length - 1];

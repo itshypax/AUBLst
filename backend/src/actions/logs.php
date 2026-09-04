@@ -5,9 +5,12 @@ function action_logs(PDO $pdo): void {
     $token = request_value('session_token');
     $since = request_value('since', 0);
     $sinceId = max(0, (int)request_value('since_id', 0));
-    // MySQL 8 wertet updated_at > '0' als leer aus, ältere Versionen als "alles"
+    // MySQL 8 wertet updated_at > '0' als leer aus, ältere Versionen als "alles".
+    // Der Startwert liegt bewusst weit über dem TIMESTAMP-Minimum, weil die
+    // Verbindung mit Zeitzonen-Offset läuft und 1970-01-01 00:00:01 in UTC
+    // umgerechnet außerhalb des gültigen Bereichs läge.
     if (!$since || $since === '0') {
-        $since = '1970-01-01 00:00:01';
+        $since = '2000-01-01 00:00:00';
     }
     $session = require_session($pdo, $token);
     $sid = $session['id'];

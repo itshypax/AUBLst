@@ -29,3 +29,12 @@ if (!defined('ENABLE_ANONYMOUS_METRICS')) define('ENABLE_ANONYMOUS_METRICS', env
 if (!defined('ENABLE_REALTIME_STREAM')) define('ENABLE_REALTIME_STREAM', env_flag('ENABLE_REALTIME_STREAM', true));
 if (!defined('STATE_CACHE_SECONDS')) define('STATE_CACHE_SECONDS', max(0, (int)(getenv('STATE_CACHE_SECONDS') ?: 5)));
 if (!defined('SESSION_TTL_SECONDS')) define('SESSION_TTL_SECONDS', max(900, (int)(getenv('SESSION_TTL_SECONDS') ?: 3600)));
+
+// Zeitzone für PHP und für jede Datenbankverbindung. Ohne diese Einstellung
+// laufen Docker-Container in UTC, und die Leitstelle zeigt Zeiten zwei
+// Stunden zu früh an.
+if (!defined('APP_TIMEZONE')) define('APP_TIMEZONE', getenv('APP_TIMEZONE') ?: 'Europe/Berlin');
+if (!@date_default_timezone_set(APP_TIMEZONE)) {
+    error_log('APP_TIMEZONE "' . APP_TIMEZONE . '" ist ungültig, verwende Europe/Berlin');
+    date_default_timezone_set('Europe/Berlin');
+}
