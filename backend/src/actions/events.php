@@ -185,6 +185,7 @@ function action_events_assign(PDO $pdo): void {
     reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
     $pdo->commit();
+    revision_cache_refresh($pdo, $sid);
 
     respond_json(200, ['ok' => true]);
 }
@@ -249,6 +250,7 @@ function action_events_reassign(PDO $pdo): void {
     reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
     $pdo->commit();
+    revision_cache_refresh($pdo, $sid);
 
     respond_json(200, [
         'ok' => true,
@@ -380,6 +382,7 @@ function action_events_set_leader(PDO $pdo): void {
     );
     touch_session($pdo, $sid);
     $pdo->commit();
+    revision_cache_refresh($pdo, $sid);
     respond_json(200, ['ok' => true]);
 }
 
@@ -442,6 +445,7 @@ function action_events_unassign(PDO $pdo): void {
     reconcile_event_leaders($pdo, $sid);
     touch_session($pdo, $sid);
     $pdo->commit();
+    revision_cache_refresh($pdo, $sid);
 
     respond_json(200, ['ok' => true]);
 }

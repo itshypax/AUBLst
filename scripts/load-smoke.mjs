@@ -111,6 +111,64 @@ async function testSession() {
   return token;
 }
 
+// Öffnet den SSE-Stream und wartet auf ein bestimmtes Ereignis. Liefert die
+// Zeit bis zum Ereignis in Millisekunden.
+async function waitForStreamEvent(token, eventName, lastRevision, lastPositionRevision, trigger, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const started = performance.now();
+  try {
+    const response = await fetch(`${apiBase}?action=stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify({
+        session_token: token,
+        last_revision: lastRevision,
+        last_position_revision: lastPositionRevision,
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`stream: ${response.status}`);
+    }
+    if (trigger) await trigger();
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) throw new Error(`stream endete ohne "${eventName}"`);
+      buffer += decoder.decode(value, { stream: true });
+      if (buffer.includes(`event: ${eventName}\n`)) {
+        return Math.round(performance.now() - started);
+      }
+    }
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
+}
+
+async function testStream(token) {
+  const state = await post("state", { session_token: token });
+  const revision = Number(state.session.revision);
+  const positionRevision = Number(state.session.position_revision);
+  const initial = await waitForStreamEvent(token, "change", -1, -1, null, 8000);
+  const pushed = await waitForStreamEvent(
+    token,
+    "positions",
+    revision,
+    positionRevision,
+    () =>
+      post("update_vehicles", {
+        session_token: token,
+        updates: [{ game_vehicle_id: "LOAD_3", x: 1234, y: -1234 }],
+      }),
+    8000,
+  );
+  return { initial_ms: initial, positions_push_ms: pushed };
+}
+
 function percentile(values, fraction) {
   const sorted = [...values].sort((left, right) => left - right);
   return (
@@ -155,6 +213,8 @@ async function runProfile(action, clients, token) {
 }
 
 const token = await testSession();
+const stream = await testStream(token);
+console.log("Stream:", stream);
 const results = await Promise.all([
   runProfile("state", 2, token),
   runProfile("monitor_state", 5, token),

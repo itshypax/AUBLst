@@ -27,6 +27,56 @@ function touch_session(PDO $pdo, $session_id): void {
     $stmt = $pdo->prepare('UPDATE sessions SET revision = revision + 1,
         last_activity_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
     $stmt->execute([$session_id]);
+    revision_cache_refresh($pdo, $session_id);
+}
+
+// Revisionen zusätzlich im APCu, damit der SSE-Stream nicht jede Sekunde die
+// Datenbank fragen muss. Der Stream liest trotzdem alle paar Sekunden die
+// Datenbank, ein verpasster Cache-Eintrag kostet also höchstens diese Zeit.
+const REVISION_CACHE_TTL_SECONDS = 120;
+const REVISION_CACHE_DATABASE_INTERVAL = 5.0;
+
+function revision_cache_key($session_id): string {
+    return 'aublst:rev:' . (int)$session_id;
+}
+
+function revision_cache_available(): bool {
+    return function_exists('apcu_fetch') && function_exists('apcu_store');
+}
+
+// $only_if_missing: der Stream füllt den Cache nur auf, wenn er leer ist.
+// Er darf einen Wert, den ein Schreiber gerade eingetragen hat, nicht mit
+// seinem älteren Datenbankstand überschreiben.
+function revision_cache_store($session_id, int $revision, int $position_revision, bool $only_if_missing = false): void {
+    if (!revision_cache_available()) return;
+    $key = revision_cache_key($session_id);
+    $value = [$revision, $position_revision];
+    if ($only_if_missing) {
+        apcu_add($key, $value, REVISION_CACHE_TTL_SECONDS);
+        return;
+    }
+    apcu_store($key, $value, REVISION_CACHE_TTL_SECONDS);
+}
+
+// Liefert [revision, position_revision] oder null, wenn nichts im Cache liegt.
+function revision_cache_fetch($session_id): ?array {
+    if (!revision_cache_available()) return null;
+    $success = false;
+    $value = apcu_fetch(revision_cache_key($session_id), $success);
+    if (!$success || !is_array($value) || count($value) !== 2) return null;
+    return [(int)$value[0], (int)$value[1]];
+}
+
+// Innerhalb einer Transaktion darf der Cache noch nicht aktualisiert werden,
+// sonst holt ein Stream-Client den Zustand, bevor er sichtbar ist. Der
+// Aufrufer ruft die Funktion dann nach dem Commit noch einmal auf.
+function revision_cache_refresh(PDO $pdo, $session_id): void {
+    if (!revision_cache_available() || $pdo->inTransaction()) return;
+    $stmt = $pdo->prepare('SELECT revision, position_revision FROM sessions WHERE id = ?');
+    $stmt->execute([$session_id]);
+    $row = $stmt->fetch();
+    if (!$row) return;
+    revision_cache_store($session_id, (int)$row['revision'], (int)($row['position_revision'] ?? 0));
 }
 
 function mark_session_activity(PDO $pdo, $session_id): void {
@@ -40,6 +90,7 @@ function touch_session_positions(PDO $pdo, $session_id): void {
     $stmt = $pdo->prepare('UPDATE sessions SET position_revision = position_revision + 1,
         last_activity_at = CURRENT_TIMESTAMP WHERE id = ?');
     $stmt->execute([$session_id]);
+    revision_cache_refresh($pdo, $session_id);
 }
 
 function store_sync_fingerprint(PDO $pdo, $session_id, string $fingerprint): void {

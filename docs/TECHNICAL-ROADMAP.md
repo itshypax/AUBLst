@@ -4,7 +4,7 @@ Stand: 3. September 2026
 
 | Punkt | Ergebnis | Weitere Arbeit |
 | --- | --- | --- |
-| Echtzeit-Updates | SSE signalisiert Sitzungsänderungen; das vorhandene Polling bleibt als Rückfall und Kontrollabgleich. Mehrere Tabs teilen die Abfragen weiterhin über `BroadcastChannel`. | Unter hoher Last Laufzeit und Anzahl paralleler PHP-Worker beobachten. Erst dann wäre ein eigener Push-Dienst sinnvoll. |
+| Echtzeit-Updates | SSE signalisiert Sitzungsänderungen; das vorhandene Polling bleibt als Rückfall und Kontrollabgleich. Mehrere Tabs teilen die Abfragen weiterhin über `BroadcastChannel`. Seit dem 4. September 2026 hält APCu die Revisionen je Sitzung; der Stream prüft alle 250 ms den Speicher und die Datenbank nur alle fünf Sekunden, eine Verbindung lebt 55 Sekunden. | Zahl paralleler PHP-Worker gegen die Zahl offener Bildschirme prüfen (siehe DEPLOYMENT.md). Ein eigener Push-Dienst wird erst nötig, wenn die Worker knapp werden. |
 | Kartenintegration | Die bestehende Canvas-Karte passt zur fiktiven EM4-Spielwelt, unterstützt Zoom, Einsatzanlage, Fahrzeugfokus und ein eigenes Straßennetz. Leaflet oder Mapbox würde keine Geodaten hinzufügen. | Kein Bibliothekswechsel geplant. |
 | Mobil und App | Die Arbeitsansicht hat mobile Breakpoints, größere Touch-Trenner und kann über das Web-App-Manifest als PWA installiert werden. | Eine native iOS-/Android-Hülle lohnt sich erst bei Bedarf an dauerhaftem Hintergrundbetrieb. |
 | Tests und CI | Vitest deckt Logik und Komponenten ab. Playwright prüft Sitzungseinstieg und horizontales Überlaufen auf Desktop und Mobil. GitHub Actions führt Lint, Typecheck, Tests, Build und PHP-Prüfungen aus. | E2E-Szenarien mit echter MariaDB für Alarmierung und Mehrfenster-SSE ergänzen. |

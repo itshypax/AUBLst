@@ -372,6 +372,33 @@ test_case('Sync-Fingerabdruck ignoriert Positionen und Fahrzeugreihenfolge, nich
     expect_true($fingerprint !== sync_fingerprint($clock), 'Uhrzeit muss den Fingerabdruck ändern');
 });
 
+test_case('Revisionscache: Schlüssel je Sitzung', static function (): void {
+    expect_same('aublst:rev:42', revision_cache_key(42));
+    expect_same('aublst:rev:42', revision_cache_key('42'));
+});
+
+test_case('Revisionscache: liefert gespeicherte Revisionen oder null', static function (): void {
+    if (!revision_cache_available()) {
+        // Ohne APCu bleibt der Datenbankpfad im Stream aktiv.
+        revision_cache_store(7, 3, 9);
+        expect_same(null, revision_cache_fetch(7));
+        return;
+    }
+    if (!apcu_enabled()) {
+        throw new RuntimeException('APCu ist geladen, aber apc.enable_cli fehlt; der Test kann den Cache nicht prüfen.');
+    }
+    expect_same(null, revision_cache_fetch(999999));
+    revision_cache_store(7, 3, 9);
+    expect_same([3, 9], revision_cache_fetch(7));
+    revision_cache_store(7, 4, 9);
+    expect_same([4, 9], revision_cache_fetch(7));
+    // Der Stream darf einen vorhandenen Wert nicht überschreiben.
+    revision_cache_store(7, 2, 1, true);
+    expect_same([4, 9], revision_cache_fetch(7));
+    revision_cache_store(8, 2, 1, true);
+    expect_same([2, 1], revision_cache_fetch(8));
+});
+
 $failed = 0;
 foreach ($tests as $name => $test) {
     try {

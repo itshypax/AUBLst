@@ -205,5 +205,6 @@ function action_sync(PDO $pdo): void {
         mark_session_activity($pdo, $sid);
     }
     $pdo->commit();
+    revision_cache_refresh($pdo, $sid);
     respond_json(200, ['ok' => true, 'session_id' => $sid]);
 }

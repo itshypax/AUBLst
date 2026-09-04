@@ -38,7 +38,7 @@ php /pfad/zum/document-root/backend/bin/maintenance.php cleanup
 
 Ohne Cronjob bleiben alte Sitzungen liegen; normale API-Anfragen übernehmen die Bereinigung bewusst nicht mehr.
 
-Die API braucht PHP 8.3 mit `pdo_mysql`. Für SSE sollte der Webserver Antworten vom Typ `text/event-stream` nicht puffern. Bei nginx gehört in den API-Standort beispielsweise `proxy_buffering off;`. Die Verbindung endet nach spätestens 25 Sekunden und wird vom Browser neu aufgebaut. Falls das Hosting lang laufende PHP-Anfragen blockiert, kann `ENABLE_REALTIME_STREAM=false` gesetzt werden; das Frontend schaltet selbst auf HTTP-Polling zurück.
+Die API braucht PHP 8.3 mit `pdo_mysql`. Für SSE sollte der Webserver Antworten vom Typ `text/event-stream` nicht puffern. Bei nginx gehört in den API-Standort beispielsweise `proxy_buffering off;`. Die Verbindung endet nach spätestens 55 Sekunden und wird vom Browser neu aufgebaut. Ist APCu geladen (im Docker-Image der Fall, `capabilities` meldet `revision_cache: true`), liest der Stream die Revisionen alle 250 ms aus dem Speicher und fragt die Datenbank nur alle fünf Sekunden; ohne APCu bleibt es bei einer Abfrage pro Sekunde und Verbindung. Jede offene Leitstelle und jeder Alarmmonitor belegt für die Dauer des Streams einen PHP-Worker. `pm.max_children` (PHP-FPM) beziehungsweise `MaxRequestWorkers` (Apache) sollte deshalb mindestens der Zahl gleichzeitig offener Bildschirme plus etwa zehn für normale Anfragen entsprechen; bei drei Leitstellen und acht Monitoren also mindestens 21. Falls das Hosting lang laufende PHP-Anfragen blockiert, kann `ENABLE_REALTIME_STREAM=false` gesetzt werden; das Frontend schaltet selbst auf HTTP-Polling zurück.
 
 Nach dem Upload prüfen:
 
@@ -98,9 +98,11 @@ abschalten. Vorhandene Zeilen werden dabei nicht automatisch gelöscht.
 ## Lasttest
 
 Der Smoke-Test legt ohne angegebenen Sitzungscode eine kurzlebige Testsitzung
-mit 60 Fahrzeugen an und prüft parallel zwei Leitstellen sowie fünf
-Alarmmonitore. Er testet dabei auch Alarmierung, Disponentenprotokoll und die
-erste Positionsaufzeichnung:
+mit 60 Fahrzeugen an und prüft parallel zwei Leitstellen, fünf Alarmmonitore
+und fünf Positionsabrufe. Er testet dabei auch Alarmierung,
+Disponentenprotokoll, die erste Positionsaufzeichnung, dass eine reine
+Positionsänderung nur die Positionsrevision erhöht, und öffnet den SSE-Stream
+einmal, um zu messen, wie schnell ein Positionsupdate als Ereignis ankommt:
 
 ```bash
 node scripts/load-smoke.mjs https://example.org/backend/api.php '' 40
