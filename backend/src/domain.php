@@ -124,3 +124,46 @@ function select_fire_incident_leader(array $vehicles): ?int {
     }
     return null;
 }
+
+// Der Sync erhöht die Revision spätestens nach dieser Zeit auch ohne
+// erkennbare Änderung, damit Leitstellen nach Änderungen, die nur in der
+// Datenbank passiert sind, sicher wieder auf Stand kommen.
+const SYNC_REVISION_MAX_AGE_SECONDS = 15;
+
+// Welche Art von Änderung ein Fahrzeugupdate enthält. $row ist die Zeile,
+// wie sie gespeichert wird (fehlende Felder sind bereits aus $saved ergänzt).
+function vehicle_change_kinds($saved, array $row): array {
+    if (!$saved) return ['positions' => true, 'data' => true];
+    $positions = (float)$saved['x'] !== (float)$row['x'] || (float)$saved['y'] !== (float)$row['y'];
+    $data = (int)$saved['status'] !== (int)$row['status'];
+    foreach (['name', 'type', 'modes'] as $field) {
+        if ((string)($saved[$field] ?? '') !== (string)($row[$field] ?? '')) $data = true;
+    }
+    return ['positions' => $positions, 'data' => $data];
+}
+
+// Fingerabdruck über den Sync-Inhalt ohne Fahrzeugpositionen. Bleibt er
+// gleich, hat sich außer Positionen nichts geändert und die Zustandsrevision
+// muss nicht steigen.
+function sync_fingerprint(array $data): string {
+    $vehicles = [];
+    foreach (($data['vehicles'] ?? []) as $vehicle) {
+        if (!is_array($vehicle)) continue;
+        $id = trim((string)($vehicle['game_vehicle_id'] ?? ''));
+        if ($id === '') continue;
+        unset($vehicle['x'], $vehicle['y']);
+        ksort($vehicle);
+        $vehicles[$id] = $vehicle;
+    }
+    ksort($vehicles);
+    $payload = [
+        'players' => $data['players'] ?? null,
+        'hospitals' => $data['hospitals'] ?? null,
+        'messages' => $data['messages'] ?? null,
+        'events' => $data['events'] ?? null,
+        'time' => $data['time'] ?? null,
+        'map_bounds' => $data['map_bounds'] ?? null,
+        'vehicles' => $vehicles,
+    ];
+    return hash('sha256', (string)json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+}

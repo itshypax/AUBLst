@@ -43,6 +43,7 @@ const ACTIONS = [
     'routing_put'            => 'action_routing_put',
     'state'                  => 'action_state',
     'monitor_state'          => 'action_monitor_state',
+    'positions'              => 'action_positions',
     'status_history'         => 'action_status_history',
     'update_vehicles'        => 'action_update_vehicles',
     'update_hospitals'       => 'action_update_hospitals',

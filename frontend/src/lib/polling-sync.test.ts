@@ -59,6 +59,7 @@ describe('Polling-Koordination', () => {
       onState: vi.fn(),
       onLogs: vi.fn(),
       onStatusHistory: vi.fn(),
+      onPositions: vi.fn(),
       onLogAcknowledged,
       onLogDismissed,
       onSnapshot: vi.fn(),

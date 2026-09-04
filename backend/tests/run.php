@@ -97,6 +97,7 @@ test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', s
     expect_same([
         'token' => 'a1b2',
         'revision' => 0,
+        'position_revision' => 0,
         'mod_id' => 'AUBMP',
         'routing_version' => routing_version_for_mod('AUBMP'),
         'map_image_version' => map_image_version_for_mod('AUBMP'),
@@ -317,6 +318,58 @@ test_case('Datenbankverbindung bekommt den Offset der App-Zeitzone', static func
 
 test_case('Ohne APP_TIMEZONE gilt Europe/Berlin', static function (): void {
     expect_same('Europe/Berlin', app_time_zone()->getName());
+});
+
+test_case('Fahrzeugupdate: neues Fahrzeug zählt als Daten- und Positionsänderung', static function (): void {
+    $kinds = vehicle_change_kinds(false, ['name' => '1-HLF-1', 'type' => 'HLF', 'modes' => null, 'x' => 1, 'y' => 2, 'status' => 2]);
+    expect_same(['positions' => true, 'data' => true], $kinds);
+});
+
+test_case('Fahrzeugupdate: nur Koordinaten anders ist eine reine Positionsänderung', static function (): void {
+    $saved = ['name' => '1-HLF-1', 'type' => 'HLF', 'modes' => 'Normal,Sonder', 'x' => 1.0, 'y' => 2.0, 'status' => 3];
+    $kinds = vehicle_change_kinds($saved, ['name' => '1-HLF-1', 'type' => 'HLF', 'modes' => 'Normal,Sonder', 'x' => 1.5, 'y' => 2.0, 'status' => 3]);
+    expect_same(['positions' => true, 'data' => false], $kinds);
+});
+
+test_case('Fahrzeugupdate: Statuswechsel ist eine Datenänderung ohne Positionsänderung', static function (): void {
+    $saved = ['name' => '1-HLF-1', 'type' => 'HLF', 'modes' => null, 'x' => 1.0, 'y' => 2.0, 'status' => 3];
+    $kinds = vehicle_change_kinds($saved, ['name' => '1-HLF-1', 'type' => 'HLF', 'modes' => null, 'x' => 1.0, 'y' => 2.0, 'status' => 4]);
+    expect_same(['positions' => false, 'data' => true], $kinds);
+});
+
+test_case('Fahrzeugupdate: identische Werte ändern nichts', static function (): void {
+    $saved = ['name' => '1-HLF-1', 'type' => 'HLF', 'modes' => null, 'x' => 1.0, 'y' => 2.0, 'status' => 3];
+    $kinds = vehicle_change_kinds($saved, ['name' => '1-HLF-1', 'type' => 'HLF', 'modes' => null, 'x' => '1', 'y' => '2', 'status' => '3']);
+    expect_same(['positions' => false, 'data' => false], $kinds);
+});
+
+test_case('Sync-Fingerabdruck ignoriert Positionen und Fahrzeugreihenfolge, nicht aber Status, Einsätze und Uhrzeit', static function (): void {
+    $base = [
+        'vehicles' => [
+            ['game_vehicle_id' => '1_HLF_1', 'status' => 2, 'x' => 10, 'y' => 20],
+            ['game_vehicle_id' => '2_RTW_1', 'status' => 1, 'x' => 30, 'y' => 40],
+        ],
+        'events' => [['game_event_id' => '7', 'name' => 'Brand', 'x' => 1, 'y' => 2]],
+        'time' => ['h' => 18, 'm' => 50],
+    ];
+    $moved = $base;
+    $moved['vehicles'][0]['x'] = 99;
+    $reordered = $base;
+    $reordered['vehicles'] = array_reverse($base['vehicles']);
+    $status = $base;
+    $status['vehicles'][0]['status'] = 3;
+    $event = $base;
+    $event['events'][0]['name'] = 'Brand 2';
+    $clock = $base;
+    $clock['time']['m'] = 51;
+
+    $fingerprint = sync_fingerprint($base);
+    expect_same(64, strlen($fingerprint));
+    expect_same($fingerprint, sync_fingerprint($moved));
+    expect_same($fingerprint, sync_fingerprint($reordered));
+    expect_true($fingerprint !== sync_fingerprint($status), 'Statuswechsel muss den Fingerabdruck ändern');
+    expect_true($fingerprint !== sync_fingerprint($event), 'Einsatzänderung muss den Fingerabdruck ändern');
+    expect_true($fingerprint !== sync_fingerprint($clock), 'Uhrzeit muss den Fingerabdruck ändern');
 });
 
 $failed = 0;

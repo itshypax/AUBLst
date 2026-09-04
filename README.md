@@ -155,6 +155,11 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
 - `POST api.php?action=stream` – SSE-Kanal für Änderungen; Polling bleibt kompatibel
 - `POST api.php?action=state` – aktueller Leitstellenzustand mit laufenden Einsätzen
 - `POST api.php?action=monitor_state` – schlanker Zustand für den Alarmmonitor
+- `POST api.php?action=positions` – nur Fahrzeugkoordinaten als `[[id, x, y], …]`
+  mit eigener `position_revision`; `known_position_revision` liefert bei
+  unverändertem Stand nur `unchanged`. Der Sync aus dem Spiel erhöht die
+  Sitzungsrevision nur noch bei anderen Änderungen als Positionen, spätestens
+  aber alle 15 Sekunden.
 - `POST api.php?action=status_history` – letzte 500 Fahrzeugstatusänderungen
 - `POST api.php?action=logs` – Funkmeldungen; Cursor über `since` und `since_id`
 - `POST api.php?action=events_create` / `events_finish` / `events_assign` /

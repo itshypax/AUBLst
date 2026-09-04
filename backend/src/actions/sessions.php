@@ -167,7 +167,8 @@ function action_sync(PDO $pdo): void {
     }
     $leaders_dirty = false;
     $leader_event_ids = [];
-    upsert_vehicles($pdo, $sid, $data['vehicles'] ?? [], $leaders_dirty, $leader_event_ids);
+    $vehicle_changes = ['positions' => false, 'data' => false];
+    upsert_vehicles($pdo, $sid, $data['vehicles'] ?? [], $leaders_dirty, $leader_event_ids, $vehicle_changes);
     foreach (($data['hospitals'] ?? []) as $h) { upsert_hospital($pdo, $sid, $h); }
     foreach (($data['messages'] ?? []) as $m) { upsert_message($pdo, $sid, $m); }
     foreach (($data['events'] ?? []) as $e) {
@@ -185,7 +186,24 @@ function action_sync(PDO $pdo): void {
     }
 
     if ($leaders_dirty) reconcile_event_leaders($pdo, $sid, true, $leader_event_ids);
-    touch_session($pdo, $sid);
+
+    // Die Revision steigt nur, wenn sich etwas anderes als Positionen geändert
+    // hat. Das Spiel synct jede Sekunde; ohne diese Unterscheidung würde jede
+    // Fahrzeugbewegung alle Leitstellen zum vollständigen Neuladen bringen.
+    $fingerprint = sync_fingerprint($data);
+    $fingerprint_at = strtotime((string)($session['sync_fingerprint_at'] ?? '')) ?: 0;
+    $data_changed = $fingerprint !== (string)($session['sync_fingerprint'] ?? '')
+        || $vehicle_changes['data']
+        || $leaders_dirty
+        || $fingerprint_at <= time() - SYNC_REVISION_MAX_AGE_SECONDS;
+    if ($data_changed) {
+        touch_session($pdo, $sid);
+        store_sync_fingerprint($pdo, $sid, $fingerprint);
+    } elseif ($vehicle_changes['positions']) {
+        touch_session_positions($pdo, $sid);
+    } else {
+        mark_session_activity($pdo, $sid);
+    }
     $pdo->commit();
     respond_json(200, ['ok' => true, 'session_id' => $sid]);
 }

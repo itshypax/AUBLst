@@ -237,10 +237,25 @@ export interface UnchangedStateResponse {
   revision: number;
 }
 
+// Positionskanal: nur Koordinaten, damit Fahrzeugbewegungen nicht den
+// kompletten Zustand neu laden.
+export type VehiclePosition = [id: number, x: number, y: number];
+
+export interface PositionsResponse {
+  position_revision: number;
+  positions: VehiclePosition[];
+}
+
+export interface UnchangedPositionsResponse {
+  unchanged: true;
+  position_revision: number;
+}
+
 export interface StateResponse {
   session: {
     token: string;
     revision?: number;
+    position_revision?: number;
     mod_id: string | null;
     routing_version?: string | null;
     map_image_version?: string | null;

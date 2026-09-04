@@ -36,6 +36,7 @@ function state_session_data(array $session): array {
     return [
         'token' => $session['token'],
         'revision' => (int)($session['revision'] ?? 0),
+        'position_revision' => (int)($session['position_revision'] ?? 0),
         'mod_id' => $session['mod_id'],
         'routing_version' => routing_version_for_mod($session['mod_id'] ?? null),
         'map_image_version' => map_image_version_for_mod($session['mod_id'] ?? null),
@@ -57,16 +58,16 @@ function state_not_modified(array $session): bool {
     respond_json(200, ['unchanged' => true, 'revision' => (int)$session['revision']]);
 }
 
-function state_cache_fetch(int $session_id, int $revision, string $profile): ?array {
+function state_cache_fetch(int $session_id, int $revision, int $position_revision, string $profile): ?array {
     if ((int)STATE_CACHE_SECONDS <= 0 || !function_exists('apcu_fetch')) return null;
     $success = false;
-    $value = apcu_fetch("aublst:state:$profile:$session_id:$revision", $success);
+    $value = apcu_fetch("aublst:state:$profile:$session_id:$revision:$position_revision", $success);
     return $success && is_array($value) ? $value : null;
 }
 
-function state_cache_store(int $session_id, int $revision, string $profile, array $payload): void {
+function state_cache_store(int $session_id, int $revision, int $position_revision, string $profile, array $payload): void {
     if ((int)STATE_CACHE_SECONDS <= 0 || !function_exists('apcu_store')) return;
-    apcu_store("aublst:state:$profile:$session_id:$revision", $payload, (int)STATE_CACHE_SECONDS);
+    apcu_store("aublst:state:$profile:$session_id:$revision:$position_revision", $payload, (int)STATE_CACHE_SECONDS);
 }
 
 function state_hospital_capacity_level(int $available): string {
@@ -115,7 +116,8 @@ function action_monitor_state(PDO $pdo): void {
     state_not_modified($session);
     $sid = (int)$session['id'];
     $revision = (int)($session['revision'] ?? 0);
-    $cached = state_cache_fetch($sid, $revision, 'monitor');
+    $position_revision = (int)($session['position_revision'] ?? 0);
+    $cached = state_cache_fetch($sid, $revision, $position_revision, 'monitor');
     if ($cached !== null) respond_json(200, $cached);
 
     $vehicles = $pdo->prepare('SELECT id, game_vehicle_id, name, type, modes, x, y, status, assigned_player_id
@@ -146,7 +148,7 @@ function action_monitor_state(PDO $pdo): void {
             : [],
         'time' => $time->fetch() ?: null,
     ];
-    state_cache_store($sid, $revision, 'monitor', $payload);
+    state_cache_store($sid, $revision, $position_revision, 'monitor', $payload);
     respond_json(200, $payload);
 }
 
@@ -156,7 +158,8 @@ function action_state(PDO $pdo): void {
     state_not_modified($session);
     $sid = (int)$session['id'];
     $revision = (int)($session['revision'] ?? 0);
-    $cached = state_cache_fetch($sid, $revision, 'control');
+    $position_revision = (int)($session['position_revision'] ?? 0);
+    $cached = state_cache_fetch($sid, $revision, $position_revision, 'control');
     if ($cached !== null) respond_json(200, $cached);
 
     $players = $pdo->prepare('SELECT id, player_uid as player_id, name FROM players WHERE session_id = ? ORDER BY name');
@@ -201,7 +204,7 @@ function action_state(PDO $pdo): void {
         'monitor_hospital_capacities' => [],
         'time' => $time,
     ];
-    state_cache_store($sid, $revision, 'control', $payload);
+    state_cache_store($sid, $revision, $position_revision, 'control', $payload);
     respond_json(200, $payload);
 }
 
@@ -211,4 +214,22 @@ function action_status_history(PDO $pdo): void {
         FROM vehicle_status_history WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT 500');
     $stmt->execute([$session['id']]);
     respond_json(200, ['status_history' => $stmt->fetchAll()]);
+}
+
+// Nur Koordinaten, für den Positionskanal. Das Frontend schreibt sie in die
+// vorhandenen Fahrzeugobjekte, ohne den Zustand neu aufzubauen.
+function action_positions(PDO $pdo): void {
+    $session = require_session($pdo, request_value('session_token'));
+    $revision = (int)($session['position_revision'] ?? 0);
+    $known = request_value('known_position_revision');
+    if ($known !== null && $known !== '' && (int)$known === $revision) {
+        respond_json(200, ['unchanged' => true, 'position_revision' => $revision]);
+    }
+    $stmt = $pdo->prepare('SELECT id, x, y FROM vehicles WHERE session_id = ?');
+    $stmt->execute([(int)$session['id']]);
+    $positions = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $positions[] = [(int)$row['id'], (float)$row['x'], (float)$row['y']];
+    }
+    respond_json(200, ['position_revision' => $revision, 'positions' => $positions]);
 }

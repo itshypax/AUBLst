@@ -39,6 +39,7 @@ function action_stream(PDO $pdo): void {
     $session = require_session($pdo, $data['session_token'] ?? null);
     $sid = (int)$session['id'];
     $lastRevision = max(-1, (int)($data['last_revision'] ?? -1));
+    $lastPositionRevision = max(-1, (int)($data['last_position_revision'] ?? -1));
 
     ignore_user_abort(true);
     set_time_limit(30);
@@ -73,22 +74,35 @@ function action_stream(PDO $pdo): void {
         flush();
     };
 
-    $revisionQuery = $pdo->prepare('SELECT revision FROM sessions WHERE id = ?');
+    $revisionQuery = $pdo->prepare('SELECT revision, position_revision FROM sessions WHERE id = ?');
     $deadline = microtime(true) + 25.0;
     $nextHeartbeat = 0.0;
     $sendFrame("retry: 1500\n\n");
 
     while (!connection_aborted() && microtime(true) < $deadline) {
         $revisionQuery->execute([$sid]);
-        $revision = $revisionQuery->fetchColumn();
-        if ($revision === false) break;
-        $revision = (int)$revision;
+        $row = $revisionQuery->fetch();
+        if ($row === false) break;
+        $revision = (int)$row['revision'];
+        $positionRevision = (int)($row['position_revision'] ?? 0);
+        $sent = false;
         if ($revision !== $lastRevision) {
             $sendFrame(
                 "event: change\n"
                 . 'data: ' . json_encode(['revision' => $revision]) . "\n\n"
             );
             $lastRevision = $revision;
+            $sent = true;
+        }
+        if ($positionRevision !== $lastPositionRevision) {
+            $sendFrame(
+                "event: positions\n"
+                . 'data: ' . json_encode(['position_revision' => $positionRevision]) . "\n\n"
+            );
+            $lastPositionRevision = $positionRevision;
+            $sent = true;
+        }
+        if ($sent) {
             $nextHeartbeat = microtime(true) + 10.0;
         } elseif (microtime(true) >= $nextHeartbeat) {
             $sendFrame(": heartbeat\n\n");

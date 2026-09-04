@@ -420,3 +420,65 @@ describe('Funk-Polling', () => {
     expect(app.logs.map((item) => item.acknowledged)).toEqual([true, true]);
   });
 });
+
+describe('Positionskanal', () => {
+  function stateWithVehicles() {
+    return {
+      session: {
+        token: 'demo',
+        revision: 7,
+        position_revision: 3,
+        mod_id: null,
+        map_bounds: { min_x: 0, min_y: 0, max_x: 1000, max_y: 1000 },
+      },
+      players: [],
+      vehicles: [
+        { id: 1, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', type: 'HLF', modes: null, x: 100, y: -100, status: 3, assigned_player_id: null },
+        { id: 2, game_vehicle_id: '2_RTW_1', name: '2-RTW-1', type: 'RTW', modes: null, x: 200, y: -200, status: 2, assigned_player_id: null },
+      ],
+      hospitals: [],
+      events: [],
+      assignments: [],
+      hospital_reservations: [],
+      status_history: [],
+      time: null,
+    };
+  }
+
+  it('schreibt neue Koordinaten in die vorhandenen Fahrzeugobjekte, ohne den Zustand neu aufzubauen', async () => {
+    mocks.apiGet
+      .mockResolvedValueOnce(stateWithVehicles())
+      .mockResolvedValueOnce({ position_revision: 4, positions: [[1, 500, -600]] });
+    const { refreshPositions, refreshState, switchSession } = await import('./polling');
+
+    await switchSession('/backend/api.php', 'demo', '', { readOnly: true });
+    await refreshState();
+    const vehicles = app.vehicles;
+    const untouched = app.vehicles[1];
+    await refreshPositions();
+
+    expect(mocks.apiGet).toHaveBeenLastCalledWith('positions', { known_position_revision: 3 }, expect.any(Object));
+    expect(app.vehicles).toBe(vehicles);
+    expect(app.vehicles[0].x).toBe(500);
+    expect(app.vehicles[0].y).toBe(-600);
+    expect(app.vehicles[0].name).toBe('1-HLF-1');
+    expect(app.vehicles[0].status).toBe(3);
+    expect(app.vehicles[1]).toBe(untouched);
+    expect(app.vehicles[1].x).toBe(200);
+    expect(app.positionRevision).toBe(4);
+  });
+
+  it('lässt bei unveränderter Positionsrevision alles stehen', async () => {
+    mocks.apiGet
+      .mockResolvedValueOnce(stateWithVehicles())
+      .mockResolvedValueOnce({ unchanged: true, position_revision: 3 });
+    const { refreshPositions, refreshState, switchSession } = await import('./polling');
+
+    await switchSession('/backend/api.php', 'demo', '', { readOnly: true });
+    await refreshState();
+    await refreshPositions();
+
+    expect(app.vehicles[0].x).toBe(100);
+    expect(app.positionRevision).toBe(3);
+  });
+});

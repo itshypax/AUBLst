@@ -57,6 +57,7 @@
     void app.mapBounds;
     void app.mapContentRect;
     void app.mapImageUrl;
+    void app.positionRevision;
     requestAnimationFrame(updatePositions);
   });
 

@@ -34,6 +34,19 @@ function mark_session_activity(PDO $pdo, $session_id): void {
     $stmt->execute([$session_id]);
 }
 
+// Nur Fahrzeugpositionen haben sich geändert: eigene Revision, damit die
+// Leitstellen nicht den kompletten Zustand neu laden.
+function touch_session_positions(PDO $pdo, $session_id): void {
+    $stmt = $pdo->prepare('UPDATE sessions SET position_revision = position_revision + 1,
+        last_activity_at = CURRENT_TIMESTAMP WHERE id = ?');
+    $stmt->execute([$session_id]);
+}
+
+function store_sync_fingerprint(PDO $pdo, $session_id, string $fingerprint): void {
+    $stmt = $pdo->prepare('UPDATE sessions SET sync_fingerprint = ?, sync_fingerprint_at = CURRENT_TIMESTAMP WHERE id = ?');
+    $stmt->execute([$fingerprint, $session_id]);
+}
+
 function record_anonymous_metric(PDO $pdo, string $name, float $value): void {
     if (!defined('ENABLE_ANONYMOUS_METRICS') || !ENABLE_ANONYMOUS_METRICS) return;
     $stmt = $pdo->prepare('INSERT INTO anonymous_metrics
@@ -68,7 +81,7 @@ function sql_placeholders(array $values): string {
     return implode(',', array_fill(0, count($values), '?'));
 }
 
-function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders_dirty = null, ?array &$leader_event_ids = null): array {
+function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders_dirty = null, ?array &$leader_event_ids = null, ?array &$changes = null): array {
     $updates = [];
     foreach ($vehicles as $vehicle) {
         if (!is_array($vehicle)) continue;
@@ -107,6 +120,11 @@ function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders
             'y' => check_options('y', $saved, $vehicle, 0),
             'status' => check_options('status', $saved, $vehicle, 2),
         ];
+        $kinds = vehicle_change_kinds($saved, $row);
+        if ($changes !== null) {
+            $changes['positions'] = ($changes['positions'] ?? false) || $kinds['positions'];
+            $changes['data'] = ($changes['data'] ?? false) || $kinds['data'];
+        }
         $upsert->execute([$session_id, $gameId, $row['name'], $row['type'], $row['modes'], $row['x'], $row['y'], $row['status']]);
         $vehicleId = $saved ? (int)$saved['id'] : (int)$pdo->lastInsertId();
         $current = array_merge($saved ?: [], $row, [

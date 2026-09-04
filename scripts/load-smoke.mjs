@@ -72,6 +72,42 @@ async function testSession() {
   if (!record.journal?.length || !record.positions?.length) {
     throw new Error("Disponentenprotokoll oder Positionsaufzeichnung fehlt");
   }
+
+  // Eine reine Positionsänderung erhöht nur die Positionsrevision.
+  const stateBefore = await post("state", { session_token: token });
+  const positionsBefore = await post("positions", { session_token: token });
+  if (positionsBefore.positions?.length !== 60) {
+    throw new Error("Positionskanal liefert nicht alle Fahrzeuge");
+  }
+  await post("update_vehicles", {
+    session_token: token,
+    updates: [{ game_vehicle_id: "LOAD_2", x: 999, y: -999 }],
+  });
+  const stateAfter = await post("state", {
+    session_token: token,
+    known_revision: stateBefore.session.revision,
+  });
+  if (stateAfter.unchanged !== true) {
+    throw new Error("Positionsänderung hat die Zustandsrevision erhöht");
+  }
+  const positionsAfter = await post("positions", {
+    session_token: token,
+    known_position_revision: positionsBefore.position_revision,
+  });
+  const movedId = stateBefore.vehicles.find(
+    (item) => item.game_vehicle_id === "LOAD_2",
+  ).id;
+  const moved = positionsAfter.positions?.find(([id]) => id === movedId);
+  if (
+    positionsAfter.unchanged ||
+    !(positionsAfter.position_revision > positionsBefore.position_revision) ||
+    !moved ||
+    moved[1] !== 999
+  ) {
+    throw new Error(
+      "Positionsrevision oder Koordinaten fehlen nach Positionsänderung",
+    );
+  }
   return token;
 }
 
@@ -122,6 +158,7 @@ const token = await testSession();
 const results = await Promise.all([
   runProfile("state", 2, token),
   runProfile("monitor_state", 5, token),
+  runProfile("positions", 5, token),
 ]);
 console.table(results);
 if (results.some((result) => result.errors > 0 || result.p95_ms > 500))

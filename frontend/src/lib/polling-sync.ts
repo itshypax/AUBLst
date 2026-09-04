@@ -1,5 +1,5 @@
 import type { LogCursor } from './log-stream';
-import type { LogRow, StateResponse, VehicleStatusChange } from './types';
+import type { LogRow, StateResponse, VehiclePosition, VehicleStatusChange } from './types';
 
 const CHANNEL_NAME = 'aublst-polling-sync:v1';
 const HEARTBEAT_INTERVAL_MS = 2_000;
@@ -23,6 +23,7 @@ interface PollingHandlers {
   onState: (state: StateResponse, receivedAt: number) => void;
   onLogs: (rows: LogRow[], cursor: LogCursor, receivedAt: number) => void;
   onStatusHistory: (rows: VehicleStatusChange[]) => void;
+  onPositions: (positions: VehiclePosition[], revision: number) => void;
   onLogAcknowledged: (id: number, updatedAt: string) => void;
   onLogDismissed: (id: number, updatedAt: string) => void;
   onSnapshot: (snapshot: PollingSnapshot) => void;
@@ -37,6 +38,7 @@ type PollingMessage =
   | { type: 'state'; sender: string; scope: string; state: StateResponse; receivedAt: number }
   | { type: 'logs'; sender: string; scope: string; rows: LogRow[]; cursor: LogCursor; receivedAt: number }
   | { type: 'status-history'; sender: string; scope: string; rows: VehicleStatusChange[] }
+  | { type: 'positions'; sender: string; scope: string; positions: VehiclePosition[]; revision: number }
   | { type: 'log-acknowledged'; sender: string; scope: string; id: number; updatedAt: string }
   | { type: 'log-dismissed'; sender: string; scope: string; id: number; updatedAt: string };
 
@@ -119,6 +121,8 @@ function onMessage(event: MessageEvent<PollingMessage>): void {
     handlers?.onLogs(message.rows, message.cursor, message.receivedAt);
   } else if (message.type === 'status-history') {
     handlers?.onStatusHistory(message.rows);
+  } else if (message.type === 'positions') {
+    handlers?.onPositions(message.positions, message.revision);
   }
 }
 
@@ -184,6 +188,11 @@ export function broadcastPollingState(state: StateResponse, receivedAt: number):
 export function broadcastPollingLogs(rows: LogRow[], cursor: LogCursor, receivedAt: number): void {
   if (!channel || !scope || !leader || !rows.length) return;
   post({ type: 'logs', sender: windowId, scope, rows, cursor, receivedAt });
+}
+
+export function broadcastPositions(positions: VehiclePosition[], revision: number): void {
+  if (!scope || !leader) return;
+  post({ type: 'positions', sender: windowId, scope, positions, revision });
 }
 
 export function broadcastStatusHistory(rows: VehicleStatusChange[]): void {

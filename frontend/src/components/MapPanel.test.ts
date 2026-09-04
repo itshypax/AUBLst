@@ -82,3 +82,26 @@ describe('Karte in Ebenen', () => {
     expect(markers.calls.length).toBeGreaterThan(markerCallsBefore);
   });
 });
+
+describe('Positionskanal auf der Karte', () => {
+  it('zeichnet bei neuer Positionsrevision nur die Markerebene neu', async () => {
+    const { container } = render(MapPanel);
+    await tick();
+    await nextFrame();
+    await nextFrame();
+
+    const canvases = container.querySelectorAll('canvas');
+    const base = contextFor(canvases[0]);
+    const markers = contextFor(canvases[1]);
+    const baseCallsBefore = base.calls.length;
+    const markerCallsBefore = markers.calls.length;
+
+    app.positionRevision += 1;
+    await tick();
+    await nextFrame();
+    await nextFrame();
+
+    expect(base.calls.length).toBe(baseCallsBefore);
+    expect(markers.calls.length).toBeGreaterThan(markerCallsBefore);
+  });
+});

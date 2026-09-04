@@ -45,6 +45,7 @@ export const app = $state({
   monitorHospitalCapacities: [] as MonitorHospitalCapacity[],
   monitorShowHospitalCapacity: false,
   clock: null as ClockTime | null,
+  positionRevision: 0,
   modId: null as string | null,
   routingVersion: null as string | null,
   mapImageVersion: null as string | null,
@@ -229,6 +230,7 @@ export function resetSessionData(): void {
   app.monitorHospitalCapacities = [];
   app.monitorShowHospitalCapacity = false;
   app.clock = null;
+  app.positionRevision = 0;
   app.modId = null;
   app.routingVersion = null;
   app.mapImageVersion = null;

@@ -297,6 +297,7 @@
   // Fahrzeuge, Einsätze und Hervorhebungen liegen nur auf der Markerebene.
   $effect(() => {
     void app.vehicles;
+    void app.positionRevision;
     void app.events;
     void app.highlightedEventId;
     void app.highlightedVehicleId;

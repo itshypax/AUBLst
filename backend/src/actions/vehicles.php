@@ -16,9 +16,16 @@ function action_update_vehicles(PDO $pdo): void {
     }
     $leaders_dirty = false;
     $leader_event_ids = [];
-    upsert_vehicles($pdo, $sid, $updates, $leaders_dirty, $leader_event_ids);
+    $changes = ['positions' => false, 'data' => false];
+    upsert_vehicles($pdo, $sid, $updates, $leaders_dirty, $leader_event_ids, $changes);
     if ($leaders_dirty) reconcile_event_leaders($pdo, $sid, true, $leader_event_ids);
-    touch_session($pdo, $sid);
+    if ($changes['data'] || $leaders_dirty) {
+        touch_session($pdo, $sid);
+    } elseif ($changes['positions']) {
+        touch_session_positions($pdo, $sid);
+    } else {
+        mark_session_activity($pdo, $sid);
+    }
     respond_json(200, ['ok' => true]);
 }
 

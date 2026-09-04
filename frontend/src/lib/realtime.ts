@@ -24,13 +24,15 @@ export function parseSseChunk(buffer: string, chunk: string): { events: Realtime
 
 interface StreamOptions {
   onChange: () => void;
+  onPositions?: () => void;
   onStatus: (connected: boolean) => void;
 }
 
-export function startRealtimeStream({ onChange, onStatus }: StreamOptions): () => void {
+export function startRealtimeStream({ onChange, onPositions, onStatus }: StreamOptions): () => void {
   let stopped = false;
   let controller: AbortController | null = null;
   let lastRevision = -1;
+  let lastPositionRevision = -1;
 
   const wait = (milliseconds: number) => new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 
@@ -41,7 +43,11 @@ export function startRealtimeStream({ onChange, onStatus }: StreamOptions): () =
         const response = await fetch(`${app.apiBase}?action=stream`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-          body: JSON.stringify({ session_token: app.sessionToken, last_revision: lastRevision }),
+          body: JSON.stringify({
+            session_token: app.sessionToken,
+            last_revision: lastRevision,
+            last_position_revision: lastPositionRevision,
+          }),
           cache: 'no-store',
           signal: controller.signal,
         });
@@ -57,6 +63,16 @@ export function startRealtimeStream({ onChange, onStatus }: StreamOptions): () =
           const parsed = parseSseChunk(buffer, decoder.decode(value, { stream: true }));
           buffer = parsed.remainder;
           for (const incoming of parsed.events) {
+            if (incoming.event === 'positions') {
+              try {
+                const revision = Number((JSON.parse(incoming.data) as { position_revision?: unknown }).position_revision);
+                if (Number.isFinite(revision)) lastPositionRevision = revision;
+              } catch {
+                // Ein ungültiges Push-Paket darf den Polling-Rückfall nicht stoppen.
+              }
+              onPositions?.();
+              continue;
+            }
             if (incoming.event !== 'change') continue;
             try {
               const revision = Number((JSON.parse(incoming.data) as { revision?: unknown }).revision);

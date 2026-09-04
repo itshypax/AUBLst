@@ -8,9 +8,12 @@ import type {
   LogRow,
   MapBounds,
   MapContentRect,
+  PositionsResponse,
   StateResponse,
   StatusHistoryResponse,
+  UnchangedPositionsResponse,
   UnchangedStateResponse,
+  VehiclePosition,
   VehicleStatusChange,
 } from './types';
 import { cloneRoutingConfig, DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing';
@@ -20,6 +23,7 @@ import {
   broadcastPollingLogs,
   broadcastPollingSnapshot,
   broadcastPollingState,
+  broadcastPositions,
   broadcastStatusHistory,
   isPollingLeader,
   requestPollingSnapshot,
@@ -38,6 +42,13 @@ const STATE_INTERVAL = 3_000;
 const LOG_INTERVAL = 2_000;
 const STATUS_HISTORY_INTERVAL = 15_000;
 const HIDDEN_INTERVAL = 15_000;
+
+// Positionskanal: eigene Revision, eigener Timer, eigener Abbruch.
+let lastPositionRevision = -1;
+let positionFailures = 0;
+let positionTimer: number | undefined;
+let positionsController: AbortController | null = null;
+let realtimePositionsTimer: number | undefined;
 const MAX_BACKOFF = 30_000;
 const MAX_LOG_ROWS = 500;
 
@@ -173,6 +184,12 @@ function ensureRealtimeStream(): void {
         if (currentPollingProfile().pollsLogs) void pollLogs();
       }, 100);
     },
+    onPositions: () => {
+      clearTimeout(realtimePositionsTimer);
+      realtimePositionsTimer = window.setTimeout(() => {
+        void refreshPositions();
+      }, 100);
+    },
   });
 }
 
@@ -202,10 +219,22 @@ function scheduleStatusHistory(delay = nextDelay(STATUS_HISTORY_INTERVAL, status
   if (!isPollingLeader()) return;
   const scheduledGeneration = generation;
   clearTimeout(statusHistoryTimer);
+  clearTimeout(positionTimer);
   statusHistoryTimer = window.setTimeout(async () => {
     if (scheduledGeneration !== generation) return;
     await refreshStatusHistory();
     if (scheduledGeneration === generation) scheduleStatusHistory();
+  }, delay);
+}
+
+function schedulePositions(delay = nextDelay(STATE_INTERVAL, positionFailures)): void {
+  if (!isPollingLeader()) return;
+  const scheduledGeneration = generation;
+  clearTimeout(positionTimer);
+  positionTimer = window.setTimeout(async () => {
+    if (scheduledGeneration !== generation) return;
+    await refreshPositions();
+    if (scheduledGeneration === generation) schedulePositions();
   }, delay);
 }
 
@@ -231,6 +260,7 @@ function restartLoops(runImmediately: boolean): void {
   clearTimeout(stateTimer);
   clearTimeout(logTimer);
   clearTimeout(statusHistoryTimer);
+  clearTimeout(positionTimer);
   clearTimeout(connectionTimer);
   if (!app.sessionToken || !isPollingLeader()) return;
   if (!app.stateHealthy) {
@@ -242,10 +272,12 @@ function restartLoops(runImmediately: boolean): void {
   if (profile.usesRealtime) ensureRealtimeStream();
   if (runImmediately) {
     void refreshState().finally(() => scheduleState());
+    void refreshPositions().finally(() => schedulePositions());
     if (profile.pollsLogs) void pollLogs().finally(() => scheduleLogs());
     if (profile.pollsStatusHistory) void refreshStatusHistory().finally(() => scheduleStatusHistory());
   } else {
     scheduleState();
+    schedulePositions();
     if (profile.pollsLogs) scheduleLogs();
     if (profile.pollsStatusHistory) scheduleStatusHistory();
   }
@@ -284,6 +316,7 @@ async function connectCurrentSession(): Promise<void> {
   if (requestGeneration === generation) {
     if (app.stateHealthy && profile.usesRealtime) ensureRealtimeStream();
     scheduleState();
+    schedulePositions();
   }
   if (logRequest) void logRequest;
   if (statusHistoryRequest) void statusHistoryRequest;
@@ -299,9 +332,11 @@ export async function switchSession(
   stateController?.abort();
   logController?.abort();
   statusHistoryController?.abort();
+  positionsController?.abort();
   clearTimeout(stateTimer);
   clearTimeout(logTimer);
   clearTimeout(statusHistoryTimer);
+  clearTimeout(positionTimer);
   clearTimeout(connectionTimer);
   stopRealtimeStream();
   app.sessionChanging = true;
@@ -349,6 +384,8 @@ async function applyState(
   app.monitorShowHospitalCapacity = Boolean(data.session.monitor_show_hospital_capacity);
   app.clock = data.time ?? null;
   lastRevision = Number(data.session.revision ?? lastRevision);
+  lastPositionRevision = Number(data.session.position_revision ?? lastPositionRevision);
+  app.positionRevision = Math.max(0, lastPositionRevision);
   app.connected = true;
   app.stateHealthy = true;
   app.lastSuccessfulSync = receivedAt;
@@ -477,6 +514,49 @@ export async function refreshState(): Promise<void> {
   }
 }
 
+// Schreibt Koordinaten in die vorhandenen Fahrzeugobjekte. Die Karten lesen
+// app.positionRevision und zeichnen nur ihre Markerebene neu; alle anderen
+// Panels sehen keine Änderung.
+export function applyPositions(positions: VehiclePosition[], revision: number): void {
+  const byId = new Map(app.vehicles.map((vehicle) => [vehicle.id, vehicle]));
+  for (const [id, x, y] of positions) {
+    const vehicle = byId.get(Number(id));
+    if (!vehicle) continue;
+    if (vehicle.x !== x) vehicle.x = x;
+    if (vehicle.y !== y) vehicle.y = y;
+  }
+  lastPositionRevision = revision;
+  app.positionRevision = revision;
+}
+
+export async function refreshPositions(): Promise<void> {
+  if (!app.sessionToken || !app.stateHealthy) return;
+  positionsController?.abort();
+  const controller = new AbortController();
+  positionsController = controller;
+  const requestGeneration = generation;
+  try {
+    const data = await apiGet<PositionsResponse | UnchangedPositionsResponse>(
+      'positions',
+      lastPositionRevision >= 0 ? { known_position_revision: lastPositionRevision } : {},
+      { signal: controller.signal },
+    );
+    if (requestGeneration !== generation) return;
+    positionFailures = 0;
+    if ('unchanged' in data && data.unchanged) return;
+    const response = data as PositionsResponse;
+    const revision = Number(response.position_revision ?? lastPositionRevision);
+    applyPositions(response.positions ?? [], revision);
+    broadcastPositions(response.positions ?? [], revision);
+  } catch (error) {
+    if (controller.signal.aborted || requestGeneration !== generation) return;
+    positionFailures += 1;
+    console.debug('Positionsabruf fehlgeschlagen', error);
+  } finally {
+    if (positionsController === controller) positionsController = null;
+  }
+}
+
 export async function pollLogs(): Promise<void> {
   if (!app.sessionToken) return;
   logController?.abort();
@@ -544,6 +624,7 @@ export async function pollLogs(): Promise<void> {
 export async function refreshStatusHistory(): Promise<void> {
   if (!app.sessionToken || !currentPollingProfile().pollsStatusHistory) return;
   statusHistoryController?.abort();
+  positionsController?.abort();
   const controller = new AbortController();
   statusHistoryController = controller;
   const requestGeneration = generation;
@@ -612,9 +693,11 @@ export function startPolling(): void {
       stateController?.abort();
       logController?.abort();
       statusHistoryController?.abort();
+      positionsController?.abort();
       clearTimeout(stateTimer);
       clearTimeout(logTimer);
       clearTimeout(statusHistoryTimer);
+      clearTimeout(positionTimer);
       clearTimeout(connectionTimer);
       stopRealtimeStream();
       if (leader) restartLoops(true);
@@ -632,6 +715,9 @@ export function startPolling(): void {
     },
     onStatusHistory: (rows) => {
       app.statusHistory = rows;
+    },
+    onPositions: (positions, revision) => {
+      applyPositions(positions, revision);
     },
     onLogAcknowledged: markLogAcknowledged,
     onLogDismissed: markLogDismissed,

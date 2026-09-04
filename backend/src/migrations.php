@@ -267,6 +267,17 @@ function migration_definitions(): array {
                 CONSTRAINT fk_position_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
             ) ENGINE=InnoDB");
         },
+        '2026090401_position_revision' => static function (PDO $pdo): void {
+            if (!database_column_exists($pdo, 'sessions', 'position_revision')) {
+                $pdo->exec('ALTER TABLE sessions
+                    ADD COLUMN position_revision BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER revision');
+            }
+            if (!database_column_exists($pdo, 'sessions', 'sync_fingerprint')) {
+                $pdo->exec('ALTER TABLE sessions
+                    ADD COLUMN sync_fingerprint CHAR(64) NULL AFTER position_revision,
+                    ADD COLUMN sync_fingerprint_at TIMESTAMP NULL AFTER sync_fingerprint');
+            }
+        },
     ];
 }
 
