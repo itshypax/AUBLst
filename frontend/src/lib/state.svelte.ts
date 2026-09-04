@@ -64,10 +64,7 @@ export const app = $state({
   confirmDialog: null as { message: string; resolve: (ok: boolean) => void } | null,
   actionsOpen: false,
   sessionOverviewOpen: false,
-  shortcutsOpen: false,
   hospitalAssignmentVehicleId: null as number | null,
-  focusVehicleSearchSeq: 0,
-  fitMapSeq: 0,
   soundEnabled: true,
   soundVolume: 0.7,
   soundProfile: 'standard',
@@ -250,11 +247,8 @@ export function resetSessionData(): void {
   app.focusPoint = null;
   app.actionsOpen = false;
   app.sessionOverviewOpen = false;
-  app.shortcutsOpen = false;
   app.hospitalAssignmentVehicleId = null;
   app.mapContentRect = null;
-  app.focusVehicleSearchSeq = 0;
-  app.fitMapSeq = 0;
   pendingSyncedEvent = null;
 }
 

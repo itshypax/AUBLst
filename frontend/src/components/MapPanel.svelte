@@ -324,14 +324,6 @@
     app.focusPoint = null;
   });
 
-  let handledFitMapSeq = 0;
-  $effect(() => {
-    const sequence = app.fitMapSeq;
-    if (!sequence || sequence === handledFitMapSeq) return;
-    handledFitMapSeq = sequence;
-    resetView();
-  });
-
   function clientToCanvas(clientX: number, clientY: number): Point {
     const rect = canvas.getBoundingClientRect();
     return { x: clientX - rect.left, y: clientY - rect.top };

@@ -5,14 +5,12 @@
   import ConnectionLostBanner from './components/ConnectionLostBanner.svelte';
   import CreateEventDialog from './components/CreateEventDialog.svelte';
   import SessionGate from './components/SessionGate.svelte';
-  import ShortcutPanel from './components/ShortcutPanel.svelte';
   import Topbar from './components/Topbar.svelte';
   import Tooltip from './components/Tooltip.svelte';
   import VehicleContextMenu from './components/VehicleContextMenu.svelte';
   import WorkspaceArea from './components/WorkspaceArea.svelte';
   import NoticeToast from './components/NoticeToast.svelte';
   import { loadGroupOverrides } from './lib/classify';
-  import { shortcutActionForEvent, type ShortcutAction } from './lib/keyboard-shortcuts';
   import { startPolling } from './lib/polling';
   import { configureSounds, loadSoundManifest } from './lib/sounds';
   import {
@@ -238,36 +236,9 @@
     persistLayout();
   }
 
-  function executeShortcutAction(action: ShortcutAction): void {
-    if (action === 'toggle-help') {
-      app.shortcutsOpen = !app.shortcutsOpen;
-      return;
-    }
-    app.shortcutsOpen = false;
-    if (action.startsWith('workspace-')) {
-      const index = Number(action.slice(-1)) - 1;
-      const workspace = workspaces[index];
-      if (workspace) selectWorkspace(workspace.id);
-      return;
-    }
-    if (app.lastSuccessfulSync === null) return;
-    if (action === 'focus-vehicle-search') app.focusVehicleSearchSeq += 1;
-    else if (action === 'fit-map') app.fitMapSeq += 1;
-    else if (action === 'open-actions') app.actionsOpen = true;
-    else if (action === 'open-overview') app.sessionOverviewOpen = true;
-  }
-
-  function onGlobalKeydown(event: KeyboardEvent): void {
-    if (routingEditorRequested || monitorRequested) return;
-    const action = shortcutActionForEvent(event);
-    if (!action) return;
-    event.preventDefault();
-    if (app.shortcutsOpen && action !== 'toggle-help') return;
-    executeShortcutAction(action);
-  }
 </script>
 
-<svelte:window onpointermove={onMove} onpointerup={endDrag} onkeydown={onGlobalKeydown} />
+<svelte:window onpointermove={onMove} onpointerup={endDrag} />
 
 {#if routingEditorRequested}
   {#if RoutingEditorComponent}<RoutingEditorComponent modId={routingEditorModId} />{/if}
@@ -277,11 +248,8 @@
   <Topbar
     onResetLayout={resetLayout}
     onOpenWorkspaceEditor={() => (workspaceEditorOpen = true)}
-    onOpenShortcuts={() => (app.shortcutsOpen = true)}
     workspaceName={activeWorkspace.name}
   />
-
-  {#if app.shortcutsOpen}<ShortcutPanel onAction={executeShortcutAction} />{/if}
 
   {#if showSessionGate}
     <SessionGate />

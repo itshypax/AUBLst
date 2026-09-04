@@ -60,7 +60,7 @@ describe('Kopfzeile', () => {
     expect(screen.getByRole('button', { name: 'Sitzungsübersicht öffnen' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Einsatzakte öffnen' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Session-Statistik öffnen' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Tastaturkürzel öffnen' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Tastaturkürzel öffnen' })).toBeNull();
   });
 
   it('bietet die Soundprofile im Sitzungsmenü an', async () => {

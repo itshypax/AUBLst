@@ -15,20 +15,9 @@
   let activeTab = $state<MainTab>('fire');
   let query = $state('');
   let searchInput: HTMLInputElement;
-  let handledSearchFocus = 0;
   let fireTab: HTMLButtonElement;
   let rescueTab: HTMLButtonElement;
   let returning = $state<Set<number>>(new Set());
-
-  $effect(() => {
-    const sequence = app.focusVehicleSearchSeq;
-    if (!sequence || sequence === handledSearchFocus) return;
-    handledSearchFocus = sequence;
-    requestAnimationFrame(() => {
-      searchInput?.focus();
-      searchInput?.select();
-    });
-  });
 
   const filteredVehicles = $derived.by(() => {
     const term = query.trim().toLocaleLowerCase('de');

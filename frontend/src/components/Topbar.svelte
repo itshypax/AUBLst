@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import FaIcon from './FaIcon.svelte';
-  import { CircleAlert, ClipboardList, Clock, KeyRound, Keyboard, LayoutGrid, Moon, Play, RadioTower, RefreshCw, Settings, Sun, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
+  import { CircleAlert, ClipboardList, Clock, KeyRound, LayoutGrid, Moon, Play, RadioTower, RefreshCw, Settings, Sun, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
   import { pollLogs, refreshState, switchSession } from '../lib/polling';
   import { dismissible } from '../lib/dismissible-details';
   import { configureSounds, getDefaultSoundProfile, getSoundProfileOptions, loadSoundManifest, testSound } from '../lib/sounds';
@@ -12,7 +12,7 @@
   import { desktopNotificationsAvailable, setDesktopNotifications } from '../lib/notifications';
   import { api } from '../lib/api';
 
-  let { onResetLayout, onOpenWorkspaceEditor, onOpenShortcuts = () => (app.shortcutsOpen = true), workspaceName }: { onResetLayout: () => void; onOpenWorkspaceEditor: () => void; onOpenShortcuts?: () => void; workspaceName: string } = $props();
+  let { onResetLayout, onOpenWorkspaceEditor, workspaceName }: { onResetLayout: () => void; onOpenWorkspaceEditor: () => void; workspaceName: string } = $props();
 
   let tokenInput = $state(app.sessionToken);
   let pinInput = $state(app.pin);
@@ -193,10 +193,6 @@
 
   <button class="ghost icon-button" data-tooltip="Einsatzakte und Statistik" aria-label="Sitzungsübersicht öffnen" disabled={app.lastSuccessfulSync === null || applying} onclick={() => (app.sessionOverviewOpen = true)}>
     <FaIcon icon={ClipboardList} size={16} />
-  </button>
-
-  <button class="ghost icon-button" data-tooltip="Tastaturkürzel (F1)" aria-label="Tastaturkürzel öffnen" onclick={onOpenShortcuts}>
-    <FaIcon icon={Keyboard} size={16} />
   </button>
 
   <div class="settings">
