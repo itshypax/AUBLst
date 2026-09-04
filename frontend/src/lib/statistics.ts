@@ -367,7 +367,7 @@ export async function exportSessionStatisticsPng(model: SessionStatisticsModel):
   ctx.fillStyle = '#71747b';
   ctx.font = '16px system-ui, sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText('Erstellt mit game.aublst.de', 1536, footerY);
+  ctx.fillText('Erstellt mit aublst.hypax.wtf/frontend', 1536, footerY);
   ctx.textAlign = 'left';
 
   const blob = await new Promise<Blob>((resolve, reject) => {
