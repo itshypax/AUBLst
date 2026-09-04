@@ -29,6 +29,7 @@
   } from '../lib/alarm-monitor';
   import {
     MONITOR_GONGS,
+    MONITOR_VOICES,
     loadMonitorSoundSettings,
     playMonitorAlarm,
     saveMonitorSoundSettings,
@@ -412,7 +413,7 @@
             <label class="sound-option">
               <span class="sound-option-copy">
                 <strong>Fahrzeugansage</strong>
-                <span>Conrad nennt die alarmierten Fahrzeuge dieser Wache</span>
+                <span>Die gewählte Stimme nennt die alarmierten Fahrzeuge dieser Wache</span>
               </span>
               <input
                 type="checkbox"
@@ -420,6 +421,18 @@
                 checked={monitorSound.ttsEnabled}
                 onchange={(event) => updateMonitorSound({ ttsEnabled: event.currentTarget.checked })}
               />
+            </label>
+            <label class="sound-select">
+              <span>Stimme</span>
+              <select
+                value={monitorSound.voice}
+                disabled={!monitorSound.ttsEnabled}
+                onchange={(event) => updateMonitorSound({ voice: event.currentTarget.value as MonitorSoundSettings['voice'] })}
+              >
+                {#each MONITOR_VOICES as voice (voice.id)}
+                  <option value={voice.id}>{voice.label}</option>
+                {/each}
+              </select>
             </label>
             <label class="sound-volume">
               <span>Lautstärke <b>{Math.round(monitorSound.volume * 100)} %</b></span>

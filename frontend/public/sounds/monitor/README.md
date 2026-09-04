@@ -34,6 +34,12 @@ Die Dateien lassen sich mit `scripts/generate-monitor-tts.py` neu erzeugen. Das
 Skript braucht dafür das Python-Paket `edge-tts`; zur Laufzeit gibt es keine
 Verbindung zu einem Sprachdienst.
 
+`tts-marvin/` ist eine eigene Aufnahme mit denselben Rufnamen und demselben
+Intro, als m4a statt mp3. Welche Stimme läuft, wählt der Monitor in den
+Alarmton-Einstellungen unter „Stimme“; Conrad bleibt die Standardauswahl.
+Beide Ordner müssen denselben Satz Rufnamen enthalten, sonst bleibt bei der
+fehlenden Stimme nur das betroffene Fahrzeug stumm.
+
 ## Frühere Vorschläge
 
 Die Dateien sind unter CC0 1.0 veröffentlicht und wurden unverändert von

@@ -74,3 +74,32 @@ describe('Alarmmonitor-Ton', () => {
     ]);
   });
 });
+
+import { MONITOR_VOICES, saveMonitorSoundSettings } from './alarm-monitor-sound';
+
+describe('Alarmmonitor-Stimme', () => {
+  it('bietet Conrad und Marvin an und startet mit Conrad', () => {
+    expect(MONITOR_VOICES.map((voice) => voice.id)).toEqual(['conrad', 'marvin']);
+    expect(DEFAULT_MONITOR_SOUND_SETTINGS.voice).toBe('conrad');
+  });
+
+  it('spricht mit Marvin aus dem eigenen Ordner im m4a-Format', () => {
+    expect(monitorVehicleSpeechSources('1_RTW_A', 'marvin')).toEqual([
+      './sounds/monitor/tts-marvin/callsigns/1_rtw_a.m4a',
+    ]);
+    expect(monitorAnnouncementSources([{ gameVehicleId: '1_HLF_1', displayName: '1-HLF-1' }], 'marvin')).toEqual([
+      './sounds/monitor/tts-marvin/intro.m4a',
+      './sounds/monitor/tts-marvin/callsigns/1_hlf_1.m4a',
+    ]);
+  });
+
+  it('merkt sich die gewählte Stimme und fällt bei Unbekanntem auf Conrad zurück', () => {
+    let stored = '';
+    saveMonitorSoundSettings(
+      { ...DEFAULT_MONITOR_SOUND_SETTINGS, voice: 'marvin' },
+      { setItem: (_key, value) => { stored = value; } },
+    );
+    expect(loadMonitorSoundSettings({ getItem: () => stored }).voice).toBe('marvin');
+    expect(loadMonitorSoundSettings({ getItem: () => JSON.stringify({ voice: 'siri', version: 2 }) }).voice).toBe('conrad');
+  });
+});

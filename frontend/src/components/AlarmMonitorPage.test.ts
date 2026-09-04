@@ -177,6 +177,8 @@ describe('Spieler-Alarmmonitor', () => {
     expect(screen.getByText('Tonausgabe')).toBeTruthy();
     expect(screen.getByLabelText('Gong abspielen')).toBeTruthy();
     expect(screen.getByLabelText('Fahrzeugansage abspielen')).toBeTruthy();
+    expect(screen.getByLabelText('Stimme')).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'Stimme Marvin' })).toBeTruthy();
     expect(screen.getByLabelText('Lautstärke')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Hörprobe abspielen' })).toBeTruthy();
   });

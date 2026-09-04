@@ -1,9 +1,11 @@
 export type MonitorGongId = 'stuttgart' | 'hamburg' | 'soundxpro-fire-station';
+export type MonitorVoiceId = 'conrad' | 'marvin';
 
 export interface MonitorSoundSettings {
   gongEnabled: boolean;
   ttsEnabled: boolean;
   gong: MonitorGongId;
+  voice: MonitorVoiceId;
   volume: number;
 }
 
@@ -30,16 +32,24 @@ export const MONITOR_GONGS: ReadonlyArray<{ id: MonitorGongId; label: string; so
   },
 ];
 
+// Vorab aufgenommene Fahrzeugansagen. Conrad ist die Microsoft-Stimme aus
+// scripts/generate-monitor-tts.py (mp3), Marvin eine eigene Aufnahme (m4a).
+// Beide Ordner enthalten dieselben Rufnamen plus intro.
+export const MONITOR_VOICES: ReadonlyArray<{ id: MonitorVoiceId; label: string; root: string; extension: string }> = [
+  { id: 'conrad', label: 'Stimme Conrad', root: './sounds/monitor/tts-conrad', extension: 'mp3' },
+  { id: 'marvin', label: 'Stimme Marvin', root: './sounds/monitor/tts-marvin', extension: 'm4a' },
+];
+
 export const DEFAULT_MONITOR_SOUND_SETTINGS: MonitorSoundSettings = {
   gongEnabled: true,
   ttsEnabled: false,
   gong: 'stuttgart',
+  voice: 'conrad',
   volume: 0.7,
 };
 
 const SETTINGS_KEY = 'alarmMonitorSound';
 const SETTINGS_VERSION = 2;
-const TTS_ROOT = './sounds/monitor/tts-conrad';
 const AUENBURG_MONITOR_CALLSIGNS = new Set([
   '1_DLK_1', '1_ELW_1', '1_GWAS_1', '1_HLF_1', '1_HLF_2', '1_KDOW_1', '1_KLAF_1', '1_RTW_A',
   '11_HLF_1', '11_TLF_1',
@@ -66,6 +76,14 @@ function isGong(value: unknown): value is MonitorGongId {
   return MONITOR_GONGS.some((gong) => gong.id === value);
 }
 
+function isVoice(value: unknown): value is MonitorVoiceId {
+  return MONITOR_VOICES.some((voice) => voice.id === value);
+}
+
+function voiceById(id: MonitorVoiceId) {
+  return MONITOR_VOICES.find((voice) => voice.id === id) ?? MONITOR_VOICES[0];
+}
+
 export function loadMonitorSoundSettings(storage: Pick<Storage, 'getItem'> = localStorage): MonitorSoundSettings {
   try {
     const raw = storage.getItem(SETTINGS_KEY);
@@ -78,6 +96,7 @@ export function loadMonitorSoundSettings(storage: Pick<Storage, 'getItem'> = loc
       gongEnabled: saved.gongEnabled !== false,
       ttsEnabled: saved.ttsEnabled === true,
       gong: savedGong,
+      voice: isVoice(saved.voice) ? saved.voice : DEFAULT_MONITOR_SOUND_SETTINGS.voice,
       volume: clampVolume(saved.volume),
     };
   } catch {
@@ -95,19 +114,21 @@ export function saveMonitorSoundSettings(
   );
 }
 
-export function monitorVehicleSpeechSources(gameVehicleId: string): string[] {
+export function monitorVehicleSpeechSources(gameVehicleId: string, voiceId: MonitorVoiceId = 'conrad'): string[] {
   const identifier = gameVehicleId.trim().toLocaleUpperCase('de').replaceAll('-', '_');
   if (!AUENBURG_MONITOR_CALLSIGNS.has(identifier)) return [];
-  return [`${TTS_ROOT}/callsigns/${identifier.toLocaleLowerCase('de')}.mp3`];
+  const voice = voiceById(voiceId);
+  return [`${voice.root}/callsigns/${identifier.toLocaleLowerCase('de')}.${voice.extension}`];
 }
 
-export function monitorAnnouncementSources(vehicles: MonitorAnnouncementVehicle[]): string[] {
+export function monitorAnnouncementSources(vehicles: MonitorAnnouncementVehicle[], voiceId: MonitorVoiceId = 'conrad'): string[] {
   const vehicleSources = vehicles
-    .map((vehicle) => monitorVehicleSpeechSources(vehicle.gameVehicleId))
+    .map((vehicle) => monitorVehicleSpeechSources(vehicle.gameVehicleId, voiceId))
     .filter((sources) => sources.length > 0);
   if (!vehicleSources.length) return [];
 
-  const result = [`${TTS_ROOT}/intro.mp3`];
+  const voice = voiceById(voiceId);
+  const result = [`${voice.root}/intro.${voice.extension}`];
   vehicleSources.forEach((sources) => result.push(...sources));
   return result;
 }
@@ -167,7 +188,7 @@ export function playMonitorAlarm(
   const gongSource = settings.gongEnabled
     ? MONITOR_GONGS.find((gong) => gong.id === settings.gong)?.source
     : undefined;
-  const speechSources = settings.ttsEnabled ? monitorAnnouncementSources(vehicles) : [];
+  const speechSources = settings.ttsEnabled ? monitorAnnouncementSources(vehicles, settings.voice) : [];
   const sources = [...(gongSource ? [gongSource] : []), ...speechSources];
   if (settings.volume <= 0 || !sources.length) return false;
   void playSources(sources, settings.volume, token);
