@@ -1,4 +1,4 @@
-import { api, apiGet, fetchMapImage, resolveSessionApi } from './api';
+import { api, apiGet, fetchMapImage } from './api';
 import { advanceLogCursor, INITIAL_LOG_CURSOR, mergeLogRows } from './log-stream';
 import { SoundAlertTracker } from './sound-alerts';
 import { soundCuesForLogs } from './sound-events';
@@ -315,7 +315,6 @@ export async function switchSession(
   lastState = null;
   setPollingScope(currentPollingScope());
   try {
-    await resolveSessionApi();
     if (started && app.sessionToken && isPollingLeader()) {
       await connectCurrentSession();
     } else if (started && app.sessionToken) {
@@ -348,13 +347,6 @@ async function applyState(
   app.hospitalReservations = data.hospital_reservations ?? [];
   app.monitorHospitalCapacities = data.monitor_hospital_capacities ?? [];
   app.monitorShowHospitalCapacity = Boolean(data.session.monitor_show_hospital_capacity);
-  app.sessionBridge = data.session.bridge ?? {
-    kind: 'legacy',
-    protocol_version: 0,
-    app_version: null,
-    capabilities: [],
-    seen_at: null,
-  };
   app.clock = data.time ?? null;
   lastRevision = Number(data.session.revision ?? lastRevision);
   app.connected = true;

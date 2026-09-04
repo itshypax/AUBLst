@@ -11,8 +11,8 @@ danke an Floko122 für die Grundlage.
 
 ## Aufbau
 
-- `backend/` – bisherige PHP-API für alte Adapter und Sitzungen.
-- `server/Aublst.Api/` – ASP.NET-Core-API v2 für neue Adapter, Leitstelle und Alarmmonitor.
+- `backend/` – PHP 8 + MySQL (PDO). `api.php` nimmt alle Requests entgegen,
+  die Logik liegt unter `backend/src/`.
 - `frontend/` – Leitstellen-Oberfläche, Svelte 5 + TypeScript + Vite.
   Der Build erzeugt statische Dateien.
 - `backend/maps/` – Kartenbilder als Dateien, benannt nach der mod_id.
@@ -78,12 +78,6 @@ Leitstelle läuft dann unter `/`, die API bleibt unter `/backend/api.php`. Das
 Release-Paket enthält eine Weiterleitung von `/frontend/` nach `/`. Querystring
 und URL-Fragment bleiben erhalten, daher funktionieren alte Adapterlinks mit
 `session_token`, `pin`, `view`, `monitor`, `api_base` und `workspace` weiter.
-
-Der Browser fragt beim Verbinden einmal `/api/v2/sessions/resolve/{code}` ab.
-Sitzungen mit Bridge-Protokoll 2 laufen danach vollständig über API v2,
-einschließlich SSE, Karte und Leitstellenaktionen. Protokoll 1 und alte
-Sitzungen bleiben bei `/backend/api.php`. Für getrennte lokale Ports kann mit
-`api_v2_base=http://127.0.0.1:8081/api/v2` ein eigener v2-Endpunkt angegeben werden.
 
 Aufruf dann z. B.:
 
@@ -271,20 +265,14 @@ PHP-Syntax- und Backend-Tests bei Pushes und Pull Requests aus.
 
 ## Docker und Betrieb
 
-Für einen vollständigen Betrieb startet die Produktions-Compose-Datei MariaDB,
-das bestehende Apache/PHP-System und die neue ASP.NET-Core-API v2:
+Für einen vollständigen Betrieb mit Apache/PHP und MariaDB gibt es eine
+Produktions-Compose-Datei:
 
 ```bash
 cp .env.docker.example .env
 # Passwörter in .env ändern
 docker compose up -d --build
 ```
-
-Apache liefert Frontend und Legacy-API weiterhin unter `/` beziehungsweise
-`/backend/` aus und leitet nur `/api/v2/` intern an den neuen Dienst weiter.
-Die Bridge-Endpunkte sind damit unter derselben Domain erreichbar; ein weiterer
-öffentlicher Port ist nicht nötig. Capability- und OpenAPI-Dokumente liegen
-unter `/api/v2/capabilities` und `/api/v2/openapi.json`.
 
 Details zu Backup, Plesk, SSE und den lokalen anonymen Tagesaggregaten stehen
 in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Die Bewertung der elf Ausbaupunkte
@@ -309,8 +297,6 @@ Ist PHP nicht als `php` verfügbar, kann der Pfad zur PHP-CLI mitgegeben werden:
 
 `backend/config.local.php` wird nie in das ZIP kopiert. Die vorhandene
 Produktionskonfiguration auf Plesk bleibt beim Hochladen damit erhalten.
-Dieses reine PHP-Release enthält bewusst nur die Legacy-API. Für `/api/v2` ist
-der Docker-/VServer-Betrieb oder ein separater ASP.NET-Core-Dienst erforderlich.
 
 ## Credits
 

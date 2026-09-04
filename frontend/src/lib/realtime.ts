@@ -38,18 +38,10 @@ export function startRealtimeStream({ onChange, onStatus }: StreamOptions): () =
     while (!stopped && app.sessionToken) {
       controller = new AbortController();
       try {
-        const v2 = app.apiMode === 'v2';
-        const url = v2
-          ? `${app.apiV2Base}/sessions/${encodeURIComponent(app.sessionId)}/stream?lastRevision=${lastRevision}`
-          : `${app.apiBase}?action=stream`;
-        const headers: Record<string, string> = v2
-          ? { Accept: 'text/event-stream', 'X-Session-Code': app.sessionToken }
-          : { 'Content-Type': 'application/json', Accept: 'text/event-stream' };
-        if (v2 && app.pin) headers['X-Session-Pin'] = app.pin;
-        const response = await fetch(url, {
-          method: v2 ? 'GET' : 'POST',
-          headers,
-          body: v2 ? undefined : JSON.stringify({ session_token: app.sessionToken, last_revision: lastRevision }),
+        const response = await fetch(`${app.apiBase}?action=stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+          body: JSON.stringify({ session_token: app.sessionToken, last_revision: lastRevision }),
           cache: 'no-store',
           signal: controller.signal,
         });

@@ -1,8 +1,6 @@
 .git
 .github
 .release
-server/**/bin
-server/**/obj
 frontend/node_modules
 frontend/dist
 frontend/test-results

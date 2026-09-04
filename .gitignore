@@ -4,5 +4,3 @@ frontend/test-results/
 frontend/playwright-report/
 backend/config.local.php
 .release/
-server/**/bin/
-server/**/obj/

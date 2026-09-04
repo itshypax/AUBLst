@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS mods (
 CREATE TABLE IF NOT EXISTS sessions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   token VARCHAR(10) NOT NULL UNIQUE,
-  public_id CHAR(36) NULL,
   pin VARCHAR(10) NULL,
   mod_id VARCHAR(255) NULL,
   min_x DOUBLE DEFAULT 0,
@@ -25,20 +24,10 @@ CREATE TABLE IF NOT EXISTS sessions (
   max_y DOUBLE DEFAULT 1000,
   monitor_show_hospital_capacity TINYINT(1) NOT NULL DEFAULT 0,
   revision BIGINT UNSIGNED NOT NULL DEFAULT 0,
-  bridge_kind VARCHAR(64) NOT NULL DEFAULT 'legacy',
-  bridge_token_hash CHAR(64) NULL,
-  bridge_id VARCHAR(128) NULL,
-  bridge_protocol_version SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-  bridge_app_version VARCHAR(64) NULL,
-  bridge_capabilities JSON NULL,
-  bridge_health JSON NULL,
-  bridge_seen_at TIMESTAMP(6) NULL,
-  last_bridge_sequence BIGINT UNSIGNED NOT NULL DEFAULT 0,
   last_activity_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_sessions_activity (last_activity_at),
-  UNIQUE KEY uniq_session_public_id (public_id),
   CONSTRAINT fk_sessions_mod FOREIGN KEY (mod_id) REFERENCES mods(mod_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -234,14 +223,9 @@ CREATE TABLE IF NOT EXISTS commands (
   type ENUM('move','alarm','assign','unassign','event_delete','event_create') NOT NULL,
   payload JSON NOT NULL,
   processed TINYINT(1) DEFAULT 0,
-  lease_owner VARCHAR(128) NULL,
-  lease_token CHAR(32) NULL,
-  lease_expires_at TIMESTAMP(6) NULL,
-  delivery_attempts INT UNSIGNED NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   processed_at TIMESTAMP NULL,
   INDEX idx_session_processed (session_id, processed, id),
-  INDEX idx_command_lease (session_id, processed, lease_expires_at, id),
   CONSTRAINT fk_commands_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 

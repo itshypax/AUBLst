@@ -38,25 +38,5 @@ services:
     ports:
       - "${HTTP_PORT:-8080}:80"
 
-  api-v2:
-    build:
-      context: .
-      dockerfile: server/Aublst.Api/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      ConnectionStrings__Database: "Server=db;Port=3306;Database=game_ops_dashboard;User ID=aublst;Password=${DB_PASSWORD:?DB_PASSWORD in .env setzen};Pooling=true;Maximum Pool Size=40;Connection Timeout=5;Default Command Timeout=15"
-      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
-    expose:
-      - "8080"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v2/health/live"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
 volumes:
   aublst-db:

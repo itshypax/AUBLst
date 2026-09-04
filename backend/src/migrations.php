@@ -267,64 +267,6 @@ function migration_definitions(): array {
                 CONSTRAINT fk_position_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
             ) ENGINE=InnoDB");
         },
-        '2026090302_api_v2_bridge' => static function (PDO $pdo): void {
-            if (!database_column_exists($pdo, 'sessions', 'public_id')) {
-                $pdo->exec('ALTER TABLE sessions ADD COLUMN public_id CHAR(36) NULL AFTER token');
-            }
-            if (!database_index_exists($pdo, 'sessions', 'uniq_session_public_id')) {
-                $pdo->exec('ALTER TABLE sessions ADD UNIQUE KEY uniq_session_public_id (public_id)');
-            }
-            if (!database_column_exists($pdo, 'sessions', 'bridge_token_hash')) {
-                $pdo->exec('ALTER TABLE sessions ADD COLUMN bridge_token_hash CHAR(64) NULL AFTER revision');
-            }
-            if (!database_column_exists($pdo, 'sessions', 'bridge_kind')) {
-                $pdo->exec("ALTER TABLE sessions ADD COLUMN bridge_kind VARCHAR(64) NOT NULL DEFAULT 'legacy' AFTER revision");
-            }
-            if (!database_column_exists($pdo, 'sessions', 'bridge_id')) {
-                $pdo->exec('ALTER TABLE sessions ADD COLUMN bridge_id VARCHAR(128) NULL AFTER bridge_token_hash');
-            }
-            if (!database_column_exists($pdo, 'sessions', 'bridge_protocol_version')) {
-                $pdo->exec('ALTER TABLE sessions ADD COLUMN bridge_protocol_version SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER bridge_id');
-            }
-            if (!database_column_exists($pdo, 'sessions', 'bridge_app_version')) {
-                $pdo->exec('ALTER TABLE sessions ADD COLUMN bridge_app_version VARCHAR(64) NULL AFTER bridge_protocol_version');
-            }
-            if (!database_column_exists($pdo, 'sessions', 'bridge_capabilities')) {
-                $pdo->exec('ALTER TABLE sessions ADD COLUMN bridge_capabilities JSON NULL AFTER bridge_app_version');
-            }
-            if (!database_column_exists($pdo, 'sessions', 'bridge_health')) {
-                $pdo->exec('ALTER TABLE sessions ADD COLUMN bridge_health JSON NULL AFTER bridge_capabilities');
-            }
-            if (!database_column_exists($pdo, 'sessions', 'bridge_seen_at')) {
-                $pdo->exec('ALTER TABLE sessions ADD COLUMN bridge_seen_at TIMESTAMP(6) NULL AFTER bridge_health');
-            }
-            if (!database_column_exists($pdo, 'sessions', 'last_bridge_sequence')) {
-                $pdo->exec('ALTER TABLE sessions ADD COLUMN last_bridge_sequence BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER bridge_seen_at');
-            }
-
-            if (!database_column_exists($pdo, 'commands', 'lease_owner')) {
-                $pdo->exec('ALTER TABLE commands ADD COLUMN lease_owner VARCHAR(128) NULL AFTER processed');
-            }
-            if (!database_column_exists($pdo, 'commands', 'lease_token')) {
-                $pdo->exec('ALTER TABLE commands ADD COLUMN lease_token CHAR(32) NULL AFTER lease_owner');
-            }
-            if (!database_column_exists($pdo, 'commands', 'lease_expires_at')) {
-                $pdo->exec('ALTER TABLE commands ADD COLUMN lease_expires_at TIMESTAMP(6) NULL AFTER lease_token');
-            }
-            if (!database_column_exists($pdo, 'commands', 'delivery_attempts')) {
-                $pdo->exec('ALTER TABLE commands ADD COLUMN delivery_attempts INT UNSIGNED NOT NULL DEFAULT 0 AFTER lease_expires_at');
-            }
-            if (!database_index_exists($pdo, 'commands', 'idx_command_lease')) {
-                $pdo->exec('ALTER TABLE commands ADD INDEX idx_command_lease (session_id, processed, lease_expires_at, id)');
-            }
-        },
-        // Separat belassen: Falls 0302 bereits vor der Bridge-Kennung eingespielt
-        // wurde, ergänzt dieses idempotente Follow-up die Spalte trotzdem.
-        '2026090303_session_bridge_descriptor' => static function (PDO $pdo): void {
-            if (!database_column_exists($pdo, 'sessions', 'bridge_kind')) {
-                $pdo->exec("ALTER TABLE sessions ADD COLUMN bridge_kind VARCHAR(64) NOT NULL DEFAULT 'legacy' AFTER revision");
-            }
-        },
     ];
 }
 

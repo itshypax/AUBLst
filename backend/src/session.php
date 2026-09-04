@@ -91,20 +91,16 @@ function require_session(PDO $pdo, ?string $token, ?string $pin = null, bool $en
     return $session;
 }
 
-function create_session(PDO $pdo, ?string $mod_id, ?string $pin, ?array $bounds, array $bridge): array {
+function create_session(PDO $pdo, ?string $mod_id, ?string $pin, ?array $bounds): array {
     ensure_mod_row($pdo, $mod_id);
-    $bridgeValues = bridge_descriptor_storage_values($bridge);
     $attempts = 0;
     while ($attempts < 10) {
         $attempts++;
         $token = session_token();
         try {
             if ($bounds) {
-                $stmt = $pdo->prepare('INSERT INTO sessions
-                    (token, mod_id, pin, min_x, min_y, max_x, max_y,
-                     bridge_kind, bridge_protocol_version, bridge_app_version, bridge_capabilities, bridge_seen_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-                $stmt->execute(array_merge([
+                $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id, pin, min_x, min_y, max_x, max_y) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                $stmt->execute([
                     $token,
                     $mod_id,
                     $pin,
@@ -112,13 +108,10 @@ function create_session(PDO $pdo, ?string $mod_id, ?string $pin, ?array $bounds,
                     n($bounds['min_y'] ?? 0),
                     n($bounds['max_x'] ?? 1000),
                     n($bounds['max_y'] ?? 1000),
-                ], $bridgeValues));
+                ]);
             } else {
-                $stmt = $pdo->prepare('INSERT INTO sessions
-                    (token, mod_id, pin, bridge_kind, bridge_protocol_version,
-                     bridge_app_version, bridge_capabilities, bridge_seen_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-                $stmt->execute(array_merge([$token, $mod_id, $pin], $bridgeValues));
+                $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id, pin) VALUES (?, ?, ?)');
+                $stmt->execute([$token, $mod_id, $pin]);
             }
             $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ?');
             $stmt->execute([$token]);

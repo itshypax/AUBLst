@@ -1,18 +1,12 @@
 <?php
 declare(strict_types=1);
 
-function system_capabilities(): array {
-    return [
-        'api_version' => 1,
-        'realtime' => defined('ENABLE_REALTIME_STREAM') && ENABLE_REALTIME_STREAM ? 'sse' : 'polling',
-        'anonymous_metrics' => defined('ENABLE_ANONYMOUS_METRICS') && ENABLE_ANONYMOUS_METRICS,
-        'bridge_protocols' => [1],
-        'bridge_features' => ['commands-pending-ack-v1'],
-    ];
-}
-
 function action_capabilities(PDO $pdo): void {
-    respond_json(200, system_capabilities());
+    respond_json(200, [
+        'api_version' => 1,
+        'realtime' => ENABLE_REALTIME_STREAM ? 'sse' : 'polling',
+        'anonymous_metrics' => ENABLE_ANONYMOUS_METRICS,
+    ]);
 }
 
 function action_metrics_record(PDO $pdo): void {

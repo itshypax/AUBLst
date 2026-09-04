@@ -7,7 +7,6 @@ require_once __DIR__ . '/../src/migrations.php';
 require_once __DIR__ . '/../src/repository.php';
 require_once __DIR__ . '/../src/actions/mods.php';
 require_once __DIR__ . '/../src/actions/state.php';
-require_once __DIR__ . '/../src/actions/system.php';
 
 $tests = [];
 
@@ -82,28 +81,6 @@ test_case('Migrationen haben eine feste Reihenfolge', static function (): void {
     expect_same(count($versions), count(array_unique($versions)));
 });
 
-test_case('Bridge-Kennung wird geprüft und normalisiert', static function (): void {
-    $bridge = normalize_bridge_descriptor([
-        'kind' => 'aublst-bridge',
-        'protocol_version' => 1,
-        'app_version' => '0.2.0-beta+4',
-        'capabilities' => ['custom-paths-v1', ' durable-queue-v1 ', 'custom-paths-v1'],
-    ]);
-    expect_same([
-        'kind' => 'aublst-bridge',
-        'protocol_version' => 1,
-        'app_version' => '0.2.0-beta+4',
-        'capabilities' => ['custom-paths-v1', 'durable-queue-v1'],
-    ], $bridge);
-    expect_same(null, normalize_bridge_descriptor(['kind' => 'legacy']));
-});
-
-test_case('Capabilities melden das Bridge-Protokoll des neuen Adapters', static function (): void {
-    $capabilities = system_capabilities();
-    expect_same([1], $capabilities['bridge_protocols']);
-    expect_same(['commands-pending-ack-v1'], $capabilities['bridge_features']);
-});
-
 test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', static function (): void {
     $result = state_session_data([
         'token' => 'a1b2',
@@ -123,13 +100,6 @@ test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', s
         'routing_version' => routing_version_for_mod('AUBMP'),
         'map_image_version' => map_image_version_for_mod('AUBMP'),
         'monitor_show_hospital_capacity' => true,
-        'bridge' => [
-            'kind' => 'legacy',
-            'protocol_version' => 0,
-            'app_version' => null,
-            'capabilities' => [],
-            'seen_at' => null,
-        ],
         'map_content_rect' => [
             'x' => 52.0,
             'y' => 100.0,
@@ -143,30 +113,6 @@ test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', s
             'max_y' => 400.5,
         ],
     ], $result);
-});
-
-test_case('Sitzungsdaten geben die vom Adapter gemeldete Bridge zurück', static function (): void {
-    $result = state_session_data([
-        'token' => 'a1b2',
-        'revision' => 4,
-        'mod_id' => 'AUBMP',
-        'min_x' => 0,
-        'min_y' => 0,
-        'max_x' => 1000,
-        'max_y' => 1000,
-        'bridge_kind' => 'aublst-bridge',
-        'bridge_protocol_version' => 1,
-        'bridge_app_version' => '0.2.0',
-        'bridge_capabilities' => '["custom-paths-v1","durable-queue-v1"]',
-        'bridge_seen_at' => '2026-09-03 12:34:56',
-    ]);
-    expect_same([
-        'kind' => 'aublst-bridge',
-        'protocol_version' => 1,
-        'app_version' => '0.2.0',
-        'capabilities' => ['custom-paths-v1', 'durable-queue-v1'],
-        'seen_at' => '2026-09-03 12:34:56',
-    ], $result['bridge']);
 });
 
 test_case('AUBMP verwendet das neue Kartenbild mit separater Spielarea', static function (): void {
