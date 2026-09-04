@@ -4,3 +4,7 @@ frontend/test-results/
 frontend/playwright-report/
 backend/config.local.php
 .release/
+
+# Lokale Arbeitsnotizen: Konzepte, Specs und Pläne bleiben auf dem Rechner
+docs/superpowers/
+docs/konzepte-*.md
