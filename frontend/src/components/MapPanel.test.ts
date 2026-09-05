@@ -105,3 +105,20 @@ describe('Positionskanal auf der Karte', () => {
     expect(markers.calls.length).toBeGreaterThan(markerCallsBefore);
   });
 });
+
+describe('Kartenfilter je Fenster', () => {
+  it('übernimmt gespeicherte Filter und meldet Änderungen zurück', async () => {
+    const { fireEvent, screen } = await import('@testing-library/svelte');
+    const onFilterSettingsChange = vi.fn();
+    render(MapPanel, { props: { filterSettings: { hiddenStations: ['2'], showEvents: false }, onFilterSettingsChange } });
+    await tick();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Kartenfilter öffnen' }));
+    const events = screen.getByLabelText('Einsätze') as HTMLInputElement;
+    expect(events.checked).toBe(false);
+
+    await fireEvent.click(screen.getByLabelText('Fahrzeuge'));
+
+    expect(onFilterSettingsChange).toHaveBeenLastCalledWith({ showVehicles: false, showEvents: false, hiddenStatuses: [], hiddenCategories: [], hiddenStations: ['2'] });
+  });
+});

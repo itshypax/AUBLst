@@ -71,3 +71,22 @@ describe('Arbeitsfläche im Raster', () => {
     expect(onChange.mock.calls[1][0].panels.find((panel: { key: string }) => panel.key === 'vehicles').settings).toEqual({ vehiclesTab: 'fire' });
   });
 });
+
+describe('Einstellungen je Fenster im Raster', () => {
+  it('startet die Einsatzliste mit den gespeicherten Filtern und schreibt Änderungen zurück', async () => {
+    const onChange = vi.fn();
+    const withEvents: WorkspaceLayout = {
+      id: 'x',
+      name: 'X',
+      panels: [{ key: 'events', type: 'events', x: 0, y: 0, w: 12, h: 16, settings: { eventsFilters: ['new'] } }],
+    };
+    render(WorkspaceGrid, { props: { layout: withEvents, onChange } });
+
+    expect(screen.getByRole('button', { name: /^Neu/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /^Aktuell/ }).getAttribute('aria-pressed')).toBe('false');
+
+    await fireEvent.click(screen.getByRole('button', { name: /^Aktuell/ }));
+
+    expect(onChange.mock.calls[0][0].panels[0].settings).toEqual({ eventsFilters: ['new', 'current'] });
+  });
+});

@@ -34,8 +34,24 @@ export const MIN_PANEL_HEIGHT = 3;
 // Fenster-Synchronisation genau ein Einsatzfenster je Fenster erwartet.
 export const MULTI_INSTANCE_PANELS: ReadonlySet<PanelId> = new Set<PanelId>(['map', 'vehicles', 'events', 'logs', 'hospitals']);
 
+export type EventsFilter = 'new' | 'current';
+export const EVENTS_FILTERS: readonly EventsFilter[] = ['new', 'current'];
+const MAP_CATEGORIES = ['fire', 'hazard', 'water', 'thl', 'medical', 'other'];
+
+export interface MapFilterSettings {
+  showVehicles?: boolean;
+  showEvents?: boolean;
+  hiddenStatuses?: number[];
+  hiddenCategories?: string[];
+  hiddenStations?: string[];
+}
+
+// Einstellungen je Fensterinstanz. Sie wandern mit dem Layout in Speicher,
+// Datei und Server-Bibliothek.
 export interface PanelSettings {
   vehiclesTab?: 'fire' | 'rescue';
+  eventsFilters?: EventsFilter[];
+  mapFilters?: MapFilterSettings;
 }
 
 export interface GridRect {
@@ -125,7 +141,10 @@ export function cloneWorkspace(layout: WorkspaceLayout): WorkspaceLayout {
   const copy: WorkspaceLayout = {
     id: layout.id,
     name: layout.name,
-    panels: layout.panels.map((item) => ({ ...item, ...(item.settings ? { settings: { ...item.settings } } : {}) })),
+    panels: layout.panels.map((item) => ({
+      ...item,
+      ...(item.settings ? { settings: JSON.parse(JSON.stringify(item.settings)) as PanelSettings } : {}),
+    })),
   };
   if (layout.code) copy.code = layout.code;
   return copy;
@@ -332,11 +351,36 @@ function isLegacy(value: unknown): value is Partial<LegacyWorkspaceLayout> {
   return Boolean(value && typeof value === 'object' && 'areas' in (value as object) && !('panels' in (value as object)));
 }
 
+function normalizeMapFilters(value: unknown): MapFilterSettings | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as MapFilterSettings;
+  const filters: MapFilterSettings = {};
+  if (typeof raw.showVehicles === 'boolean') filters.showVehicles = raw.showVehicles;
+  if (typeof raw.showEvents === 'boolean') filters.showEvents = raw.showEvents;
+  if (Array.isArray(raw.hiddenStatuses)) {
+    filters.hiddenStatuses = [...new Set(raw.hiddenStatuses.map(Number).filter((status) => Number.isInteger(status) && status >= 0 && status <= 9))];
+  }
+  if (Array.isArray(raw.hiddenCategories)) {
+    filters.hiddenCategories = [...new Set(raw.hiddenCategories.filter((category): category is string => typeof category === 'string' && MAP_CATEGORIES.includes(category)))];
+  }
+  if (Array.isArray(raw.hiddenStations)) {
+    filters.hiddenStations = [...new Set(raw.hiddenStations.filter((station): station is string => typeof station === 'string' && station.length > 0 && station.length <= 20))].slice(0, 50);
+  }
+  return Object.keys(filters).length ? filters : undefined;
+}
+
 function normalizeSettings(type: PanelId, value: unknown): PanelSettings | undefined {
   if (!value || typeof value !== 'object') return undefined;
+  const raw = value as PanelSettings;
   const settings: PanelSettings = {};
-  const tab = (value as PanelSettings).vehiclesTab;
-  if (type === 'vehicles' && (tab === 'fire' || tab === 'rescue')) settings.vehiclesTab = tab;
+  if (type === 'vehicles' && (raw.vehiclesTab === 'fire' || raw.vehiclesTab === 'rescue')) settings.vehiclesTab = raw.vehiclesTab;
+  if (type === 'events' && Array.isArray(raw.eventsFilters)) {
+    settings.eventsFilters = EVENTS_FILTERS.filter((filter) => raw.eventsFilters!.includes(filter));
+  }
+  if (type === 'map') {
+    const mapFilters = normalizeMapFilters(raw.mapFilters);
+    if (mapFilters) settings.mapFilters = mapFilters;
+  }
   return Object.keys(settings).length ? settings : undefined;
 }
 

@@ -12,11 +12,20 @@
   import { statusCode, statusDisplay } from '../lib/status';
   import { loadVehicleIconManifest, vehicleIconPath, type VehicleIconManifest } from '../lib/vehicleIcons';
   import type { EventItem, Vehicle } from '../lib/types';
+  import type { MapFilterSettings } from '../lib/workspaces';
   import StatusBadge from './StatusBadge.svelte';
   import MapFilters from './map/MapFilters.svelte';
   import MapToolbar from './map/MapToolbar.svelte';
 
-  let { standaloneModId = null }: { standaloneModId?: string | null } = $props();
+  let {
+    standaloneModId = null,
+    filterSettings = null,
+    onFilterSettingsChange,
+  }: {
+    standaloneModId?: string | null;
+    filterSettings?: MapFilterSettings | null;
+    onFilterSettingsChange?: (filters: MapFilterSettings) => void;
+  } = $props();
 
   let wrapper: HTMLDivElement;
   let baseCanvas: HTMLCanvasElement;
@@ -41,6 +50,32 @@
   let hiddenStatuses = $state<Set<number>>(new Set());
   let hiddenCategories = $state<Set<EventCategory>>(new Set());
   let hiddenStations = $state<Set<string>>(new Set());
+
+  // Filter aus dem Layout übernehmen. Änderungen im Filterfenster gehen über
+  // onFilterSettingsChange zurück ins Layout, damit jede Karte ihre eigenen
+  // Filter behält.
+  function applyFilterSettings(settings: MapFilterSettings | null): void {
+    showVehicles = settings?.showVehicles ?? true;
+    showEvents = settings?.showEvents ?? true;
+    hiddenStatuses = new Set(settings?.hiddenStatuses ?? []);
+    hiddenCategories = new Set((settings?.hiddenCategories ?? []) as EventCategory[]);
+    hiddenStations = new Set(settings?.hiddenStations ?? []);
+  }
+
+  function emitFilterSettings(): void {
+    onFilterSettingsChange?.({
+      showVehicles,
+      showEvents,
+      hiddenStatuses: [...hiddenStatuses],
+      hiddenCategories: [...hiddenCategories],
+      hiddenStations: [...hiddenStations],
+    });
+  }
+
+  $effect(() => {
+    const settings = filterSettings;
+    untrack(() => applyFilterSettings(settings));
+  });
   let canvasSize = $state({ w: 0, h: 0 });
   let editorOpen = $state(false);
   type EditorMode = RoadKind | 'erase' | 'unlink' | 'test' | 'bma' | 'street-name';
@@ -1230,6 +1265,7 @@
     hiddenCategories = new Set();
     hiddenStations = new Set();
     scheduleRender('markers');
+    emitFilterSettings();
   }
 
   function onMapKeydown(e: KeyboardEvent): void {
@@ -1767,11 +1803,11 @@
         {hiddenStations}
         {stations}
         categoryColor={eventColor}
-        onShowVehiclesChange={(checked) => { showVehicles = checked; scheduleRender(); }}
-        onShowEventsChange={(checked) => { showEvents = checked; scheduleRender(); }}
-        onToggleStatus={(status) => (hiddenStatuses = toggleSet(hiddenStatuses, status))}
-        onToggleCategory={(category) => (hiddenCategories = toggleSet(hiddenCategories, category))}
-        onToggleStation={(stationName) => (hiddenStations = toggleSet(hiddenStations, stationName))}
+        onShowVehiclesChange={(checked) => { showVehicles = checked; scheduleRender('markers'); emitFilterSettings(); }}
+        onShowEventsChange={(checked) => { showEvents = checked; scheduleRender('markers'); emitFilterSettings(); }}
+        onToggleStatus={(status) => { hiddenStatuses = toggleSet(hiddenStatuses, status); emitFilterSettings(); }}
+        onToggleCategory={(category) => { hiddenCategories = toggleSet(hiddenCategories, category); emitFilterSettings(); }}
+        onToggleStation={(stationName) => { hiddenStations = toggleSet(hiddenStations, stationName); emitFilterSettings(); }}
         onReset={resetFilters}
         onClose={() => (filtersOpen = false)}
       />

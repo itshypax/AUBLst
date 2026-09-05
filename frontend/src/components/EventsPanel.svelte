@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import FaIcon from './FaIcon.svelte';
   import { Axe, Biohazard, CircleCheck, Cross, Flame, RadioTower, Search, TriangleAlert, Waves } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
@@ -6,12 +7,29 @@
   import { refreshState } from '../lib/polling';
   import { app, askConfirm, canWrite, openAssign, setHighlightedEvent, showNotice } from '../lib/state.svelte';
   import type { EventItem } from '../lib/types';
+  import { EVENTS_FILTERS, type EventsFilter } from '../lib/workspaces';
   import EmptyState from './EmptyState.svelte';
 
-  let query = $state('');
-  type EventFilter = 'new' | 'current';
+  let {
+    filterSettings = null,
+    onFilterSettingsChange,
+  }: {
+    filterSettings?: EventsFilter[] | null;
+    onFilterSettingsChange?: (filters: EventsFilter[]) => void;
+  } = $props();
 
-  let filters = $state<Set<EventFilter>>(new Set(['new', 'current']));
+  let query = $state('');
+  type EventFilter = EventsFilter;
+
+  let filters = $state<Set<EventFilter>>(new Set(EVENTS_FILTERS));
+
+  // Filter aus dem Layout übernehmen; ohne Vorgabe gelten beide.
+  $effect(() => {
+    const settings = filterSettings;
+    untrack(() => {
+      filters = new Set(settings ?? EVENTS_FILTERS);
+    });
+  });
   let now = $state(Date.now());
   let finishing = $state<Set<number>>(new Set());
 
@@ -83,6 +101,7 @@
     if (next.has(filter)) next.delete(filter);
     else next.add(filter);
     filters = next;
+    onFilterSettingsChange?.(EVENTS_FILTERS.filter((item) => next.has(item)));
   }
 
 </script>

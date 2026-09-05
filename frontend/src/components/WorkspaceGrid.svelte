@@ -154,11 +154,17 @@
 
 {#snippet renderPanel(panel: WorkspacePanel)}
   {#if panel.type === 'map'}
-    <MapPanel />
+    <MapPanel
+      filterSettings={panel.settings?.mapFilters ?? null}
+      onFilterSettingsChange={(mapFilters) => onChange(updatePanelSettings(layout, panel.key, { mapFilters }))}
+    />
   {:else if panel.type === 'vehicles'}
     <VehiclesPanel pinnedTab={panel.settings?.vehiclesTab ?? null} />
   {:else if panel.type === 'events'}
-    <EventsPanel />
+    <EventsPanel
+      filterSettings={panel.settings?.eventsFilters ?? null}
+      onFilterSettingsChange={(eventsFilters) => onChange(updatePanelSettings(layout, panel.key, { eventsFilters }))}
+    />
   {:else if panel.type === 'current_event'}
     <CurrentEventPanel />
   {:else if panel.type === 'logs'}

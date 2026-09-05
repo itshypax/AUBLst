@@ -246,3 +246,21 @@ describe('Geteilter Layout-Code in der URL', () => {
     expect(sharedLayoutCodeFromUrl()).toBeNull();
   });
 });
+
+describe('Einstellungen je Fenster', () => {
+  it('behält Kartenfilter und Einsatzfilter und verwirft Unbrauchbares', () => {
+    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
+      id: 'x',
+      name: 'X',
+      panels: [
+        { key: 'map', type: 'map', x: 0, y: 0, w: 12, h: 16, settings: { mapFilters: { showVehicles: false, hiddenStatuses: [3, 'x', 99], hiddenCategories: ['fire', 12], hiddenStations: ['2'] }, vehiclesTab: 'fire' } },
+        { key: 'events', type: 'events', x: 12, y: 0, w: 12, h: 16, settings: { eventsFilters: ['new', 'nope'] } },
+      ],
+    }]));
+
+    const [workspace] = loadWorkspaces();
+
+    expect(workspace.panels[0].settings).toEqual({ mapFilters: { showVehicles: false, hiddenStatuses: [3], hiddenCategories: ['fire'], hiddenStations: ['2'] } });
+    expect(workspace.panels[1].settings).toEqual({ eventsFilters: ['new'] });
+  });
+});

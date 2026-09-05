@@ -122,7 +122,8 @@ Ansichten-Dialog) lassen sich Fenster am blauen Kopf verschieben, an der
 Ecke rechts unten in der Größe ändern, entfernen und aus der Leiste oben neu
 hinzufügen. Karte, Fahrzeuge, Einsätze, FMS-Log und Krankenhäuser dürfen
 mehrfach vorkommen; eine Fahrzeugliste kann fest auf Feuerwehr oder
-Rettungsdienst stehen. Pfeiltasten verschieben ein fokussiertes Fenster,
+Rettungsdienst stehen, und jede Karte und jede Einsatzliste merkt sich ihre
+Filter je Fenster, sie wandern mit dem Layout mit. Pfeiltasten verschieben ein fokussiertes Fenster,
 Umschalt + Pfeiltasten ändern die Größe, Entf entfernt es.
 
 Ansichten liegen im Browser (je Fenster, mit Spiegel für neue Fenster) und
