@@ -22,6 +22,12 @@ import {
   openEventAcrossWindows,
 } from './ui-sync';
 
+export interface Notice {
+  id: number;
+  message: string;
+  kind: 'success' | 'error';
+}
+
 export const app = $state({
   apiBase: '/backend/api.php',
   sessionToken: '',
@@ -71,21 +77,36 @@ export const app = $state({
   soundProfile: 'standard',
   desktopNotifications: false,
   colorMode: 'dark' as 'dark' | 'light',
-  notice: null as { message: string; kind: 'success' | 'error'; id: number } | null,
+  notices: [] as Notice[],
 });
 
 let noticeId = 0;
+const NOTICE_LIMIT = 4;
+const NOTICE_MS = 4200;
+const noticeTimers = new Map<number, number>();
 
+// Meldungen stapeln sich unten rechts. Eine gleichlautende Meldung wird nicht
+// doppelt gezeigt, sondern läuft von vorn; bei mehr als vier fällt die älteste raus.
 export function showNotice(message: string, kind: 'success' | 'error' = 'success'): void {
+  const existing = app.notices.find((item) => item.message === message && item.kind === kind);
+  if (existing) {
+    closeNotice(existing.id);
+  }
   const id = ++noticeId;
-  app.notice = { message, kind, id };
-  window.setTimeout(() => {
-    if (app.notice?.id === id) app.notice = null;
-  }, 4200);
+  app.notices = [...app.notices, { message, kind, id }].slice(-NOTICE_LIMIT);
+  for (const timer of [...noticeTimers.keys()]) {
+    if (!app.notices.some((item) => item.id === timer)) {
+      window.clearTimeout(noticeTimers.get(timer));
+      noticeTimers.delete(timer);
+    }
+  }
+  noticeTimers.set(id, window.setTimeout(() => closeNotice(id), NOTICE_MS));
 }
 
-export function closeNotice(): void {
-  app.notice = null;
+export function closeNotice(id: number): void {
+  window.clearTimeout(noticeTimers.get(id));
+  noticeTimers.delete(id);
+  app.notices = app.notices.filter((item) => item.id !== id);
 }
 
 // Löst Svelte-Proxys auf, etwa bevor ein Wert per postMessage verschickt wird.

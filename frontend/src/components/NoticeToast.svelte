@@ -1,38 +1,47 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
   import { CircleAlert, CircleCheck, X } from '../lib/fontawesome-icons';
-  import { app, closeNotice } from '../lib/state.svelte';
+  import { app, closeNotice, type Notice } from '../lib/state.svelte';
 
-  const title = $derived.by(() => {
-    if (!app.notice) return '';
-    if (app.notice.kind === 'error') return 'Aktion fehlgeschlagen';
-    if (/Fahrzeug(?:e)? alarmiert/.test(app.notice.message)) return 'Alarmierung gesendet';
+  function title(notice: Notice): string {
+    if (notice.kind === 'error') return 'Aktion fehlgeschlagen';
+    if (/Fahrzeug(?:e)? alarmiert/.test(notice.message)) return 'Alarmierung gesendet';
     return 'Erledigt';
-  });
+  }
 </script>
 
-{#if app.notice}
-  <div
-    class="notice {app.notice.kind}"
-    role={app.notice.kind === 'error' ? 'alert' : 'status'}
-    aria-live={app.notice.kind === 'error' ? 'assertive' : 'polite'}
-  >
-    <span class="icon"><FaIcon icon={app.notice.kind === 'error' ? CircleAlert : CircleCheck} size={18} /></span>
-    <div><strong>{title}</strong><span>{app.notice.message}</span></div>
-    <button class="ghost close" aria-label="Meldung schließen" onclick={closeNotice}
-      ><FaIcon icon={X} size={13} /></button
-    >
-    <span class="timer" aria-hidden="true"></span>
+{#if app.notices.length}
+  <div class="notices">
+    {#each app.notices as notice (notice.id)}
+      <div
+        class="notice {notice.kind}"
+        role={notice.kind === 'error' ? 'alert' : 'status'}
+        aria-live={notice.kind === 'error' ? 'assertive' : 'polite'}
+      >
+        <span class="icon"><FaIcon icon={notice.kind === 'error' ? CircleAlert : CircleCheck} size={18} /></span>
+        <div><strong>{title(notice)}</strong><span>{notice.message}</span></div>
+        <button class="ghost close" aria-label="Meldung schließen" onclick={() => closeNotice(notice.id)}
+          ><FaIcon icon={X} size={13} /></button
+        >
+        <span class="timer" aria-hidden="true"></span>
+      </div>
+    {/each}
   </div>
 {/if}
 
 <style>
-  .notice {
+  .notices {
     position: fixed;
     right: 14px;
     bottom: 14px;
     z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     width: min(390px, calc(100vw - 28px));
+  }
+  .notice {
+    position: relative;
     display: grid;
     grid-template-columns: 24px minmax(0, 1fr) 26px;
     gap: 8px;

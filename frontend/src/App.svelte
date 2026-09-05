@@ -284,7 +284,7 @@
   <ConfirmDialog />
 {/if}
 
-{#key app.notice?.id}<NoticeToast />{/key}
+<NoticeToast />
 
 <Tooltip />
 
