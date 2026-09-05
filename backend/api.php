@@ -30,6 +30,7 @@ const ACTIONS = [
     'capabilities'           => 'action_capabilities',
     'stream'                 => 'action_stream',
     'metrics_record'         => 'action_metrics_record',
+    'metrics_summary'        => 'action_metrics_summary',
     'session_create'         => 'action_session_create',
     'session_validate'       => 'action_session_validate',
     'session_monitor_hospital_capacity_set' => 'action_session_monitor_hospital_capacity_set',

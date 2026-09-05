@@ -32,6 +32,52 @@ function action_metrics_record(PDO $pdo): void {
     respond_json(200, ['ok' => true, 'recorded' => $recorded]);
 }
 
+// Betreiberansicht: Tagesaggregate der letzten Tage, nur mit OPERATOR_KEY.
+// Fehlversuche laufen über dieselbe Sperre wie falsche PINs.
+const METRICS_SUMMARY_DAYS = 30;
+
+function action_metrics_summary(PDO $pdo): void {
+    if (OPERATOR_KEY === '') {
+        respond_json(404, ['error' => 'Die Betreiberansicht ist nicht eingerichtet (OPERATOR_KEY fehlt).']);
+    }
+    $data = get_json_input();
+    $key = trim((string)($data['operator_key'] ?? ''));
+    guard_auth_rate_limit($pdo, true, 'operator');
+    if ($key === '' || !hash_equals(OPERATOR_KEY, $key)) {
+        record_auth_failure($pdo, true, 'operator');
+        respond_json(403, ['error' => 'Der Betreiber-Schlüssel stimmt nicht.']);
+    }
+    clear_auth_failures($pdo, true, 'operator');
+
+    $stmt = $pdo->query('SELECT metric_day, metric_name, sample_count, value_sum, value_max
+        FROM anonymous_metrics
+        WHERE metric_day >= DATE_SUB(CURDATE(), INTERVAL ' . METRICS_SUMMARY_DAYS . ' DAY)
+        ORDER BY metric_day DESC, metric_name');
+    respond_json(200, [
+        'enabled' => ENABLE_ANONYMOUS_METRICS,
+        'days_back' => METRICS_SUMMARY_DAYS,
+        'days' => metrics_summary_days($stmt->fetchAll()),
+    ]);
+}
+
+// Eine Zeile je Tag mit den Messwerten als Unterschlüssel; Mittelwert gleich hier gerechnet.
+function metrics_summary_days(array $rows): array {
+    $days = [];
+    foreach ($rows as $row) {
+        $day = (string)$row['metric_day'];
+        if (!isset($days[$day])) $days[$day] = ['day' => $day, 'metrics' => []];
+        $count = (int)$row['sample_count'];
+        $sum = (float)$row['value_sum'];
+        $days[$day]['metrics'][(string)$row['metric_name']] = [
+            'count' => $count,
+            'sum' => $sum,
+            'average' => $count > 0 ? $sum / $count : 0.0,
+            'max' => (float)$row['value_max'],
+        ];
+    }
+    return array_values($days);
+}
+
 // Unter dem 60-Sekunden-Timeout üblicher Proxys; der Browser baut die
 // Verbindung danach neu auf. Mit Revisionscache reicht ein Blick alle 250 ms,
 // ohne Cache bleibt es bei einer Datenbankabfrage pro Sekunde.

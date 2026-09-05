@@ -9,5 +9,7 @@ define('CORS_ALLOW_ORIGIN', 'https://aublst.hypax.wtf');
 define('REQUIRE_SESSION_PIN', true);
 define('ENABLE_REALTIME_STREAM', true);
 define('ENABLE_ANONYMOUS_METRICS', true);
+// Betreiberansicht der Tagesaggregate unter ?view=betreiber; leer lassen, um sie abzuschalten.
+define('OPERATOR_KEY', '');
 // Zeitzone für alle Zeitstempel (PHP und Datenbankverbindung).
 define('APP_TIMEZONE', 'Europe/Berlin');

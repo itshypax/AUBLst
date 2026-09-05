@@ -9,6 +9,7 @@ require_once __DIR__ . '/../src/repository.php';
 require_once __DIR__ . '/../src/actions/mods.php';
 require_once __DIR__ . '/../src/actions/state.php';
 require_once __DIR__ . '/../src/actions/layouts.php';
+require_once __DIR__ . '/../src/actions/system.php';
 
 $tests = [];
 
@@ -26,6 +27,19 @@ function expect_same($expected, $actual, string $message = ''): void {
         throw new RuntimeException($message ?: 'Erwartet ' . var_export($expected, true) . ', erhalten ' . var_export($actual, true));
     }
 }
+
+test_case('Betreiberansicht fasst Messwerte je Tag zusammen', static function (): void {
+    $days = metrics_summary_days([
+        ['metric_day' => '2026-09-05', 'metric_name' => 'active_events', 'sample_count' => 4, 'value_sum' => 10, 'value_max' => 5],
+        ['metric_day' => '2026-09-05', 'metric_name' => 'events_created', 'sample_count' => 3, 'value_sum' => 3, 'value_max' => 1],
+        ['metric_day' => '2026-09-04', 'metric_name' => 'state_load_ms', 'sample_count' => 0, 'value_sum' => 0, 'value_max' => 0],
+    ]);
+    expect_same(2, count($days));
+    expect_same('2026-09-05', $days[0]['day']);
+    expect_same(2.5, $days[0]['metrics']['active_events']['average']);
+    expect_same(3, $days[0]['metrics']['events_created']['count']);
+    expect_same(0.0, $days[1]['metrics']['state_load_ms']['average'], 'Ohne Stichproben bleibt der Mittelwert 0');
+});
 
 test_case('Alarmierung akzeptiert nur verfügbare Status', static function (): void {
     expect_true(vehicle_available_for_alarm(['game_vehicle_id' => '1_HLF_1', 'type' => 'HLF', 'status' => 1]));

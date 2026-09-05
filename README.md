@@ -187,6 +187,8 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
   Sitzungsrevision nur noch bei anderen Änderungen als Positionen, spätestens
   aber alle 15 Sekunden.
 - `POST api.php?action=status_history` – letzte 500 Fahrzeugstatusänderungen
+- `POST api.php?action=metrics_summary` – Tagesaggregate der letzten 30 Tage
+  für die Betreiberansicht; braucht `operator_key` (siehe `OPERATOR_KEY`).
 - `POST api.php?action=layouts_get` / `layouts_put` / `layouts_delete`
   – geteilte Arbeitsansichten, unabhängig von Sitzungen. Jedes Layout hat
   einen sechsstelligen Code; `layouts_put` ohne Code legt ein neues an, mit Code
