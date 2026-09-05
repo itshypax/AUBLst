@@ -482,3 +482,19 @@ describe('Positionskanal', () => {
     expect(app.positionRevision).toBe(3);
   });
 });
+
+import { pollingSnapshot } from './polling';
+import type { VehicleStatusChange } from './types';
+
+describe('Snapshot für andere Tabs', () => {
+  it('lässt sich per structuredClone übertragen, obwohl der Zustand aus Svelte-Proxys besteht', () => {
+    resetSessionData();
+    app.logs = [{ id: 1, message: 'Test' } as LogRow];
+    app.statusHistory = [{ vehicle_id: 1, status: 3 } as unknown as VehicleStatusChange];
+
+    const snapshot = pollingSnapshot();
+
+    expect(() => structuredClone(snapshot)).not.toThrow();
+    expect(structuredClone(snapshot).logs).toEqual([{ id: 1, message: 'Test' }]);
+  });
+});

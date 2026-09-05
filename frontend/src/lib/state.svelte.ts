@@ -88,6 +88,11 @@ export function closeNotice(): void {
   app.notice = null;
 }
 
+// Löst Svelte-Proxys auf, etwa bevor ein Wert per postMessage verschickt wird.
+export function plain<T>(value: T): T {
+  return $state.snapshot(value) as T;
+}
+
 export function askConfirm(message: string): Promise<boolean> {
   return new Promise((resolve) => {
     app.confirmDialog = { message, resolve };

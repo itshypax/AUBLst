@@ -28,6 +28,8 @@ services:
       DB_PASS: aublst-dev
       CORS_ALLOW_ORIGIN: http://127.0.0.1:5173,http://localhost:5173
       REQUIRE_SESSION_PIN: "false"
+      # Der eingebaute PHP-Server hat sonst einen Prozess, den der SSE-Stream 55 s belegt.
+      PHP_CLI_SERVER_WORKERS: "8"
     ports:
       - "127.0.0.1:8080:8080"
     volumes:

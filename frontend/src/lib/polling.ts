@@ -2,7 +2,7 @@ import { api, apiGet, fetchMapImage } from './api';
 import { advanceLogCursor, INITIAL_LOG_CURSOR, mergeLogRows } from './log-stream';
 import { SoundAlertTracker } from './sound-alerts';
 import { soundCuesForLogs } from './sound-events';
-import { app, clearCurrentEvent, persistSettings, resetSessionData } from './state.svelte';
+import { app, clearCurrentEvent, persistSettings, plain, resetSessionData } from './state.svelte';
 import { getSoundAlertConfig, playPhone, playSoundCue, playSoundCues } from './sounds';
 import type {
   LogRow,
@@ -736,11 +736,13 @@ export function startPolling(): void {
   }
 }
 
-function pollingSnapshot(): PollingSnapshot {
+// Der Snapshot geht per postMessage an andere Tabs; Svelte-Proxys lassen sich
+// nicht klonen, deshalb plain().
+export function pollingSnapshot(): PollingSnapshot {
   return {
     state: lastState,
-    logs: app.logs,
-    statusHistory: app.statusHistory,
+    logs: plain(app.logs),
+    statusHistory: plain(app.statusHistory),
     logCursor,
     stateHealthy: app.stateHealthy,
     logsHealthy: app.logsHealthy,
