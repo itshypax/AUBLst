@@ -130,13 +130,14 @@ Rettungsdienst), und jede Karte und jede Einsatzliste merkt sich ihre
 Filter je Fenster, sie wandern mit dem Layout mit. Pfeiltasten verschieben ein fokussiertes Fenster,
 Umschalt + Pfeiltasten ändern die Größe, Entf entfernt es.
 
-Ansichten liegen im Browser (je Fenster, mit Spiegel für neue Fenster) und
-auf Wunsch in der Server-Bibliothek. Dort bekommt jede Ansicht einen
-sechsstelligen Code; „Link kopieren“ erzeugt `?layout=CODE`, mit dem andere
-die Ansicht nach dem Verbinden direkt übernehmen. Wer den Code hat, kann die
-Ansicht auch überschreiben oder löschen. Export und Import als JSON-Datei
-gibt es ebenfalls im Ansichten-Dialog. Ältere Ansichten mit vier festen
-Bereichen werden beim ersten Laden ins Raster umgerechnet.
+Ansichten liegen im Browser (je Fenster, mit Spiegel für neue Fenster).
+„Auf Server speichern“ legt sie zusätzlich auf dem Server ab; die Ansicht
+bekommt einen sechsstelligen Code, den nur der Ersteller sieht, und „Link
+kopieren“ erzeugt daraus `?layout=CODE`. Wer den Link öffnet oder den Code
+im Ansichten-Dialog eingibt, bekommt eine eigene Kopie mit eigenem Code; das
+Original bleibt unberührt. Eine Liste aller Layouts gibt es nicht. Ältere
+Ansichten mit vier festen Bereichen werden beim ersten Laden ins Raster
+umgerechnet.
 
 ### Fahrzeug-Gruppierung
 
@@ -186,10 +187,11 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
   Sitzungsrevision nur noch bei anderen Änderungen als Positionen, spätestens
   aber alle 15 Sekunden.
 - `POST api.php?action=status_history` – letzte 500 Fahrzeugstatusänderungen
-- `POST api.php?action=layouts_list` / `layouts_get` / `layouts_put` / `layouts_delete`
-  – Bibliothek der Arbeitsansichten, unabhängig von Sitzungen. Jedes Layout hat
+- `POST api.php?action=layouts_get` / `layouts_put` / `layouts_delete`
+  – geteilte Arbeitsansichten, unabhängig von Sitzungen. Jedes Layout hat
   einen sechsstelligen Code; `layouts_put` ohne Code legt ein neues an, mit Code
-  überschreibt es. Wer den Code hat, darf überschreiben und löschen.
+  überschreibt es. Wer den Code hat, darf laden, überschreiben und löschen;
+  eine Liste gibt es nicht.
 - `POST api.php?action=logs` – Funkmeldungen; Cursor über `since` und `since_id`
 - `POST api.php?action=events_create` / `events_finish` / `events_assign` /
   `events_unassign` – Einsätze anlegen, abschließen, Fahrzeuge (de)alarmieren

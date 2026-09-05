@@ -510,30 +510,6 @@ export function nextWorkspaceId(): string {
   return `ansicht-${Date.now().toString(36)}`;
 }
 
-// Export und Import als Datei. Die Datei enthält genau eine Ansicht.
-export function serializeWorkspace(workspace: WorkspaceLayout): string {
-  const { code: _code, ...rest } = cloneWorkspace(workspace);
-  void _code;
-  return JSON.stringify({ format: 'aublst-layout', version: 2, workspace: rest }, null, 2);
-}
-
-export function parseWorkspaceImport(text: string): WorkspaceLayout | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return null;
-  }
-  if (!parsed || typeof parsed !== 'object') return null;
-  const candidate = 'workspace' in parsed ? (parsed as { workspace: unknown }).workspace : parsed;
-  if (!candidate || typeof candidate !== 'object') return null;
-  const workspace = isLegacy(candidate)
-    ? migrateLegacyWorkspace(candidate)
-    : normalizeWorkspace(candidate as Partial<WorkspaceLayout>, 'import');
-  delete workspace.code;
-  return workspace.panels.length ? workspace : null;
-}
-
 // ?layout=CODE aus der Adresszeile: einmal lesen, dann entfernen, damit ein
 // Reload das Layout nicht erneut vom Server holt.
 export function sharedLayoutCodeFromUrl(): string | null {

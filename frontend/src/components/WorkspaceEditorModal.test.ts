@@ -10,8 +10,7 @@ beforeEach(() => {
   app.stateHealthy = true;
   app.connected = true;
   app.lastSuccessfulSync = Date.now();
-  library.fetchLayoutList.mockReset().mockResolvedValue([]);
-  library.fetchLayout.mockReset();
+  library.importLayoutFromServer.mockReset();
   library.saveLayoutToServer.mockReset();
   library.deleteLayoutFromServer.mockReset();
 });
@@ -77,40 +76,48 @@ describe('Ansichten-Dialog', () => {
 });
 
 const library = vi.hoisted(() => ({
-  fetchLayoutList: vi.fn(),
-  fetchLayout: vi.fn(),
+  importLayoutFromServer: vi.fn(),
   saveLayoutToServer: vi.fn(),
   deleteLayoutFromServer: vi.fn(),
   layoutShareUrl: vi.fn((code: string) => `http://localhost/?layout=${code}`),
 }));
 vi.mock('../lib/layout-library', () => library);
 
-describe('Server-Bibliothek im Ansichten-Dialog', () => {
-  it('listet Layouts vom Server und übernimmt eines lokal', async () => {
-    library.fetchLayoutList.mockResolvedValue([{ code: 'K7F2MX', name: 'Wachraum', mod_id: null, updated_at: '2026-09-05 10:00:00' }]);
-    const serverLayout = { id: 'server-k7f2mx', name: 'Wachraum', code: 'K7F2MX', panels: [{ key: 'map', type: 'map', x: 0, y: 0, w: 24, h: 16 }] };
-    library.fetchLayout.mockResolvedValue(serverLayout);
+describe('Teilen über den Server im Ansichten-Dialog', () => {
+  it('zeigt keine Liste fremder Layouts und übernimmt eine Ansicht per Code als eigene Kopie', async () => {
+    app.pin = '1234';
+    const copy = { id: 'server-neu123', name: 'Wachraum', code: 'NEU123', panels: [{ key: 'map', type: 'map', x: 0, y: 0, w: 24, h: 16 }] };
+    library.importLayoutFromServer.mockResolvedValue(copy);
     const { props } = renderEditor();
 
-    await screen.findByText('Wachraum');
-    await fireEvent.click(screen.getByRole('button', { name: 'Wachraum laden' }));
-    await screen.findByText('Wachraum');
+    expect(screen.queryByRole('list', { name: 'Layouts auf dem Server' })).toBeNull();
+    const submit = screen.getByRole('button', { name: 'Übernehmen' }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
 
-    expect(library.fetchLayout).toHaveBeenCalledWith('K7F2MX');
-    expect(props.onSave).toHaveBeenCalledWith(serverLayout);
-    expect(props.onSelect).toHaveBeenCalledWith('server-k7f2mx');
+    await fireEvent.input(screen.getByLabelText('Ansicht per Code übernehmen'), { target: { value: 'k7f2mx' } });
+    expect(submit.disabled).toBe(false);
+    await fireEvent.click(submit);
+    await vi.waitFor(() => expect(props.onSave).toHaveBeenCalledWith(copy));
+
+    expect(library.importLayoutFromServer).toHaveBeenCalledWith('K7F2MX');
+    expect(props.onSelect).toHaveBeenCalledWith('server-neu123');
   });
 
   it('speichert die aktive Ansicht auf dem Server und merkt sich den Code', async () => {
-    library.fetchLayoutList.mockResolvedValue([]);
+    app.pin = '1234';
     library.saveLayoutToServer.mockResolvedValue({ ...DEFAULT_WORKSPACES[0], code: 'NEU123' });
     const { props } = renderEditor();
-    await screen.findByText('Noch keine Layouts auf dem Server.');
 
     await fireEvent.click(screen.getByRole('button', { name: 'Auf Server speichern' }));
     await vi.waitFor(() => expect(props.onSave).toHaveBeenCalled());
 
     expect(library.saveLayoutToServer).toHaveBeenCalledWith(expect.objectContaining({ id: 'standard' }), false);
     expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({ code: 'NEU123' }));
+  });
+
+  it('bietet keinen Dateiexport und keinen Dateiimport mehr an', () => {
+    renderEditor();
+    expect(screen.queryByRole('button', { name: /exportieren/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Datei importieren/ })).toBeNull();
   });
 });

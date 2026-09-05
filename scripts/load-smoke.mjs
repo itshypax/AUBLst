@@ -108,7 +108,7 @@ async function testSession() {
       "Positionsrevision oder Koordinaten fehlen nach Positionsänderung",
     );
   }
-  // Layout-Bibliothek: anlegen, laden, listen, löschen.
+  // Geteilte Layouts: anlegen, laden, überschreiben, als Kopie neu anlegen, löschen.
   const layoutPanels = [
     { key: "map", type: "map", x: 0, y: 0, w: 16, h: 16 },
     { key: "events", type: "events", x: 16, y: 0, w: 8, h: 16 },
@@ -134,10 +134,15 @@ async function testSession() {
   if (updated.code !== saved.code || updated.created !== false) {
     throw new Error("Überschreiben per Code hat einen neuen Code erzeugt");
   }
-  const listed = await post("layouts_list", { session_token: token });
-  if (!listed.layouts?.some((item) => item.code === saved.code && item.name === "Lasttest-Ansicht 2")) {
-    throw new Error("Layout fehlt in der Liste");
+  const copy = await post("layouts_put", {
+    session_token: token,
+    name: loaded.name,
+    layout: loaded.layout,
+  });
+  if (!copy.created || copy.code === saved.code) {
+    throw new Error("Import als Kopie hat keinen eigenen Code erzeugt");
   }
+  await post("layouts_delete", { session_token: token, code: copy.code });
   await post("layouts_delete", { session_token: token, code: saved.code });
   let deleted = false;
   try {

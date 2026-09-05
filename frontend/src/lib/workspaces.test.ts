@@ -246,24 +246,6 @@ describe('Arbeitsansichten im Raster', () => {
   });
 });
 
-import { parseWorkspaceImport, serializeWorkspace } from './workspaces';
-
-describe('Arbeitsansichten als Datei', () => {
-  it('exportiert ohne Servercode und liest die Datei wieder ein', () => {
-    const exported = serializeWorkspace({ ...DEFAULT_WORKSPACES[0], code: 'K7F2MX' });
-    expect(exported).not.toContain('K7F2MX');
-
-    const imported = parseWorkspaceImport(exported)!;
-    expect(imported.panels).toEqual(DEFAULT_WORKSPACES[0].panels);
-    expect(imported.code).toBeUndefined();
-  });
-
-  it('lehnt Dateien ohne Fenster oder ohne JSON ab', () => {
-    expect(parseWorkspaceImport('kein json')).toBeNull();
-    expect(parseWorkspaceImport(JSON.stringify({ workspace: { id: 'x', name: 'X', panels: [] } }))).toBeNull();
-  });
-});
-
 import { sharedLayoutCodeFromUrl } from './workspaces';
 
 describe('Geteilter Layout-Code in der URL', () => {

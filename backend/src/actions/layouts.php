@@ -1,9 +1,10 @@
 <?php
 declare(strict_types=1);
 
-// Server-Bibliothek für Arbeitsansichten. Layouts hängen an keiner Sitzung:
-// Wer den Code hat, kann laden, überschreiben und löschen. Lesen braucht eine
-// gültige Sitzung, Schreiben zusätzlich die PIN (über DISPATCHER_WRITE_ACTIONS).
+// Geteilte Arbeitsansichten. Layouts hängen an keiner Sitzung und es gibt
+// keine Liste: Wer den Code hat, kann laden, überschreiben und löschen. Lesen
+// braucht eine gültige Sitzung, Schreiben zusätzlich die PIN (über
+// DISPATCHER_WRITE_ACTIONS).
 
 const LAYOUT_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const LAYOUT_CODE_LENGTH = 6;
@@ -50,12 +51,6 @@ function layout_row_to_summary(array $row): array {
         'mod_id' => $row['mod_id'],
         'updated_at' => $row['updated_at'],
     ];
-}
-
-function action_layouts_list(PDO $pdo): void {
-    require_session($pdo, request_value('session_token'));
-    $stmt = $pdo->query('SELECT code, name, mod_id, updated_at FROM layouts ORDER BY updated_at DESC, id DESC LIMIT 200');
-    respond_json(200, ['layouts' => array_map('layout_row_to_summary', $stmt->fetchAll())]);
 }
 
 function action_layouts_get(PDO $pdo): void {

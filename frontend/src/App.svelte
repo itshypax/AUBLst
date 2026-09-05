@@ -15,7 +15,7 @@
   import { startPolling } from './lib/polling';
   import { configureSounds, loadSoundManifest } from './lib/sounds';
   import {
-    app,
+    canWrite,    app,
     closeEventFromSync,
     focusVehicleFromSync,
     initSettings,
@@ -25,7 +25,7 @@
     setHighlightFromSync,
     showNotice,
   } from './lib/state.svelte';
-  import { fetchLayout } from './lib/layout-library';
+  import { fetchLayout, importLayoutFromServer } from './lib/layout-library';
   import { startUiSync, uiSyncScope, updateUiSyncPresence } from './lib/ui-sync';
   import {
     addPanel,
@@ -37,6 +37,7 @@
     setWorkspaceInUrl,
     sharedLayoutCodeFromUrl,
     workspaceIdFromUrl,
+    nextWorkspaceId,
     workspaceUrl,
     type PanelId,
     type WorkspaceLayout,
@@ -180,17 +181,25 @@
   }
 
   // Geteilter Link (?layout=CODE): sobald eine Sitzung steht, das Layout vom
-  // Server holen, lokal ablegen und aktivieren.
+  // Server als eigene Kopie mit neuem Code übernehmen. Ohne Schreibrecht
+  // bleibt es eine lokale Kopie ohne Code.
   const sharedLayoutCode = monitorRequested || routingEditorRequested ? null : sharedLayoutCodeFromUrl();
   let sharedLayoutApplied = false;
   $effect(() => {
     if (!sharedLayoutCode || sharedLayoutApplied || !app.stateHealthy) return;
     sharedLayoutApplied = true;
-    void fetchLayout(sharedLayoutCode)
+    const imported = canWrite()
+      ? importLayoutFromServer(sharedLayoutCode)
+      : fetchLayout(sharedLayoutCode).then((layout) => {
+          const local = { ...layout, id: nextWorkspaceId() };
+          delete local.code;
+          return local;
+        });
+    void imported
       .then((layout) => {
         saveWorkspace(layout);
         selectWorkspace(layout.id);
-        showNotice(`Ansicht „${layout.name}“ vom Server übernommen`);
+        showNotice(layout.code ? `Ansicht „${layout.name}“ übernommen, eigener Code ${layout.code}` : `Ansicht „${layout.name}“ lokal übernommen`);
       })
       .catch((error) => showNotice((error as Error).message, 'error'));
   });

@@ -4,7 +4,7 @@ import { DEFAULT_WORKSPACES } from './workspaces';
 const mocks = vi.hoisted(() => ({ api: vi.fn(), apiGet: vi.fn() }));
 vi.mock('./api', () => ({ api: mocks.api, apiGet: mocks.apiGet }));
 
-import { deleteLayoutFromServer, fetchLayout, fetchLayoutList, layoutShareUrl, saveLayoutToServer, serverLayoutId } from './layout-library';
+import { deleteLayoutFromServer, fetchLayout, importLayoutFromServer, layoutShareUrl, saveLayoutToServer, serverLayoutId } from './layout-library';
 
 beforeEach(() => {
   mocks.api.mockReset();
@@ -46,11 +46,19 @@ describe('Layout-Bibliothek', () => {
     expect(saved.id).toBe('standard');
   });
 
-  it('listet, löscht und baut Teil-Links ohne Sitzungsdaten', async () => {
-    mocks.apiGet.mockResolvedValueOnce({ layouts: [{ code: 'K7F2MX', name: 'Wachraum', mod_id: 'AUBMP', updated_at: '2026-09-05 10:00:00' }] });
+  it('legt beim Import eine eigene Kopie mit neuem Code an', async () => {
+    mocks.apiGet.mockResolvedValueOnce({ code: 'K7F2MX', name: 'Wachraum', layout: { panels: [{ key: 'map', type: 'map', x: 0, y: 0, w: 24, h: 16 }] } });
+    mocks.api.mockResolvedValueOnce({ ok: true, code: 'NEU123', created: true });
+
+    const copy = await importLayoutFromServer('k7f2mx');
+
+    expect(mocks.api).toHaveBeenCalledWith('layouts_put', { name: 'Wachraum', layout: { panels: [{ key: 'map', type: 'map', x: 0, y: 0, w: 24, h: 16 }] } });
+    expect(copy).toMatchObject({ id: serverLayoutId('NEU123'), name: 'Wachraum', code: 'NEU123' });
+  });
+
+  it('löscht per Code und baut Teil-Links ohne Sitzungsdaten', async () => {
     mocks.api.mockResolvedValueOnce({ ok: true });
 
-    expect(await fetchLayoutList()).toEqual([{ code: 'K7F2MX', name: 'Wachraum', mod_id: 'AUBMP', updated_at: '2026-09-05 10:00:00' }]);
     await deleteLayoutFromServer('K7F2MX');
     expect(mocks.api).toHaveBeenCalledWith('layouts_delete', { code: 'K7F2MX' });
     const url = new URL(layoutShareUrl('K7F2MX'));

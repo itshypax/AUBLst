@@ -71,7 +71,6 @@ const ACTIONS = [
     'logs'                   => 'action_logs',
     'log_acknowledge'        => 'action_log_acknowledge',
     'log_viewed'             => 'action_log_viewed',
-    'layouts_list'           => 'action_layouts_list',
     'layouts_get'            => 'action_layouts_get',
     'layouts_put'            => 'action_layouts_put',
     'layouts_delete'         => 'action_layouts_delete',

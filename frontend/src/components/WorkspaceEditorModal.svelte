@@ -1,11 +1,10 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
-  import { onMount } from 'svelte';
-  import { Copy, Download, ExternalLink, LayoutGrid, Plus, RefreshCw, Save, Trash2, Upload, X } from '../lib/fontawesome-icons';
+  import { Copy, Download, ExternalLink, LayoutGrid, Plus, Save, Trash2, Upload, X } from '../lib/fontawesome-icons';
   import { focusTrap } from '../lib/focus';
-  import { deleteLayoutFromServer, fetchLayout, fetchLayoutList, layoutShareUrl, saveLayoutToServer, type LayoutSummary } from '../lib/layout-library';
+  import { deleteLayoutFromServer, importLayoutFromServer, layoutShareUrl, saveLayoutToServer } from '../lib/layout-library';
   import { askConfirm, canWrite, showNotice } from '../lib/state.svelte';
-  import { cloneWorkspace, DEFAULT_WORKSPACES, nextWorkspaceId, PANEL_LABELS, parseWorkspaceImport, serializeWorkspace, type WorkspaceLayout } from '../lib/workspaces';
+  import { cloneWorkspace, DEFAULT_WORKSPACES, nextWorkspaceId, PANEL_LABELS, type WorkspaceLayout } from '../lib/workspaces';
 
   let {
     workspaces,
@@ -30,30 +29,10 @@
   const active = $derived(workspaces.find((workspace) => workspace.id === activeId) ?? workspaces[0]);
   let name = $state('');
   let loadedNameFor = $state('');
-  let importError = $state('');
-  let importInput = $state<HTMLInputElement>();
-  let serverLayouts = $state<LayoutSummary[]>([]);
+  let importCode = $state('');
   let serverError = $state('');
   let serverBusy = $state(false);
-  let serverLoaded = $state(false);
   const shareUrl = $derived(active?.code ? layoutShareUrl(active.code) : '');
-
-  async function loadServerList(): Promise<void> {
-    serverBusy = true;
-    serverError = '';
-    try {
-      serverLayouts = await fetchLayoutList();
-      serverLoaded = true;
-    } catch (error) {
-      serverError = (error as Error).message;
-    } finally {
-      serverBusy = false;
-    }
-  }
-
-  onMount(() => {
-    void loadServerList();
-  });
 
   async function saveToServer(asNew: boolean): Promise<void> {
     if (serverBusy) return;
@@ -63,23 +42,6 @@
       const saved = await saveLayoutToServer({ ...cloneWorkspace(active), name: name.trim() || active.name }, asNew);
       onSave(saved);
       showNotice(`„${saved.name}“ auf dem Server gespeichert, Code ${saved.code}`);
-      serverBusy = false;
-      await loadServerList();
-    } catch (error) {
-      serverError = (error as Error).message;
-      serverBusy = false;
-    }
-  }
-
-  async function loadFromServer(code: string): Promise<void> {
-    if (serverBusy) return;
-    serverBusy = true;
-    serverError = '';
-    try {
-      const layout = await fetchLayout(code);
-      onSave(layout);
-      onSelect(layout.id);
-      showNotice(`„${layout.name}“ vom Server übernommen`);
     } catch (error) {
       serverError = (error as Error).message;
     } finally {
@@ -87,24 +49,39 @@
     }
   }
 
-  async function removeFromServer(summary: LayoutSummary): Promise<void> {
-    if (serverBusy) return;
-    if (!(await askConfirm(`„${summary.name}“ (${summary.code}) vom Server löschen? Andere verlieren damit den Zugriff über den Code.`))) return;
+  async function importByCode(): Promise<void> {
+    const code = importCode.trim().toUpperCase();
+    if (serverBusy || !code) return;
     serverBusy = true;
     serverError = '';
     try {
-      await deleteLayoutFromServer(summary.code);
-      for (const workspace of workspaces) {
-        if (workspace.code === summary.code) {
-          const local = cloneWorkspace(workspace);
-          delete local.code;
-          onSave(local);
-        }
-      }
-      serverBusy = false;
-      await loadServerList();
+      const layout = await importLayoutFromServer(code);
+      onSave(layout);
+      onSelect(layout.id);
+      importCode = '';
+      showNotice(`„${layout.name}“ übernommen, eigener Code ${layout.code}`);
     } catch (error) {
       serverError = (error as Error).message;
+    } finally {
+      serverBusy = false;
+    }
+  }
+
+  async function removeActiveFromServer(): Promise<void> {
+    const code = active?.code;
+    if (serverBusy || !code) return;
+    if (!(await askConfirm(`„${active.name}“ (${code}) vom Server löschen? Link und Code funktionieren danach nicht mehr.`))) return;
+    serverBusy = true;
+    serverError = '';
+    try {
+      await deleteLayoutFromServer(code);
+      const local = cloneWorkspace(active);
+      delete local.code;
+      onSave(local);
+      showNotice('Vom Server gelöscht, die Ansicht bleibt lokal erhalten');
+    } catch (error) {
+      serverError = (error as Error).message;
+    } finally {
       serverBusy = false;
     }
   }
@@ -150,33 +127,6 @@
     onSelect(created.id);
   }
 
-  function exportActive(): void {
-    const blob = new Blob([serializeWorkspace(active)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${active.name.replace(/[^\wäöüÄÖÜß-]+/g, '_') || 'ansicht'}.aublst-layout.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async function importFile(event: Event): Promise<void> {
-    const file = (event.currentTarget as HTMLInputElement).files?.[0];
-    if (!file) return;
-    importError = '';
-    try {
-      const imported = parseWorkspaceImport(await file.text());
-      if (!imported) throw new Error('Die Datei enthält keine Arbeitsansicht.');
-      const workspace = { ...imported, id: nextWorkspaceId() };
-      onSave(workspace);
-      onSelect(workspace.id);
-    } catch (error) {
-      importError = (error as Error).message;
-    } finally {
-      if (importInput) importInput.value = '';
-    }
-  }
-
   function onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') onClose();
   }
@@ -219,8 +169,7 @@
 
       <section class="server-section" aria-labelledby="server-title">
         <div class="section-head">
-          <h4 id="server-title">Server-Bibliothek</h4>
-          <button class="ghost icon-button" aria-label="Liste neu laden" disabled={serverBusy} onclick={() => void loadServerList()}><FaIcon icon={RefreshCw} size={14} /></button>
+          <h4 id="server-title">Teilen über den Server</h4>
         </div>
         <div class="actions">
           <button class="ghost" disabled={serverBusy || !canWrite()} onclick={() => void saveToServer(false)}>
@@ -229,6 +178,7 @@
           {#if active?.code}
             <button class="ghost" disabled={serverBusy || !canWrite()} onclick={() => void saveToServer(true)}><FaIcon icon={Copy} size={14} /> Als neues Layout speichern</button>
             <button class="ghost" onclick={() => void copyShareLink()}><FaIcon icon={ExternalLink} size={14} /> Link kopieren</button>
+            <button class="ghost delete" disabled={serverBusy || !canWrite()} onclick={() => void removeActiveFromServer()}><FaIcon icon={Trash2} size={14} /> Vom Server löschen</button>
           {/if}
         </div>
         {#if shareUrl}
@@ -237,31 +187,18 @@
             <input type="text" readonly value={shareUrl} onfocus={(event) => event.currentTarget.select()} />
           </label>
         {/if}
+        <form class="import-row" onsubmit={(event) => { event.preventDefault(); void importByCode(); }}>
+          <label>
+            <span>Ansicht per Code übernehmen</span>
+            <input type="text" maxlength="6" placeholder="ABC123" autocapitalize="characters" spellcheck="false" bind:value={importCode} disabled={serverBusy} />
+          </label>
+          <button class="ghost" type="submit" disabled={serverBusy || !canWrite() || importCode.trim().length !== 6}><FaIcon icon={Download} size={14} /> Übernehmen</button>
+        </form>
         {#if serverError}<span class="import-error" role="alert">{serverError}</span>{/if}
-        {#if serverLoaded && !serverLayouts.length}
-          <span class="server-empty">Noch keine Layouts auf dem Server.</span>
-        {/if}
-        {#if serverLayouts.length}
-          <ul class="server-list" aria-label="Layouts auf dem Server">
-            {#each serverLayouts as summary (summary.code)}
-              <li>
-                <span class="server-name">{summary.name}<span class="code">{summary.code}</span></span>
-                <span class="server-actions">
-                  <button class="ghost" disabled={serverBusy} aria-label={`${summary.name} laden`} onclick={() => void loadFromServer(summary.code)}><FaIcon icon={Download} size={14} /> Laden</button>
-                  <button class="ghost icon-button delete" disabled={serverBusy || !canWrite()} aria-label={`${summary.name} vom Server löschen`} onclick={() => void removeFromServer(summary)}><FaIcon icon={Trash2} size={14} /></button>
-                </span>
-              </li>
-            {/each}
-          </ul>
-        {/if}
       </section>
 
       <div class="file-section">
         <button class="ghost" onclick={createNew}><FaIcon icon={Plus} size={14} /> Neue Ansicht</button>
-        <button class="ghost" onclick={exportActive}><FaIcon icon={Download} size={14} /> Als Datei exportieren</button>
-        <button class="ghost" onclick={() => importInput?.click()}><FaIcon icon={Upload} size={14} /> Datei importieren</button>
-        <input bind:this={importInput} class="import-input" type="file" accept="application/json,.json" aria-label="Ansicht aus Datei importieren" onchange={(event) => void importFile(event)} />
-        {#if importError}<span class="import-error" role="alert">{importError}</span>{/if}
       </div>
     </div>
 
@@ -297,13 +234,9 @@
   .section-head { display: flex; align-items: center; gap: 8px; }
   .section-head h4 { margin: 0; flex: 1; font-size: 13px; }
   .share-field input { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }
-  .server-empty { color: var(--text-dim); font-size: 12px; }
-  .server-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); }
-  .server-list li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
-  .server-list li + li { border-top: 1px solid var(--border); }
-  .server-name { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .server-actions { display: flex; gap: 4px; }
-  .import-input { display: none; }
+  .import-row { display: flex; align-items: flex-end; gap: 8px; }
+  .import-row label { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-dim); }
+  .import-row input { font-family: ui-monospace, monospace; letter-spacing: 0.12em; text-transform: uppercase; }
   .import-error { flex-basis: 100%; color: var(--danger-text); font-size: 12px; }
   .spacer { flex: 1; }
   .delete { color: var(--danger-text); }

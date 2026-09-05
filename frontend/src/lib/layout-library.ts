@@ -4,7 +4,7 @@
 import { api, apiGet } from './api';
 import { normalizeWorkspace, type WorkspaceLayout } from './workspaces';
 
-export interface LayoutSummary {
+interface LayoutSummary {
   code: string;
   name: string;
   mod_id: string | null;
@@ -21,11 +21,6 @@ export function serverLayoutId(code: string): string {
 
 function normalizeCode(code: string): string {
   return code.trim().toUpperCase();
-}
-
-export async function fetchLayoutList(): Promise<LayoutSummary[]> {
-  const data = await apiGet<{ layouts?: LayoutSummary[] }>('layouts_list');
-  return data.layouts ?? [];
 }
 
 export async function fetchLayout(rawCode: string): Promise<WorkspaceLayout> {
@@ -48,6 +43,14 @@ export async function saveLayoutToServer(workspace: WorkspaceLayout, asNew = fal
   const code = normalizeCode(String(data.code ?? workspace.code ?? ''));
   if (!code) throw new Error('Der Server hat keinen Layout-Code geliefert.');
   return { ...workspace, code };
+}
+
+// Import per Link oder Code: der Server bekommt eine eigene Kopie mit neuem
+// Code, das Original bleibt beim Ersteller.
+export async function importLayoutFromServer(rawCode: string): Promise<WorkspaceLayout> {
+  const original = await fetchLayout(rawCode);
+  const copy = await saveLayoutToServer(original, true);
+  return { ...copy, id: serverLayoutId(copy.code!) };
 }
 
 export async function deleteLayoutFromServer(rawCode: string): Promise<void> {
