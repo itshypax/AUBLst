@@ -8,9 +8,9 @@
     MIN_PANEL_WIDTH,
     PANEL_LABELS,
     movePanel,
-    rectFits,
     removePanel,
     resizePanel,
+    resizePanelRect,
     stackedPanels,
     updatePanelSettings,
     type GridRect,
@@ -38,87 +38,90 @@
     onNotice?: (message: string) => void;
   } = $props();
 
+  type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+  const RESIZE_EDGES: ResizeEdge[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
+
+  // Während des Ziehens hält preview die zuletzt gültige Anordnung; sie wird
+  // direkt gerendert, damit das Fenster live an der Zielstelle erscheint.
   interface DragState {
     key: string;
-    mode: 'move' | 'resize';
+    mode: 'move' | ResizeEdge;
     startX: number;
     startY: number;
     origin: WorkspacePanel;
-    candidate: GridRect;
+    preview: WorkspaceLayout;
     valid: boolean;
   }
 
   let container: HTMLDivElement | undefined = $state();
   let drag = $state<DragState | null>(null);
-  const stackOrder = $derived(new Map(stackedPanels(layout).map((item, index) => [item.key, index])));
+  const shown = $derived(drag?.preview ?? layout);
+  const stackOrder = $derived(new Map(stackedPanels(shown).map((item, index) => [item.key, index])));
   const NO_SPACE = 'Dort ist kein Platz für das Fenster.';
 
   function clamp(value: number, minimum: number, maximum: number): number {
     return Math.min(maximum, Math.max(minimum, value));
   }
 
-  // Frei oder tauschbar: gleiches Rechteck wie ein anderes Panel gleicher Größe.
-  function candidateValid(rect: GridRect, key: string): boolean {
-    if (rectFits(layout, rect, key)) return true;
-    return layout.panels.some((item) => item.key !== key && item.x === rect.x && item.y === rect.y && item.w === rect.w && item.h === rect.h);
-  }
-
   function startDrag(panel: WorkspacePanel, mode: DragState['mode'], event: PointerEvent): void {
     if (!editing || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
     drag = {
       key: panel.key,
       mode,
       startX: event.clientX,
       startY: event.clientY,
       origin: { ...panel },
-      candidate: { x: panel.x, y: panel.y, w: panel.w, h: panel.h },
+      preview: layout,
       valid: true,
     };
+  }
+
+  // Ziehen an einer Kante: links und oben verschieben zugleich die Position.
+  function resizedRect(origin: WorkspacePanel, edge: ResizeEdge, dx: number, dy: number): GridRect {
+    let { x, y, w, h } = origin;
+    if (edge.includes('w')) {
+      x = clamp(origin.x + dx, 0, origin.x + origin.w - MIN_PANEL_WIDTH);
+      w = origin.x + origin.w - x;
+    }
+    if (edge.includes('e')) w = clamp(origin.w + dx, MIN_PANEL_WIDTH, GRID_COLUMNS - origin.x);
+    if (edge.includes('n')) {
+      y = clamp(origin.y + dy, 0, origin.y + origin.h - MIN_PANEL_HEIGHT);
+      h = origin.y + origin.h - y;
+    }
+    if (edge.includes('s')) h = clamp(origin.h + dy, MIN_PANEL_HEIGHT, GRID_ROWS - origin.y);
+    return { x, y, w, h };
   }
 
   function onPointerMove(event: PointerEvent): void {
     if (!drag || !container) return;
     const rect = container.getBoundingClientRect();
-    const cellWidth = rect.width / GRID_COLUMNS;
-    const cellHeight = rect.height / GRID_ROWS;
-    const dx = Math.round((event.clientX - drag.startX) / cellWidth);
-    const dy = Math.round((event.clientY - drag.startY) / cellHeight);
+    const dx = Math.round((event.clientX - drag.startX) / (rect.width / GRID_COLUMNS));
+    const dy = Math.round((event.clientY - drag.startY) / (rect.height / GRID_ROWS));
     const origin = drag.origin;
-    const candidate: GridRect = drag.mode === 'move'
-      ? {
-          x: clamp(origin.x + dx, 0, GRID_COLUMNS - origin.w),
-          y: clamp(origin.y + dy, 0, GRID_ROWS - origin.h),
-          w: origin.w,
-          h: origin.h,
-        }
-      : {
-          x: origin.x,
-          y: origin.y,
-          w: clamp(origin.w + dx, MIN_PANEL_WIDTH, GRID_COLUMNS - origin.x),
-          h: clamp(origin.h + dy, MIN_PANEL_HEIGHT, GRID_ROWS - origin.y),
-        };
-    drag = { ...drag, candidate, valid: candidateValid(candidate, drag.key) };
+    const next = drag.mode === 'move'
+      ? movePanel(layout, drag.key, clamp(origin.x + dx, 0, GRID_COLUMNS - origin.w), clamp(origin.y + dy, 0, GRID_ROWS - origin.h))
+      : resizePanelRect(layout, drag.key, resizedRect(origin, drag.mode, dx, dy));
+    drag = next ? { ...drag, preview: next, valid: true } : { ...drag, valid: false };
+  }
+
+  function sameRects(a: WorkspaceLayout, b: WorkspaceLayout): boolean {
+    return a.panels.length === b.panels.length
+      && a.panels.every((panel, index) => {
+        const other = b.panels[index];
+        return panel.key === other.key && panel.x === other.x && panel.y === other.y && panel.w === other.w && panel.h === other.h;
+      });
   }
 
   function endDrag(): void {
     if (!drag) return;
     const finished = drag;
     drag = null;
-    const unchanged = finished.candidate.x === finished.origin.x && finished.candidate.y === finished.origin.y
-      && finished.candidate.w === finished.origin.w && finished.candidate.h === finished.origin.h;
-    if (unchanged) return;
-    if (!finished.valid) {
-      onNotice(NO_SPACE);
-      return;
-    }
-    const next = finished.mode === 'move'
-      ? movePanel(layout, finished.key, finished.candidate.x, finished.candidate.y)
-      : resizePanel(layout, finished.key, finished.candidate.w, finished.candidate.h);
-    if (next) onChange(next);
-    else onNotice(NO_SPACE);
+    if (!finished.valid) onNotice(NO_SPACE);
+    if (sameRects(finished.preview, layout)) return;
+    onChange(finished.preview);
   }
 
   function onHandleKey(panel: WorkspacePanel, event: KeyboardEvent): void {
@@ -140,7 +143,8 @@
   }
 
   function setVehiclesTab(panel: WorkspacePanel, value: string): void {
-    onChange(updatePanelSettings(layout, panel.key, { vehiclesTab: value === 'fire' || value === 'rescue' ? value : undefined }));
+    const vehiclesTab = value === 'fire' || value === 'rescue' || value === 'all' ? value : undefined;
+    onChange(updatePanelSettings(layout, panel.key, { vehiclesTab }));
   }
 
   function stop(event: Event): void {
@@ -189,10 +193,14 @@
   onpointerup={endDrag}
   onpointercancel={endDrag}
 >
-  {#each layout.panels as panel (panel.key)}
+  {#if editing}
+    <div class="grid-lines" aria-hidden="true"></div>
+  {/if}
+  {#each shown.panels as panel (panel.key)}
     <div
       class="grid-panel"
       class:dragging={drag?.key === panel.key}
+      class:invalid={drag?.key === panel.key && !drag.valid}
       data-panel-key={panel.key}
       style={`${gridArea(panel)} order: ${stackOrder.get(panel.key) ?? 0};`}
     >
@@ -206,7 +214,7 @@
           onpointerdown={(event) => startDrag(panel, 'move', event)}
           onkeydown={(event) => onHandleKey(panel, event)}
         >
-          <FaIcon icon={Move} size={13} />
+          <span class="handle-icon"><FaIcon icon={Move} size={13} /></span>
           <span class="handle-title">{PANEL_LABELS[panel.type]}</span>
           {#if panel.type === 'vehicles'}
             <select
@@ -217,6 +225,7 @@
               onchange={(event) => setVehiclesTab(panel, event.currentTarget.value)}
             >
               <option value="">Beide Tabs</option>
+              <option value="all">FW und RD zusammen</option>
               <option value="fire">Nur Feuerwehr</option>
               <option value="rescue">Nur Rettungsdienst</option>
             </select>
@@ -228,14 +237,18 @@
             onclick={() => onChange(removePanel(layout, panel.key))}
           ><FaIcon icon={X} size={13} /></button>
         </div>
-        <div class="resize-handle" aria-hidden="true" onpointerdown={(event) => startDrag(panel, 'resize', event)}></div>
+        {#each RESIZE_EDGES as edge (edge)}
+          <div
+            class={`resize-handle edge-${edge}`}
+            data-resize={edge}
+            aria-hidden="true"
+            onpointerdown={(event) => startDrag(panel, edge, event)}
+          ></div>
+        {/each}
       {/if}
       {@render renderPanel(panel)}
     </div>
   {/each}
-  {#if drag}
-    <div class="ghost-target" class:invalid={!drag.valid} style={gridArea(drag.candidate)}></div>
-  {/if}
   {#if !layout.panels.length}
     <div class="empty-grid">Diese Ansicht hat keine Fenster. Über „Anordnung bearbeiten“ lassen sich welche hinzufügen.</div>
   {/if}
@@ -254,11 +267,25 @@
     padding: 8px;
   }
 
+  /* Rasterlinien im Innenbereich; die Zellen decken sich mit dem CSS-Grid. */
+  .grid-lines {
+    position: absolute;
+    inset: 8px;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.5;
+    background-image:
+      linear-gradient(to right, var(--border) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+    background-size: calc(100% / 24) calc(100% / 16);
+  }
+
   .grid-panel {
     position: relative;
     display: flex;
     min-width: 0;
     min-height: 0;
+    border-radius: var(--radius);
   }
 
   .grid-panel :global(.panel) {
@@ -267,13 +294,29 @@
     min-height: 0;
   }
 
+  .editing .grid-panel {
+    outline: 1px dashed var(--border-strong);
+    outline-offset: -1px;
+    background: var(--panel);
+  }
+
+  .editing .grid-panel:has(.edit-handle:focus-visible) {
+    outline: 2px solid var(--accent-outline);
+  }
+
   .editing .grid-panel :global(.panel) {
     pointer-events: none;
     opacity: 0.7;
   }
 
   .editing .grid-panel.dragging {
-    opacity: 0.45;
+    z-index: 7;
+    outline: 2px solid var(--accent-outline);
+    box-shadow: var(--shadow);
+  }
+
+  .editing .grid-panel.dragging.invalid {
+    outline-color: var(--danger);
   }
 
   .edit-handle {
@@ -284,9 +327,10 @@
     align-items: center;
     gap: 8px;
     padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
     border-radius: var(--radius) var(--radius) 0 0;
-    background: var(--accent);
-    color: #fff;
+    background: var(--panel-header);
+    color: var(--text);
     font-size: 12px;
     font-weight: 600;
     cursor: grab;
@@ -294,9 +338,17 @@
     user-select: none;
   }
 
+  .dragging .edit-handle {
+    cursor: grabbing;
+  }
+
   .edit-handle:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: -2px;
+    outline: none;
+  }
+
+  .handle-icon {
+    display: inline-flex;
+    color: var(--text-dim);
   }
 
   .handle-title {
@@ -307,7 +359,7 @@
   }
 
   .edit-handle select {
-    max-width: 150px;
+    max-width: 170px;
     padding: 2px 4px;
     font-size: 11px;
   }
@@ -317,33 +369,38 @@
     height: 24px;
     padding: 0;
     justify-content: center;
-    color: #fff;
+    color: var(--text-dim);
+  }
+
+  .edit-handle .remove:hover {
+    color: var(--text);
   }
 
   .resize-handle {
     position: absolute;
-    right: 0;
-    bottom: 0;
-    z-index: 6;
-    width: 20px;
-    height: 20px;
-    border-radius: 0 0 var(--radius) 0;
-    background: linear-gradient(135deg, transparent 55%, var(--accent) 55%);
-    cursor: nwse-resize;
+    z-index: 7;
     touch-action: none;
   }
 
-  .ghost-target {
-    z-index: 5;
-    border: 2px dashed var(--good);
-    border-radius: var(--radius);
-    background: rgba(46, 201, 142, 0.16);
-    pointer-events: none;
+  .resize-handle:hover {
+    background: var(--border-strong);
   }
 
-  .ghost-target.invalid {
-    border-color: var(--danger);
-    background: rgba(232, 91, 98, 0.16);
+  .edge-n, .edge-s { left: 14px; right: 14px; height: 6px; cursor: ns-resize; }
+  .edge-e, .edge-w { top: 14px; bottom: 14px; width: 6px; cursor: ew-resize; }
+  .edge-n { top: 0; }
+  .edge-s { bottom: 0; }
+  .edge-e { right: 0; }
+  .edge-w { left: 0; }
+  .edge-ne, .edge-nw, .edge-se, .edge-sw { width: 14px; height: 14px; }
+  .edge-ne { top: 0; right: 0; cursor: nesw-resize; border-radius: 0 var(--radius) 0 0; }
+  .edge-sw { bottom: 0; left: 0; cursor: nesw-resize; border-radius: 0 0 0 var(--radius); }
+  .edge-nw { top: 0; left: 0; cursor: nwse-resize; border-radius: var(--radius) 0 0 0; }
+  .edge-se { bottom: 0; right: 0; cursor: nwse-resize; border-radius: 0 0 var(--radius) 0; }
+
+  /* Die Ecke rechts unten bleibt als Hinweis sichtbar, die übrigen Griffe zeigen sich beim Überfahren. */
+  .edge-se {
+    background: linear-gradient(135deg, transparent 55%, var(--border-strong) 55%);
   }
 
   .empty-grid {
@@ -372,8 +429,12 @@
 
     .edit-handle,
     .resize-handle,
-    .ghost-target {
+    .grid-lines {
       display: none;
+    }
+
+    .editing .grid-panel {
+      outline: none;
     }
 
     .editing .grid-panel :global(.panel) {

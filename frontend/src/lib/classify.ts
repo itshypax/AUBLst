@@ -102,6 +102,8 @@ export interface StationGroup {
   key: string;
   label: string;
   vehicles: Vehicle[];
+  // Gesetzt, damit eine gemischte Liste FW- und RD-Gruppen unterscheiden kann.
+  tab?: MainTab;
 }
 
 function sortByName(list: Vehicle[]): Vehicle[] {
@@ -167,6 +169,7 @@ export function stationGroups(vehicles: Vehicle[], tab: MainTab): StationGroup[]
       key,
       label: stationLabel(key),
       vehicles: sortVehiclesByAlarmPriority(buckets.get(key)!),
+      tab,
     }));
 }
 
@@ -198,6 +201,39 @@ export function stationColumns(vehicles: Vehicle[], tab: MainTab): StationGroup[
   });
 
   const rest = groups.filter((g) => !used.has(g.key));
+  if (rest.length) {
+    columns[columns.length - 1].push(...rest);
+  }
+  return columns;
+}
+
+// Fahrzeugliste ohne Tabtrennung: je Hauptwache erst Feuerwehr, dann
+// Rettungsdienst, darunter die Anbauten wie in den einzelnen Tabs.
+const MIXED_COLUMNS: [MainTab, string][][] = [
+  [['fire', '1'], ['rescue', '1'], ['fire', '11'], ['rescue', 'CHRISTOPH']],
+  [['fire', '2'], ['rescue', '2'], ['rescue', '72']],
+  [['fire', '3'], ['rescue', '3'], ['fire', '31']],
+  [['fire', '4'], ['rescue', '4'], ['fire', '0'], ['rescue', '74']],
+];
+
+export function stationColumnsMixed(vehicles: Vehicle[]): StationGroup[][] {
+  const groups = [...stationGroups(vehicles, 'fire'), ...stationGroups(vehicles, 'rescue')];
+  const byKey = new Map(groups.map((g) => [`${g.tab}:${g.key}`, g]));
+  const used = new Set<string>();
+
+  const columns = MIXED_COLUMNS.map((slots) => {
+    const column: StationGroup[] = [];
+    for (const [tab, key] of slots) {
+      const group = byKey.get(`${tab}:${key}`);
+      if (group) {
+        column.push(group);
+        used.add(`${tab}:${key}`);
+      }
+    }
+    return column;
+  });
+
+  const rest = groups.filter((g) => !used.has(`${g.tab}:${g.key}`));
   if (rest.length) {
     columns[columns.length - 1].push(...rest);
   }

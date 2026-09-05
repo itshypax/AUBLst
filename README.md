@@ -118,11 +118,15 @@ geschlossenem Browser ist noch nicht enthalten.
 Die Leitstelle besteht aus Fenstern (Karte, Fahrzeuge, Einsätze, aktueller
 Einsatz, FMS-Log, Sprechwünsche, Krankenhäuser, BMAs) auf einem Raster mit
 24 Spalten und 16 Zeilen. Über „Anordnung bearbeiten“ (Kopfzeile oder
-Ansichten-Dialog) lassen sich Fenster am blauen Kopf verschieben, an der
-Ecke rechts unten in der Größe ändern, entfernen und aus der Leiste oben neu
-hinzufügen. Karte, Fahrzeuge, Einsätze, FMS-Log und Krankenhäuser dürfen
-mehrfach vorkommen; eine Fahrzeugliste kann fest auf Feuerwehr oder
-Rettungsdienst stehen, und jede Karte und jede Einsatzliste merkt sich ihre
+Ansichten-Dialog) lassen sich Fenster am Kopf verschieben, an allen Kanten
+und Ecken in der Größe ändern, entfernen und aus der Leiste oben neu
+hinzufügen. Beim Ziehen rückt das Fenster sofort an die eingerastete Stelle;
+passt es dort nicht, wird der Rahmen rot und es bleibt an der letzten
+passenden Position. Ein Hintergrundraster zeigt die Zellen. Karte,
+Fahrzeuge, Einsätze, FMS-Log und Krankenhäuser dürfen mehrfach vorkommen;
+eine Fahrzeugliste kann fest auf Feuerwehr oder Rettungsdienst stehen oder
+beide ohne Tabtrennung zeigen (je Wache erst Feuerwehr, dann
+Rettungsdienst), und jede Karte und jede Einsatzliste merkt sich ihre
 Filter je Fenster, sie wandern mit dem Layout mit. Pfeiltasten verschieben ein fokussiertes Fenster,
 Umschalt + Pfeiltasten ändern die Größe, Entf entfernt es.
 

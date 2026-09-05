@@ -49,7 +49,7 @@ export interface MapFilterSettings {
 // Einstellungen je Fensterinstanz. Sie wandern mit dem Layout in Speicher,
 // Datei und Server-Bibliothek.
 export interface PanelSettings {
-  vehiclesTab?: 'fire' | 'rescue';
+  vehiclesTab?: 'fire' | 'rescue' | 'all';
   eventsFilters?: EventsFilter[];
   mapFilters?: MapFilterSettings;
 }
@@ -238,9 +238,22 @@ export function movePanel(layout: WorkspaceLayout, key: string, x: number, y: nu
 export function resizePanel(layout: WorkspaceLayout, key: string, w: number, h: number): WorkspaceLayout | null {
   const target = layout.panels.find((item) => item.key === key);
   if (!target) return null;
-  const rect: GridRect = { x: target.x, y: target.y, w: Math.max(MIN_PANEL_WIDTH, Math.round(w)), h: Math.max(MIN_PANEL_HEIGHT, Math.round(h)) };
-  if (!rectFits(layout, rect, key)) return null;
-  return { ...cloneWorkspace(layout), panels: layout.panels.map((item) => (item.key === key ? { ...item, w: rect.w, h: rect.h } : item)) };
+  return resizePanelRect(layout, key, {
+    x: target.x,
+    y: target.y,
+    w: Math.max(MIN_PANEL_WIDTH, Math.round(w)),
+    h: Math.max(MIN_PANEL_HEIGHT, Math.round(h)),
+  });
+}
+
+// Setzt Position und Größe in einem Schritt, etwa beim Ziehen an der
+// linken oder oberen Kante. Unter der Mindestgröße, außerhalb des Rasters
+// oder auf einem Nachbarn gibt es null.
+export function resizePanelRect(layout: WorkspaceLayout, key: string, rect: GridRect): WorkspaceLayout | null {
+  if (!layout.panels.some((item) => item.key === key)) return null;
+  const next: GridRect = { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.w), h: Math.round(rect.h) };
+  if (!rectFits(layout, next, key)) return null;
+  return { ...cloneWorkspace(layout), panels: layout.panels.map((item) => (item.key === key ? { ...item, ...next } : item)) };
 }
 
 export function resetWorkspaceLayout(layout: WorkspaceLayout): WorkspaceLayout {
@@ -373,7 +386,7 @@ function normalizeSettings(type: PanelId, value: unknown): PanelSettings | undef
   if (!value || typeof value !== 'object') return undefined;
   const raw = value as PanelSettings;
   const settings: PanelSettings = {};
-  if (type === 'vehicles' && (raw.vehiclesTab === 'fire' || raw.vehiclesTab === 'rescue')) settings.vehiclesTab = raw.vehiclesTab;
+  if (type === 'vehicles' && (raw.vehiclesTab === 'fire' || raw.vehiclesTab === 'rescue' || raw.vehiclesTab === 'all')) settings.vehiclesTab = raw.vehiclesTab;
   if (type === 'events' && Array.isArray(raw.eventsFilters)) {
     settings.eventsFilters = EVENTS_FILTERS.filter((filter) => raw.eventsFilters!.includes(filter));
   }

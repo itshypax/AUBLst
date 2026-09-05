@@ -106,3 +106,21 @@ describe('Zugalarm in der Fahrzeugübersicht', () => {
     expect(app.dispatchVehicleIds).toEqual([99, 1, 2, 3, 4]);
   });
 });
+
+describe('Fahrzeugliste ohne Tabtrennung', () => {
+  it('zeigt Feuerwehr und Rettungsdienst je Wache untereinander ohne Tabs', () => {
+    app.vehicles = [
+      fireVehicle(1, 1, 'HLF'),
+      { ...transport(2, 'A'), game_vehicle_id: '1_RTW_A', name: '1-RTW-A' },
+      transport(3, 'B'),
+    ];
+    render(VehiclesPanel, { props: { pinnedTab: 'all' } });
+
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.getByText('Alle Fahrzeuge')).toBeTruthy();
+    const headers = [...document.querySelectorAll('.group-header')].map((header) => header.textContent?.replace(/\s+/g, ' ').trim());
+    expect(headers).toEqual(['Wache 1 FW 1', 'Wache 1 RD 1', 'Rettungswache 72 RD 1']);
+    expect(document.querySelectorAll('.group-header.fire')).toHaveLength(1);
+    expect(document.querySelectorAll('.group-header.rescue')).toHaveLength(2);
+  });
+});

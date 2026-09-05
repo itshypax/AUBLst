@@ -14,6 +14,7 @@ import {
   removePanel,
   resetWorkspaceLayout,
   resizePanel,
+  resizePanelRect,
   saveWorkspaces,
   stackedPanels,
   WORKSPACE_STORAGE_KEY,
@@ -166,6 +167,24 @@ describe('Arbeitsansichten im Raster', () => {
     expect(rectFits(layout, { x: 0, y: 8, w: 24, h: 8 })).toBe(true);
   });
 
+  it('setzt beim Ziehen an der linken oder oberen Kante Position und Größe zugleich', () => {
+    const layout: WorkspaceLayout = {
+      id: 'x',
+      name: 'X',
+      panels: [
+        { key: 'map', type: 'map', x: 0, y: 0, w: 12, h: 8 },
+        { key: 'events', type: 'events', x: 14, y: 2, w: 10, h: 8 },
+      ],
+    };
+
+    expect(resizePanelRect(layout, 'events', { x: 12, y: 2, w: 12, h: 8 })?.panels[1]).toMatchObject({ x: 12, w: 12 });
+    expect(resizePanelRect(layout, 'events', { x: 14, y: 0, w: 10, h: 10 })?.panels[1]).toMatchObject({ y: 0, h: 10 });
+    expect(resizePanelRect(layout, 'events', { x: 22, y: 2, w: 2, h: 8 })).toBeNull();
+    expect(resizePanelRect(layout, 'events', { x: 10, y: 2, w: 14, h: 8 })).toBeNull();
+    expect(resizePanelRect(layout, 'events', { x: 14, y: 2, w: 11, h: 8 })).toBeNull();
+    expect(resizePanelRect(layout, 'events', { x: 14, y: 2, w: 10, h: 8 })?.panels[1]).toMatchObject({ x: 14, y: 2, w: 10, h: 8 });
+  });
+
   it('entfernt Panels und stapelt sie für schmale Bildschirme nach Zeile und Spalte', () => {
     const [standard] = DEFAULT_WORKSPACES;
     const without = removePanel(standard, 'map');
@@ -208,6 +227,22 @@ describe('Arbeitsansichten im Raster', () => {
 
     expect(workspace.code).toBe('K7F2MX');
     expect(workspace.panels[0].settings).toEqual({ vehiclesTab: 'rescue' });
+  });
+
+  it('kennt die Fahrzeugliste ohne Tabtrennung und verwirft unbekannte Werte', () => {
+    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
+      id: 'mixed',
+      name: 'Gemischt',
+      panels: [
+        { key: 'vehicles', type: 'vehicles', x: 0, y: 0, w: 12, h: 8, settings: { vehiclesTab: 'all' } },
+        { key: 'vehicles-2', type: 'vehicles', x: 0, y: 8, w: 12, h: 8, settings: { vehiclesTab: 'x' } },
+      ],
+    }]));
+
+    const [workspace] = loadWorkspaces();
+
+    expect(workspace.panels[0].settings).toEqual({ vehiclesTab: 'all' });
+    expect(workspace.panels[1].settings?.vehiclesTab).toBeUndefined();
   });
 });
 

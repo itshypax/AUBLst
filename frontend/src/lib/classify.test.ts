@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Vehicle } from './types';
-import { alarmGroups, alarmVehicleCount, eventCategory, hasLoeschzug, isHospitalTransportUnit, sortVehiclesByAlarmPriority, vehicleDisplayName, vehicleDisplayNameForIdentifier, vehicleTypeLabel } from './classify';
+import { alarmGroups, alarmVehicleCount, eventCategory, hasLoeschzug, isHospitalTransportUnit, sortVehiclesByAlarmPriority, stationColumnsMixed, vehicleDisplayName, vehicleDisplayNameForIdentifier, vehicleTypeLabel } from './classify';
 
 function vehicle(id: number, type: string): Vehicle {
   return {
@@ -93,6 +93,39 @@ describe('Fahrzeuggruppierung', () => {
     expect(alarmVehicleCount(police, '2')).toBe(2);
     expect(alarmVehicleCount(asf, 'Masterlift')).toBe(1);
     expect(alarmVehicleCount(utilities)).toBe(1);
+  });
+});
+
+describe('Fahrzeugliste ohne Tabtrennung', () => {
+  function unit(id: number, gameId: string): Vehicle {
+    return { ...vehicle(id, gameId.split('_')[1] ?? gameId), game_vehicle_id: gameId, name: gameId };
+  }
+
+  it('stellt je Wache erst Feuerwehr, dann Rettungsdienst in vier Spalten', () => {
+    const columns = stationColumnsMixed([
+      unit(1, '1_HLF_1'),
+      unit(2, '1_RTW_A'),
+      unit(3, '11_LF_1'),
+      unit(4, 'CHRISTOPH_82'),
+      unit(5, '2_HLF_1'),
+      unit(6, '72_RTW_A'),
+      unit(7, '4_TLF_1'),
+      unit(8, '0_FLB_1'),
+      unit(9, '74_RTW_A'),
+      unit(10, '3_HLF_1'),
+    ]);
+
+    const describe = (column: { label: string; tab?: string }[]) => column.map((group) => `${group.label}/${group.tab}`);
+    expect(columns).toHaveLength(4);
+    expect(describe(columns[0])).toEqual(['Wache 1/fire', 'Wache 1/rescue', 'Wache 11/fire', 'Hubschrauber/rescue']);
+    expect(describe(columns[1])).toEqual(['Wache 2/fire', 'Rettungswache 72/rescue']);
+    expect(describe(columns[2])).toEqual(['Wache 3/fire']);
+    expect(describe(columns[3])).toEqual(['Wache 4/fire', 'Feuerwehrboote/fire', 'Rettungswache 74/rescue']);
+  });
+
+  it('hängt unbekannte Wachen in der letzten Spalte an', () => {
+    const columns = stationColumnsMixed([unit(1, 'STADTWERKE_1'), unit(2, '1_HLF_1')]);
+    expect(columns[3].map((group) => group.label)).toEqual(['Weitere']);
   });
 });
 

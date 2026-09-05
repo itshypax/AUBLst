@@ -2,7 +2,7 @@
   import FaIcon from './FaIcon.svelte';
   import { Check, Hospital, Play, Plus, Search, TrafficCone, TriangleAlert, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
-  import { actionUnits, hasLoeschzug, isHiddenUnit, isHospitalTransportUnit, loeschzugFor, stationColumns, stationGroups, tabLabel, vehicleDisplayName, vehicleTypeLabel, type MainTab, type StationGroup } from '../lib/classify';
+  import { actionUnits, hasLoeschzug, isHiddenUnit, isHospitalTransportUnit, loeschzugFor, stationColumns, stationColumnsMixed, stationGroups, tabLabel, vehicleDisplayName, vehicleTypeLabel, type MainTab, type StationGroup } from '../lib/classify';
   import { refreshState } from '../lib/polling';
   import { roadLocationLabel } from '../lib/routing';
   import { getSoundAlertConfig } from '../lib/sounds';
@@ -12,13 +12,14 @@
   import EmptyState from './EmptyState.svelte';
   import StatusBadge from './StatusBadge.svelte';
 
-  let { pinnedTab = null }: { pinnedTab?: MainTab | null } = $props();
+  // 'all' zeigt Feuerwehr und Rettungsdienst je Wache untereinander, ohne Tabs.
+  let { pinnedTab = null }: { pinnedTab?: MainTab | 'all' | null } = $props();
 
   let activeTab = $state<MainTab>('fire');
   // Fester Tab aus dem Layout hat Vorrang vor der Auswahl im Panel.
-  const effectiveTab = $derived(pinnedTab ?? activeTab);
+  const effectiveTab = $derived(pinnedTab && pinnedTab !== 'all' ? pinnedTab : activeTab);
+  const mixed = $derived(pinnedTab === 'all');
   let query = $state('');
-  let searchInput: HTMLInputElement;
   let fireTab = $state<HTMLButtonElement>();
   let rescueTab = $state<HTMLButtonElement>();
   let returning = $state<Set<number>>(new Set());
@@ -28,7 +29,7 @@
     if (!term) return app.vehicles;
     return app.vehicles.filter((v) => `${v.name ?? ''} ${v.type ?? ''} ${v.game_vehicle_id}`.toLocaleLowerCase('de').includes(term));
   });
-  const columns = $derived(stationColumns(filteredVehicles, effectiveTab));
+  const columns = $derived(mixed ? stationColumnsMixed(filteredVehicles) : stationColumns(filteredVehicles, effectiveTab));
   const actions = $derived(actionUnits(app.vehicles));
   const hasVehicles = $derived(columns.some((col) => col.length));
   const fireStations = $derived(new Map(stationGroups(app.vehicles, 'fire').map((group) => [group.key, group])));
@@ -142,10 +143,11 @@
     <label class="vehicle-search">
       <FaIcon icon={Search} size={13} />
       <span class="sr-only">Fahrzeuge filtern</span>
-      <input bind:this={searchInput} type="text" bind:value={query} placeholder="Filtern" />
-      <kbd aria-label="Tastaturkürzel F">F</kbd>
+      <input type="text" bind:value={query} placeholder="Filtern" />
     </label>
-    {#if pinnedTab}
+    {#if mixed}
+      <span class="pinned-tab">Alle Fahrzeuge <span class="count">{counts.fire + counts.rescue}</span></span>
+    {:else if pinnedTab && pinnedTab !== 'all'}
       <span class="pinned-tab">{tabLabel[pinnedTab]} <span class="count">{counts[pinnedTab]}</span></span>
     {:else}
     <div class="tabs" role="tablist">
@@ -187,16 +189,18 @@
     {/if}
   </div>
 
-  <div class="panel-body" id="vehicle-list" role="tabpanel" aria-label={tabLabel[effectiveTab]}>
+  <div class="panel-body" id="vehicle-list" role="tabpanel" aria-label={mixed ? 'Alle Fahrzeuge' : tabLabel[effectiveTab]}>
     <div class="columns">
       {#each columns as column, i (i)}
         <div class="column">
-          {#each column as g (g.key)}
+          {#each column as g (`${g.tab ?? ""}:${g.key}`)}
             {@const zugGroup = fireStations.get(g.key)}
+            {@const groupTab = g.tab ?? effectiveTab}
             <div class="group">
-              <div class="group-header" class:fire={effectiveTab === 'fire'} class:rescue={effectiveTab === 'rescue'}>
+              <div class="group-header" class:fire={groupTab === 'fire'} class:rescue={groupTab === 'rescue'}>
                 <span>{g.label}</span>
-                {#if app.assignEvent?.status === 'active' && activeTab === 'fire' && ['1', '2', '3', '4'].includes(g.key) && zugGroup && hasLoeschzug(zugGroup)}
+                {#if mixed}<span class="tab-tag">{groupTab === 'fire' ? 'FW' : 'RD'}</span>{/if}
+                {#if app.assignEvent?.status === 'active' && groupTab === 'fire' && ['1', '2', '3', '4'].includes(g.key) && zugGroup && hasLoeschzug(zugGroup)}
                   <button
                     class="zug-alarm"
                     disabled={!zugFor(zugGroup).length}
@@ -299,7 +303,6 @@
 
   .vehicle-search { display: flex; align-items: center; gap: 5px; color: var(--text-dim); }
   .vehicle-search input { width: 108px; padding: 4px 7px; font-size: 12px; }
-  .vehicle-search kbd { min-width: 20px; padding: 1px 5px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-raised); color: var(--text-dim); font: 10px ui-monospace, 'Cascadia Mono', Consolas, monospace; text-align: center; }
 
   .tab {
     padding: 4px 10px;
@@ -356,6 +359,15 @@
     position: sticky;
     top: -8px;
     z-index: 1;
+  }
+
+  .group-header .tab-tag {
+    padding: 0 4px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
   }
 
   .group-header .count {
