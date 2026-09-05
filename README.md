@@ -113,6 +113,26 @@ Desktop-Meldungen für neue Einsätze und Sprechwünsche eingeschaltet werden.
 Diese Meldungen funktionieren, solange die App geöffnet ist. Web Push bei
 geschlossenem Browser ist noch nicht enthalten.
 
+### Arbeitsansichten
+
+Die Leitstelle besteht aus Fenstern (Karte, Fahrzeuge, Einsätze, aktueller
+Einsatz, FMS-Log, Sprechwünsche, Krankenhäuser, BMAs) auf einem Raster mit
+24 Spalten und 16 Zeilen. Über „Anordnung bearbeiten“ (Kopfzeile oder
+Ansichten-Dialog) lassen sich Fenster am blauen Kopf verschieben, an der
+Ecke rechts unten in der Größe ändern, entfernen und aus der Leiste oben neu
+hinzufügen. Karte, Fahrzeuge, Einsätze, FMS-Log und Krankenhäuser dürfen
+mehrfach vorkommen; eine Fahrzeugliste kann fest auf Feuerwehr oder
+Rettungsdienst stehen. Pfeiltasten verschieben ein fokussiertes Fenster,
+Umschalt + Pfeiltasten ändern die Größe, Entf entfernt es.
+
+Ansichten liegen im Browser (je Fenster, mit Spiegel für neue Fenster) und
+auf Wunsch in der Server-Bibliothek. Dort bekommt jede Ansicht einen
+sechsstelligen Code; „Link kopieren“ erzeugt `?layout=CODE`, mit dem andere
+die Ansicht nach dem Verbinden direkt übernehmen. Wer den Code hat, kann die
+Ansicht auch überschreiben oder löschen. Export und Import als JSON-Datei
+gibt es ebenfalls im Ansichten-Dialog. Ältere Ansichten mit vier festen
+Bereichen werden beim ersten Laden ins Raster umgerechnet.
+
 ### Fahrzeug-Gruppierung
 
 Die Fahrzeugübersicht trennt Feuerwehr und Rettungsdienst per Tab und
@@ -161,6 +181,10 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
   Sitzungsrevision nur noch bei anderen Änderungen als Positionen, spätestens
   aber alle 15 Sekunden.
 - `POST api.php?action=status_history` – letzte 500 Fahrzeugstatusänderungen
+- `POST api.php?action=layouts_list` / `layouts_get` / `layouts_put` / `layouts_delete`
+  – Bibliothek der Arbeitsansichten, unabhängig von Sitzungen. Jedes Layout hat
+  einen sechsstelligen Code; `layouts_put` ohne Code legt ein neues an, mit Code
+  überschreibt es. Wer den Code hat, darf überschreiben und löschen.
 - `POST api.php?action=logs` – Funkmeldungen; Cursor über `since` und `since_id`
 - `POST api.php?action=events_create` / `events_finish` / `events_assign` /
   `events_unassign` – Einsätze anlegen, abschließen, Fahrzeuge (de)alarmieren

@@ -285,6 +285,18 @@ function migration_definitions(): array {
                     ADD COLUMN unavailable_override TINYINT(1) NOT NULL DEFAULT 0 AFTER game_status');
             }
         },
+        '2026090501_layouts' => static function (PDO $pdo): void {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS layouts (
+                  id INT AUTO_INCREMENT PRIMARY KEY,
+                  code CHAR(6) NOT NULL UNIQUE,
+                  name VARCHAR(60) NOT NULL,
+                  mod_id VARCHAR(255) NULL,
+                  layout LONGTEXT NOT NULL,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  INDEX idx_layouts_updated (updated_at)
+                ) ENGINE=InnoDB");
+        },
     ];
 }
 

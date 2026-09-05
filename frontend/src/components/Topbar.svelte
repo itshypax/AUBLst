@@ -12,7 +12,7 @@
   import { desktopNotificationsAvailable, setDesktopNotifications } from '../lib/notifications';
   import { api } from '../lib/api';
 
-  let { onResetLayout, onOpenWorkspaceEditor, workspaceName }: { onResetLayout: () => void; onOpenWorkspaceEditor: () => void; workspaceName: string } = $props();
+  let { onResetLayout, onOpenWorkspaceEditor, onEditLayout = () => undefined, workspaceName }: { onResetLayout: () => void; onOpenWorkspaceEditor: () => void; onEditLayout?: () => void; workspaceName: string } = $props();
 
   let tokenInput = $state(app.sessionToken);
   let pinInput = $state(app.pin);
@@ -309,6 +309,7 @@
           {/if}
         </div>
       {/if}
+      <button class="ghost reset-layout" onclick={() => { onEditLayout(); settingsOpen = false; }}>Anordnung bearbeiten</button>
       <button class="ghost reset-layout" onclick={() => { onResetLayout(); settingsOpen = false; }}>Layout auf Standard zurücksetzen</button>
       </div>
     {/if}

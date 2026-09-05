@@ -1,5 +1,25 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_WORKSPACES, loadWorkspaces, resetWorkspaceLayout, saveWorkspaces, WORKSPACE_STORAGE_KEY, workspaceUrl, type WorkspaceLayout } from './workspaces';
+import {
+  addPanel,
+  DEFAULT_WORKSPACES,
+  findFreeSpot,
+  GRID_COLUMNS,
+  GRID_ROWS,
+  LOCAL_MIRROR_KEY,
+  loadWorkspaces,
+  migrateLegacyWorkspace,
+  movePanel,
+  panelTypes,
+  rectFits,
+  removePanel,
+  resetWorkspaceLayout,
+  resizePanel,
+  saveWorkspaces,
+  stackedPanels,
+  WORKSPACE_STORAGE_KEY,
+  workspaceUrl,
+  type WorkspaceLayout,
+} from './workspaces';
 
 beforeEach(() => {
   localStorage.clear();
@@ -7,159 +27,166 @@ beforeEach(() => {
   history.replaceState(null, '', '/');
 });
 
-describe('Arbeitsansichten', () => {
-  it('bildet die Dispositionsansicht als Standardansicht ab', () => {
-    const [standard] = loadWorkspaces();
+function overlaps(layout: WorkspaceLayout): boolean {
+  return layout.panels.some((a, i) => layout.panels.some((b, j) => i !== j
+    && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h));
+}
 
-    expect(standard.areas).toEqual({
-      leftTop: ['events', 'bmas', 'speech_requests', 'current_event'],
-      leftBottom: ['hospitals', 'logs'],
-      rightTop: ['vehicles'],
-      rightBottom: ['map'],
+describe('Arbeitsansichten im Raster', () => {
+  it('liefert vier Vorlagen ohne Überlappung innerhalb des Rasters', () => {
+    expect(DEFAULT_WORKSPACES.map((workspace) => workspace.id)).toEqual(['standard', 'einsatzmonitor', 'funkmonitor', 'leitstelle']);
+    for (const workspace of DEFAULT_WORKSPACES) {
+      expect(overlaps(workspace)).toBe(false);
+      for (const panel of workspace.panels) {
+        expect(panel.x + panel.w).toBeLessThanOrEqual(GRID_COLUMNS);
+        expect(panel.y + panel.h).toBeLessThanOrEqual(GRID_ROWS);
+      }
+    }
+  });
+
+  it('enthält in der Standardansicht alle acht Panels genau einmal', () => {
+    const [standard] = DEFAULT_WORKSPACES;
+    expect(panelTypes(standard).sort()).toEqual(['bmas', 'current_event', 'events', 'hospitals', 'logs', 'map', 'speech_requests', 'vehicles']);
+    expect(standard.panels.find((panel) => panel.type === 'map')?.x).toBeGreaterThan(GRID_COLUMNS / 2);
+  });
+
+  it('rechnet eine alte Ansicht mit vier Bereichen in das Raster um', () => {
+    const migrated = migrateLegacyWorkspace({
+      id: 'alt',
+      name: 'Alte Ansicht',
+      areas: { leftTop: ['map'], leftBottom: [], rightTop: ['events', 'logs'], rightBottom: ['hospitals'] },
+      directions: { leftTop: 'row', leftBottom: 'row', rightTop: 'column', rightBottom: 'row' },
+      ratios: { col: 0.5, left: 0.5, right: 0.5 },
+      panelRatios: { leftTop: [1], leftBottom: [], rightTop: [0.5, 0.5], rightBottom: [1] },
     });
-    expect(standard.directions.leftTop).toBe('mosaic');
+
+    expect(migrated.id).toBe('alt');
+    expect(overlaps(migrated)).toBe(false);
+    expect(migrated.panels.find((panel) => panel.type === 'map')).toMatchObject({ x: 0, y: 0, w: 12, h: 16 });
+    expect(migrated.panels.find((panel) => panel.type === 'events')).toMatchObject({ x: 12, y: 0, w: 12, h: 4 });
+    expect(migrated.panels.find((panel) => panel.type === 'logs')).toMatchObject({ x: 12, y: 4, w: 12, h: 4 });
+    expect(migrated.panels.find((panel) => panel.type === 'hospitals')).toMatchObject({ x: 12, y: 8, w: 12, h: 8 });
   });
 
-  it('speichert Arbeitsansichten nur im aktuellen Fenster', () => {
-    saveWorkspaces(DEFAULT_WORKSPACES);
-
-    expect(JSON.parse(sessionStorage.getItem(WORKSPACE_STORAGE_KEY) ?? '[]')).toHaveLength(4);
-    expect(localStorage.getItem(WORKSPACE_STORAGE_KEY)).toBeNull();
-    expect(loadWorkspaces().map((workspace) => workspace.id)).toEqual(['standard', 'einsatzmonitor', 'funkmonitor', 'leitstelle']);
-  });
-
-  it('lässt den aktuellen Einsatz in der kompakten Ansicht über die volle rechte Höhe laufen', () => {
-    const compact = loadWorkspaces().find((workspace) => workspace.id === 'leitstelle');
-
-    expect(compact?.areas).toEqual({
-      leftTop: ['events'],
-      leftBottom: ['bmas', 'speech_requests'],
-      rightTop: ['current_event'],
-      rightBottom: [],
-    });
-  });
-
-  it('stellt die ältere kompakte Ansicht auf das durchgehende Einsatzfenster um', () => {
-    const current = DEFAULT_WORKSPACES.find((workspace) => workspace.id === 'leitstelle')!;
-    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
-      ...current,
-      areas: { ...current.areas, rightBottom: ['hospitals', 'logs'] },
-      panelRatios: { ...current.panelRatios, rightBottom: [0.64, 0.36] },
-    }]));
-
-    expect(loadWorkspaces()[0].areas.rightBottom).toEqual([]);
-  });
-
-  it('entfernt doppelt eingetragene Panels beim Laden', () => {
-    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
-      ...DEFAULT_WORKSPACES[0],
-      areas: { ...DEFAULT_WORKSPACES[0].areas, rightTop: ['vehicles', 'events'] },
-    }]));
-
-    const [workspace] = loadWorkspaces();
-    expect(workspace.areas.leftTop).toEqual(['events', 'bmas', 'speech_requests', 'current_event']);
-    expect(workspace.areas.rightTop).toEqual(['vehicles']);
-  });
-
-  it('ergänzt für alte Arbeitsansichten Größenanteile je Modul', () => {
-    const legacy = { ...DEFAULT_WORKSPACES[0] } as Partial<(typeof DEFAULT_WORKSPACES)[number]>;
-    delete legacy.panelRatios;
-    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([legacy]));
-
-    const [workspace] = loadWorkspaces();
-
-    expect(workspace.panelRatios.leftTop).toEqual([0.25, 0.25, 0.25, 0.25]);
-    expect(workspace.panelRatios.leftBottom).toEqual([0.5, 0.5]);
-  });
-
-  it('setzt das Sprechwunsch-Panel in eine ältere Standardansicht ein', () => {
-    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
-      ...DEFAULT_WORKSPACES[0],
-      areas: { ...DEFAULT_WORKSPACES[0].areas, leftBottom: ['logs', 'hospitals'] },
-      panelRatios: { ...DEFAULT_WORKSPACES[0].panelRatios, leftBottom: [0.5, 0.5] },
-    }]));
-
-    const [workspace] = loadWorkspaces();
-
-    expect(workspace.areas.leftTop).toEqual(['events', 'bmas', 'speech_requests', 'current_event']);
-    expect(workspace.areas.leftBottom).toEqual(['hospitals', 'logs']);
-    expect(workspace.panelRatios.leftBottom).toEqual([0.5, 0.5]);
-  });
-
-  it('übernimmt die neue Anordnung in eine bisherige Standardansicht', () => {
-    const current = DEFAULT_WORKSPACES[0];
-    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
-      ...current,
-      areas: {
-        leftTop: ['events', 'current_event'],
-        leftBottom: ['logs', 'speech_requests', 'bmas', 'hospitals'],
-        rightTop: ['vehicles'],
-        rightBottom: ['map'],
-      },
+  it('übernimmt alte Ansichten aus dem Fenster-Speicher und spiegelt den neuen Stand', () => {
+    sessionStorage.setItem('leitstelleWorkspaces:v1', JSON.stringify([{
+      id: 'standard',
+      name: 'Meine alte',
+      areas: { leftTop: ['events'], leftBottom: [], rightTop: ['map'], rightBottom: [] },
       directions: { leftTop: 'row', leftBottom: 'row', rightTop: 'row', rightBottom: 'row' },
+      ratios: { col: 0.5, left: 0.5, right: 0.5 },
+      panelRatios: { leftTop: [1], leftBottom: [], rightTop: [1], rightBottom: [] },
     }]));
 
     const [workspace] = loadWorkspaces();
 
-    expect(workspace.areas).toEqual(current.areas);
-    expect(workspace.directions.leftTop).toBe('mosaic');
+    expect(workspace.name).toBe('Meine alte');
+    expect(panelTypes(workspace)).toEqual(['events', 'map']);
+    expect(JSON.parse(sessionStorage.getItem(WORKSPACE_STORAGE_KEY) ?? '[]')[0].panels).toBeDefined();
+    expect(JSON.parse(localStorage.getItem(LOCAL_MIRROR_KEY) ?? '[]')[0].name).toBe('Meine alte');
   });
 
-  it('stellt die untere Reihenfolge im Standardlayout auf Krankenhäuser und FMS-LOG um', () => {
-    const current = DEFAULT_WORKSPACES[0];
+  it('startet ein neues Fenster mit dem zuletzt gespiegelten Satz', () => {
+    const custom = { ...DEFAULT_WORKSPACES[0], name: 'Letzter Stand' };
+    saveWorkspaces([custom]);
+    sessionStorage.clear();
+
+    expect(loadWorkspaces()[0].name).toBe('Letzter Stand');
+  });
+
+  it('verwirft überlappende oder aus dem Raster ragende Panels beim Laden', () => {
     sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
-      ...current,
-      areas: { ...current.areas, leftBottom: ['logs', 'hospitals'] },
+      id: 'kaputt',
+      name: 'Kaputt',
+      panels: [
+        { key: 'map', type: 'map', x: 0, y: 0, w: 12, h: 16 },
+        { key: 'events', type: 'events', x: 6, y: 0, w: 12, h: 8 },
+        { key: 'logs', type: 'logs', x: 20, y: 0, w: 8, h: 8 },
+        { key: 'unsinn', type: 'unsinn', x: 12, y: 8, w: 4, h: 4 },
+      ],
     }]));
 
     const [workspace] = loadWorkspaces();
 
-    expect(workspace.areas.leftBottom).toEqual(['hospitals', 'logs']);
+    expect(workspace.panels.map((panel) => panel.key)).toEqual(['map']);
   });
 
-  it('verwirft die verschachtelte Anordnung ohne genau vier Fenster', () => {
-    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
-      ...DEFAULT_WORKSPACES[1],
-      directions: { ...DEFAULT_WORKSPACES[1].directions, leftTop: 'mosaic' },
-    }]));
+  it('findet freie Stellen und fügt Panels dort ein', () => {
+    const layout: WorkspaceLayout = { id: 'x', name: 'X', panels: [{ key: 'map', type: 'map', x: 0, y: 0, w: 12, h: 16 }] };
 
-    expect(loadWorkspaces()[0].directions.leftTop).toBe('row');
+    expect(findFreeSpot(layout, 6, 5)).toEqual({ x: 12, y: 0 });
+    const added = addPanel(layout, 'vehicles')!;
+    expect(added.panels).toHaveLength(2);
+    expect(added.panels[1]).toMatchObject({ key: 'vehicles', type: 'vehicles', x: 12, y: 0, w: 6, h: 5 });
+    expect(addPanel(added, 'vehicles')!.panels[2].key).toBe('vehicles-2');
+    expect(overlaps(addPanel(added, 'vehicles')!)).toBe(false);
   });
 
-  it('setzt eine geänderte Ansicht vollständig auf ihre Vorlage zurück', () => {
-    const changed: WorkspaceLayout = {
-      ...DEFAULT_WORKSPACES[0],
-      name: 'Meine Standardansicht',
-      areas: { ...DEFAULT_WORKSPACES[0].areas, leftTop: ['map'], rightBottom: [] },
-      directions: { ...DEFAULT_WORKSPACES[0].directions, leftTop: 'row' },
-      ratios: { col: 0.3, left: 0.3, right: 0.3 },
-      panelRatios: { ...DEFAULT_WORKSPACES[0].panelRatios, leftTop: [1], rightBottom: [] },
+  it('lehnt ein zweites Einsatzfenster ab und meldet Platzmangel', () => {
+    const full: WorkspaceLayout = { id: 'x', name: 'X', panels: [{ key: 'map', type: 'map', x: 0, y: 0, w: 24, h: 16 }] };
+    const withEvent: WorkspaceLayout = { id: 'y', name: 'Y', panels: [{ key: 'current_event', type: 'current_event', x: 0, y: 0, w: 6, h: 6 }] };
+
+    expect(addPanel(full, 'vehicles')).toBeNull();
+    expect(addPanel(withEvent, 'current_event')).toBeNull();
+  });
+
+  it('verschiebt nur auf freie Fläche und tauscht gleich große Panels', () => {
+    const layout: WorkspaceLayout = {
+      id: 'x',
+      name: 'X',
+      panels: [
+        { key: 'map', type: 'map', x: 0, y: 0, w: 12, h: 8 },
+        { key: 'events', type: 'events', x: 12, y: 0, w: 12, h: 8 },
+        { key: 'logs', type: 'logs', x: 0, y: 8, w: 6, h: 8 },
+      ],
     };
 
-    const reset = resetWorkspaceLayout(changed);
-
-    expect(reset).toEqual({ ...DEFAULT_WORKSPACES[0], name: 'Meine Standardansicht' });
+    expect(movePanel(layout, 'logs', 8, 8)?.panels.find((panel) => panel.key === 'logs')).toMatchObject({ x: 8, y: 8 });
+    expect(movePanel(layout, 'logs', 4, 4)).toBeNull();
+    expect(movePanel(layout, 'logs', 22, 8)).toBeNull();
+    const swapped = movePanel(layout, 'map', 12, 0)!;
+    expect(swapped.panels.find((panel) => panel.key === 'map')).toMatchObject({ x: 12, y: 0 });
+    expect(swapped.panels.find((panel) => panel.key === 'events')).toMatchObject({ x: 0, y: 0 });
   });
 
-  it('übernimmt bestehende browserweite Einstellungen einmalig in das aktuelle Fenster', () => {
-    localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{ ...DEFAULT_WORKSPACES[0], name: 'Bisherige Ansicht' }]));
+  it('ändert die Größe nur innerhalb des Rasters und ohne Überlappung', () => {
+    const layout: WorkspaceLayout = {
+      id: 'x',
+      name: 'X',
+      panels: [
+        { key: 'map', type: 'map', x: 0, y: 0, w: 12, h: 8 },
+        { key: 'events', type: 'events', x: 12, y: 0, w: 12, h: 8 },
+      ],
+    };
 
-    expect(loadWorkspaces()[0].name).toBe('Bisherige Ansicht');
-    expect(JSON.parse(sessionStorage.getItem(WORKSPACE_STORAGE_KEY) ?? '[]')[0].name).toBe('Bisherige Ansicht');
+    expect(resizePanel(layout, 'map', 12, 16)?.panels[0]).toMatchObject({ w: 12, h: 16 });
+    expect(resizePanel(layout, 'map', 14, 8)).toBeNull();
+    expect(resizePanel(layout, 'map', 2, 2)?.panels[0]).toMatchObject({ w: 3, h: 3 });
+    expect(resizePanel(layout, 'events', 13, 8)).toBeNull();
+    expect(rectFits(layout, { x: 0, y: 8, w: 24, h: 8 })).toBe(true);
+  });
 
-    localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{ ...DEFAULT_WORKSPACES[0], name: 'Anderes Fenster' }]));
-    expect(loadWorkspaces()[0].name).toBe('Bisherige Ansicht');
+  it('entfernt Panels und stapelt sie für schmale Bildschirme nach Zeile und Spalte', () => {
+    const [standard] = DEFAULT_WORKSPACES;
+    const without = removePanel(standard, 'map');
+    expect(panelTypes(without)).not.toContain('map');
+
+    const order = stackedPanels(standard).map((panel) => `${panel.y}:${panel.x}`);
+    expect([...order].sort((a, b) => {
+      const [ay, ax] = a.split(':').map(Number);
+      const [by, bx] = b.split(':').map(Number);
+      return ay - by || ax - bx;
+    })).toEqual(order);
+  });
+
+  it('setzt eine geänderte Vorlage auf ihre Ausgangsanordnung zurück', () => {
+    const changed = { ...DEFAULT_WORKSPACES[0], name: 'Meine Standardansicht', panels: [DEFAULT_WORKSPACES[0].panels[0]] };
+
+    expect(resetWorkspaceLayout(changed)).toEqual({ ...DEFAULT_WORKSPACES[0], name: 'Meine Standardansicht' });
   });
 
   it('übergibt eine Arbeitsansicht einmalig an einen neu geöffneten Tab', () => {
-    const custom: WorkspaceLayout = {
-      ...DEFAULT_WORKSPACES[0],
-      id: 'lagekarte',
-      name: 'Lagekarte',
-      areas: { ...DEFAULT_WORKSPACES[0].areas, leftTop: ['map'], rightBottom: [] },
-      directions: { ...DEFAULT_WORKSPACES[0].directions, leftTop: 'row' },
-      panelRatios: { ...DEFAULT_WORKSPACES[0].panelRatios, leftTop: [1], rightBottom: [] },
-    };
+    const custom: WorkspaceLayout = { id: 'lagekarte', name: 'Lagekarte', panels: [{ key: 'map', type: 'map', x: 0, y: 0, w: 24, h: 16 }] };
     saveWorkspaces(DEFAULT_WORKSPACES);
     history.replaceState(null, '', workspaceUrl(custom));
 
@@ -167,5 +194,55 @@ describe('Arbeitsansichten', () => {
 
     expect(loaded.find((workspace) => workspace.id === 'lagekarte')).toEqual(custom);
     expect(location.search).not.toContain('workspace_layout');
+  });
+
+  it('behält den Servercode und die Fahrzeug-Tab-Einstellung beim Laden', () => {
+    sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify([{
+      id: 'server',
+      name: 'Vom Server',
+      code: 'K7F2MX',
+      panels: [{ key: 'vehicles', type: 'vehicles', x: 0, y: 0, w: 12, h: 16, settings: { vehiclesTab: 'rescue' } }],
+    }]));
+
+    const [workspace] = loadWorkspaces();
+
+    expect(workspace.code).toBe('K7F2MX');
+    expect(workspace.panels[0].settings).toEqual({ vehiclesTab: 'rescue' });
+  });
+});
+
+import { parseWorkspaceImport, serializeWorkspace } from './workspaces';
+
+describe('Arbeitsansichten als Datei', () => {
+  it('exportiert ohne Servercode und liest die Datei wieder ein', () => {
+    const exported = serializeWorkspace({ ...DEFAULT_WORKSPACES[0], code: 'K7F2MX' });
+    expect(exported).not.toContain('K7F2MX');
+
+    const imported = parseWorkspaceImport(exported)!;
+    expect(imported.panels).toEqual(DEFAULT_WORKSPACES[0].panels);
+    expect(imported.code).toBeUndefined();
+  });
+
+  it('lehnt Dateien ohne Fenster oder ohne JSON ab', () => {
+    expect(parseWorkspaceImport('kein json')).toBeNull();
+    expect(parseWorkspaceImport(JSON.stringify({ workspace: { id: 'x', name: 'X', panels: [] } }))).toBeNull();
+  });
+});
+
+import { sharedLayoutCodeFromUrl } from './workspaces';
+
+describe('Geteilter Layout-Code in der URL', () => {
+  it('liest den Code einmalig aus und entfernt ihn aus der Adresse', () => {
+    history.replaceState(null, '', '/?layout=k7f2mx&workspace=standard');
+
+    expect(sharedLayoutCodeFromUrl()).toBe('K7F2MX');
+    expect(location.search).toBe('?workspace=standard');
+    expect(sharedLayoutCodeFromUrl()).toBeNull();
+  });
+
+  it('ignoriert unbrauchbare Codes', () => {
+    history.replaceState(null, '', '/?layout=zu-lang-und-falsch');
+
+    expect(sharedLayoutCodeFromUrl()).toBeNull();
   });
 });

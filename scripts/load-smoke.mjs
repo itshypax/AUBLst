@@ -108,6 +108,44 @@ async function testSession() {
       "Positionsrevision oder Koordinaten fehlen nach Positionsänderung",
     );
   }
+  // Layout-Bibliothek: anlegen, laden, listen, löschen.
+  const layoutPanels = [
+    { key: "map", type: "map", x: 0, y: 0, w: 16, h: 16 },
+    { key: "events", type: "events", x: 16, y: 0, w: 8, h: 16 },
+  ];
+  const saved = await post("layouts_put", {
+    session_token: token,
+    name: "Lasttest-Ansicht",
+    layout: { panels: layoutPanels },
+  });
+  if (!/^[A-Z0-9]{6}$/.test(saved.code ?? "")) {
+    throw new Error("Layout-Code fehlt oder hat das falsche Format");
+  }
+  const loaded = await post("layouts_get", { session_token: token, code: saved.code });
+  if (loaded.name !== "Lasttest-Ansicht" || loaded.layout?.panels?.length !== 2) {
+    throw new Error("Gespeichertes Layout kommt nicht zurück");
+  }
+  const updated = await post("layouts_put", {
+    session_token: token,
+    code: saved.code,
+    name: "Lasttest-Ansicht 2",
+    layout: { panels: layoutPanels },
+  });
+  if (updated.code !== saved.code || updated.created !== false) {
+    throw new Error("Überschreiben per Code hat einen neuen Code erzeugt");
+  }
+  const listed = await post("layouts_list", { session_token: token });
+  if (!listed.layouts?.some((item) => item.code === saved.code && item.name === "Lasttest-Ansicht 2")) {
+    throw new Error("Layout fehlt in der Liste");
+  }
+  await post("layouts_delete", { session_token: token, code: saved.code });
+  let deleted = false;
+  try {
+    await post("layouts_get", { session_token: token, code: saved.code });
+  } catch {
+    deleted = true;
+  }
+  if (!deleted) throw new Error("Layout ist nach dem Löschen noch abrufbar");
   return token;
 }
 

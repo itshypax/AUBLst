@@ -312,3 +312,15 @@ CREATE TABLE IF NOT EXISTS anonymous_metrics (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (metric_day, metric_name)
 ) ENGINE=InnoDB;
+
+-- Arbeitsansichten der Leitstelle, unabhängig von Sitzungen, per Code teilbar
+CREATE TABLE IF NOT EXISTS layouts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  code CHAR(6) NOT NULL UNIQUE,
+  name VARCHAR(60) NOT NULL,
+  mod_id VARCHAR(255) NULL,
+  layout LONGTEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_layouts_updated (updated_at)
+) ENGINE=InnoDB;

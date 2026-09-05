@@ -12,11 +12,15 @@
   import EmptyState from './EmptyState.svelte';
   import StatusBadge from './StatusBadge.svelte';
 
+  let { pinnedTab = null }: { pinnedTab?: MainTab | null } = $props();
+
   let activeTab = $state<MainTab>('fire');
+  // Fester Tab aus dem Layout hat Vorrang vor der Auswahl im Panel.
+  const effectiveTab = $derived(pinnedTab ?? activeTab);
   let query = $state('');
   let searchInput: HTMLInputElement;
-  let fireTab: HTMLButtonElement;
-  let rescueTab: HTMLButtonElement;
+  let fireTab = $state<HTMLButtonElement>();
+  let rescueTab = $state<HTMLButtonElement>();
   let returning = $state<Set<number>>(new Set());
 
   const filteredVehicles = $derived.by(() => {
@@ -24,7 +28,7 @@
     if (!term) return app.vehicles;
     return app.vehicles.filter((v) => `${v.name ?? ''} ${v.type ?? ''} ${v.game_vehicle_id}`.toLocaleLowerCase('de').includes(term));
   });
-  const columns = $derived(stationColumns(filteredVehicles, activeTab));
+  const columns = $derived(stationColumns(filteredVehicles, effectiveTab));
   const actions = $derived(actionUnits(app.vehicles));
   const hasVehicles = $derived(columns.some((col) => col.length));
   const fireStations = $derived(new Map(stationGroups(app.vehicles, 'fire').map((group) => [group.key, group])));
@@ -127,7 +131,7 @@
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     e.preventDefault();
     activeTab = activeTab === 'fire' ? 'rescue' : 'fire';
-    (activeTab === 'fire' ? fireTab : rescueTab).focus();
+    (activeTab === 'fire' ? fireTab : rescueTab)?.focus();
   }
 </script>
 
@@ -141,6 +145,9 @@
       <input bind:this={searchInput} type="text" bind:value={query} placeholder="Filtern" />
       <kbd aria-label="Tastaturkürzel F">F</kbd>
     </label>
+    {#if pinnedTab}
+      <span class="pinned-tab">{tabLabel[pinnedTab]} <span class="count">{counts[pinnedTab]}</span></span>
+    {:else}
     <div class="tabs" role="tablist">
       <button
         bind:this={fireTab}
@@ -171,6 +178,7 @@
         <span class="count">{counts.rescue}</span>
       </button>
     </div>
+    {/if}
     {#if actions.length}
       <button class="actions-btn" data-tooltip="Sperrungen und Freigaben auslösen" onclick={() => (app.actionsOpen = true)}>
         <FaIcon icon={TrafficCone} size={14} />
@@ -179,14 +187,14 @@
     {/if}
   </div>
 
-  <div class="panel-body" id="vehicle-list" role="tabpanel" aria-label={tabLabel[activeTab]}>
+  <div class="panel-body" id="vehicle-list" role="tabpanel" aria-label={tabLabel[effectiveTab]}>
     <div class="columns">
       {#each columns as column, i (i)}
         <div class="column">
           {#each column as g (g.key)}
             {@const zugGroup = fireStations.get(g.key)}
             <div class="group">
-              <div class="group-header" class:fire={activeTab === 'fire'} class:rescue={activeTab === 'rescue'}>
+              <div class="group-header" class:fire={effectiveTab === 'fire'} class:rescue={effectiveTab === 'rescue'}>
                 <span>{g.label}</span>
                 {#if app.assignEvent?.status === 'active' && activeTab === 'fire' && ['1', '2', '3', '4'].includes(g.key) && zugGroup && hasLoeschzug(zugGroup)}
                   <button
@@ -272,6 +280,18 @@
 </section>
 
 <style>
+  .pinned-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
   .tabs {
     display: flex;
     gap: 4px;

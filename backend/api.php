@@ -15,6 +15,7 @@ require_once __DIR__ . '/src/actions/hospitals.php';
 require_once __DIR__ . '/src/actions/events.php';
 require_once __DIR__ . '/src/actions/commands.php';
 require_once __DIR__ . '/src/actions/logs.php';
+require_once __DIR__ . '/src/actions/layouts.php';
 require_once __DIR__ . '/src/actions/system.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -70,6 +71,10 @@ const ACTIONS = [
     'logs'                   => 'action_logs',
     'log_acknowledge'        => 'action_log_acknowledge',
     'log_viewed'             => 'action_log_viewed',
+    'layouts_list'           => 'action_layouts_list',
+    'layouts_get'            => 'action_layouts_get',
+    'layouts_put'            => 'action_layouts_put',
+    'layouts_delete'         => 'action_layouts_delete',
 ];
 
 const DISPATCHER_WRITE_ACTIONS = [
@@ -90,6 +95,8 @@ const DISPATCHER_WRITE_ACTIONS = [
     'log_viewed',
     'log_acknowledge',
     'routing_put',
+    'layouts_put',
+    'layouts_delete',
 ];
 
 $action = $_GET['action'] ?? $_POST['action'] ?? null;

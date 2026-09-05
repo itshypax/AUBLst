@@ -18,6 +18,8 @@ const WRITE_ACTIONS = new Set([
   'hospital_reservation_clear',
   'session_monitor_hospital_capacity_set',
   'routing_put',
+  'layouts_put',
+  'layouts_delete',
 ]);
 
 interface RequestOptions {

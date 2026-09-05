@@ -8,6 +8,7 @@ require_once __DIR__ . '/../src/migrations.php';
 require_once __DIR__ . '/../src/repository.php';
 require_once __DIR__ . '/../src/actions/mods.php';
 require_once __DIR__ . '/../src/actions/state.php';
+require_once __DIR__ . '/../src/actions/layouts.php';
 
 $tests = [];
 
@@ -414,6 +415,30 @@ test_case('Wirkstatus: Override hält Status 6, bis das Spiel Status 2 meldet', 
 
 test_case('Wirkstatus: Spielstatus 6 bleibt ohne Override ein Spielstatus', static function (): void {
     expect_same(['status' => 6, 'game_status' => 6, 'override' => false], vehicle_effective_status(['status' => 4, 'game_status' => 4, 'unavailable_override' => 0], 6));
+});
+
+test_case('Layout-Codes: sechs Zeichen ohne verwechselbare Buchstaben', static function (): void {
+    for ($i = 0; $i < 50; $i++) {
+        $code = layout_code();
+        expect_same(6, strlen($code));
+        expect_true(preg_match('/^[A-HJ-NP-Z2-9]{6}$/', $code) === 1, "Unerwartetes Zeichen in $code");
+    }
+    expect_same('K7F2MX', normalize_layout_code(' k7f2mx '));
+    expect_same(null, normalize_layout_code('K7F2M'));
+    expect_same(null, normalize_layout_code('K7F2-X'));
+});
+
+test_case('Layout-Namen werden gekürzt und leere ersetzt', static function (): void {
+    expect_same('Unbenannte Ansicht', normalize_layout_name('   '));
+    expect_same('Wachraum Nord', normalize_layout_name("Wachraum \n Nord"));
+    expect_same(60, mb_strlen(normalize_layout_name(str_repeat('ä', 80))));
+});
+
+test_case('Layout-Nutzdaten brauchen eine nicht leere Fensterliste in Größe', static function (): void {
+    expect_true(validate_layout_payload(['panels' => [['key' => 'map', 'type' => 'map', 'x' => 0, 'y' => 0, 'w' => 24, 'h' => 16]]]) === null);
+    expect_true(validate_layout_payload(['panels' => []]) !== null);
+    expect_true(validate_layout_payload('nix') !== null);
+    expect_true(validate_layout_payload(['panels' => [['note' => str_repeat('x', 70000)]]]) !== null);
 });
 
 $failed = 0;

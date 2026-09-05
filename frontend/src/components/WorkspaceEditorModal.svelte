@@ -1,8 +1,11 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
-  import { ArrowDown, ArrowUp, Copy, ExternalLink, LayoutGrid, Save, Trash2, X } from '../lib/fontawesome-icons';
+  import { onMount } from 'svelte';
+  import { Copy, Download, ExternalLink, LayoutGrid, Plus, RefreshCw, Save, Trash2, Upload, X } from '../lib/fontawesome-icons';
   import { focusTrap } from '../lib/focus';
-  import { AREA_IDS, cloneWorkspace, DEFAULT_WORKSPACES, nextWorkspaceId, PANEL_IDS, type AreaId, type PanelId, type WorkspaceLayout } from '../lib/workspaces';
+  import { deleteLayoutFromServer, fetchLayout, fetchLayoutList, layoutShareUrl, saveLayoutToServer, type LayoutSummary } from '../lib/layout-library';
+  import { askConfirm, canWrite, showNotice } from '../lib/state.svelte';
+  import { cloneWorkspace, DEFAULT_WORKSPACES, nextWorkspaceId, PANEL_LABELS, parseWorkspaceImport, serializeWorkspace, type WorkspaceLayout } from '../lib/workspaces';
 
   let {
     workspaces,
@@ -11,6 +14,7 @@
     onSave,
     onDelete,
     onOpenTab,
+    onEditLayout,
     onClose,
   }: {
     workspaces: WorkspaceLayout[];
@@ -19,82 +23,158 @@
     onSave: (workspace: WorkspaceLayout) => void;
     onDelete: (id: string) => void;
     onOpenTab: (id: string) => void;
+    onEditLayout: () => void;
     onClose: () => void;
   } = $props();
 
-  const panelLabels: Record<PanelId, string> = {
-    map: 'Karte',
-    vehicles: 'Fahrzeuge',
-    events: 'Einsätze',
-    current_event: 'Aktueller Einsatz',
-    logs: 'FMS-LOG',
-    speech_requests: 'Sprechwünsche',
-    hospitals: 'Krankenhäuser',
-    bmas: 'BMAs',
-  };
-  const areaLabels: Record<AreaId, string> = {
-    leftTop: 'Links oben',
-    leftBottom: 'Links unten',
-    rightTop: 'Rechts oben',
-    rightBottom: 'Rechts unten',
-  };
+  const active = $derived(workspaces.find((workspace) => workspace.id === activeId) ?? workspaces[0]);
+  let name = $state('');
+  let loadedNameFor = $state('');
+  let importError = $state('');
+  let importInput = $state<HTMLInputElement>();
+  let serverLayouts = $state<LayoutSummary[]>([]);
+  let serverError = $state('');
+  let serverBusy = $state(false);
+  let serverLoaded = $state(false);
+  const shareUrl = $derived(active?.code ? layoutShareUrl(active.code) : '');
 
-  let draft = $state(cloneWorkspace(DEFAULT_WORKSPACES[0]));
-  let loadedDraftId = $state('');
-  let hiddenPanels = $derived(PANEL_IDS.filter((panel) => areaFor(panel) === 'hidden'));
+  async function loadServerList(): Promise<void> {
+    serverBusy = true;
+    serverError = '';
+    try {
+      serverLayouts = await fetchLayoutList();
+      serverLoaded = true;
+    } catch (error) {
+      serverError = (error as Error).message;
+    } finally {
+      serverBusy = false;
+    }
+  }
+
+  onMount(() => {
+    void loadServerList();
+  });
+
+  async function saveToServer(asNew: boolean): Promise<void> {
+    if (serverBusy) return;
+    serverBusy = true;
+    serverError = '';
+    try {
+      const saved = await saveLayoutToServer({ ...cloneWorkspace(active), name: name.trim() || active.name }, asNew);
+      onSave(saved);
+      showNotice(`„${saved.name}“ auf dem Server gespeichert, Code ${saved.code}`);
+      serverBusy = false;
+      await loadServerList();
+    } catch (error) {
+      serverError = (error as Error).message;
+      serverBusy = false;
+    }
+  }
+
+  async function loadFromServer(code: string): Promise<void> {
+    if (serverBusy) return;
+    serverBusy = true;
+    serverError = '';
+    try {
+      const layout = await fetchLayout(code);
+      onSave(layout);
+      onSelect(layout.id);
+      showNotice(`„${layout.name}“ vom Server übernommen`);
+    } catch (error) {
+      serverError = (error as Error).message;
+    } finally {
+      serverBusy = false;
+    }
+  }
+
+  async function removeFromServer(summary: LayoutSummary): Promise<void> {
+    if (serverBusy) return;
+    if (!(await askConfirm(`„${summary.name}“ (${summary.code}) vom Server löschen? Andere verlieren damit den Zugriff über den Code.`))) return;
+    serverBusy = true;
+    serverError = '';
+    try {
+      await deleteLayoutFromServer(summary.code);
+      for (const workspace of workspaces) {
+        if (workspace.code === summary.code) {
+          const local = cloneWorkspace(workspace);
+          delete local.code;
+          onSave(local);
+        }
+      }
+      serverBusy = false;
+      await loadServerList();
+    } catch (error) {
+      serverError = (error as Error).message;
+      serverBusy = false;
+    }
+  }
+
+  async function copyShareLink(): Promise<void> {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      showNotice('Link kopiert');
+    } catch {
+      showNotice('Link konnte nicht kopiert werden, bitte aus dem Feld übernehmen', 'error');
+    }
+  }
 
   $effect(() => {
-    const selected = workspaces.find((workspace) => workspace.id === activeId);
-    if (selected && loadedDraftId !== activeId) {
-      draft = cloneWorkspace(selected);
-      loadedDraftId = activeId;
+    if (active && loadedNameFor !== active.id) {
+      name = active.name;
+      loadedNameFor = active.id;
     }
   });
 
-  function areaFor(panel: PanelId): AreaId | 'hidden' {
-    return AREA_IDS.find((area) => draft.areas[area].includes(panel)) ?? 'hidden';
+  function panelSummary(workspace: WorkspaceLayout): string {
+    if (!workspace.panels.length) return 'Keine Fenster';
+    return workspace.panels.map((panel) => PANEL_LABELS[panel.type]).join(', ');
   }
 
-  function placePanel(panel: PanelId, target: AreaId | 'hidden'): void {
-    const areas = Object.fromEntries(AREA_IDS.map((area) => [area, draft.areas[area].filter((item) => item !== panel)])) as Record<AreaId, PanelId[]>;
-    if (target !== 'hidden') areas[target] = [...areas[target], panel];
-    const directions = { ...draft.directions };
-    for (const area of AREA_IDS) {
-      if (directions[area] === 'mosaic' && areas[area].length !== 4) directions[area] = 'row';
-    }
-    draft = { ...draft, areas, directions };
-  }
-
-  function move(panel: PanelId, direction: -1 | 1): void {
-    const area = areaFor(panel);
-    if (area === 'hidden') return;
-    const panels = [...draft.areas[area]];
-    const index = panels.indexOf(panel);
-    const target = index + direction;
-    if (target < 0 || target >= panels.length) return;
-    [panels[index], panels[target]] = [panels[target], panels[index]];
-    draft = { ...draft, areas: { ...draft.areas, [area]: panels } };
-  }
-
-  function save(closeAfterwards = true): void {
-    draft = { ...draft, name: draft.name.trim() || 'Unbenannte Ansicht' };
-    onSave(cloneWorkspace(draft));
-    if (closeAfterwards) onClose();
+  function rename(): void {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === active.name) return;
+    onSave({ ...cloneWorkspace(active), name: trimmed.slice(0, 60) });
   }
 
   function duplicate(): void {
-    const copy = { ...cloneWorkspace(draft), id: nextWorkspaceId(), name: `${draft.name.trim() || 'Ansicht'} Kopie` };
+    const copy = { ...cloneWorkspace(active), id: nextWorkspaceId(), name: `${active.name.trim() || 'Ansicht'} Kopie` };
+    delete copy.code;
     onSave(copy);
     onSelect(copy.id);
   }
 
-  function openTab(): void {
-    save(false);
-    onOpenTab(draft.id);
+  function createNew(): void {
+    const created = { ...cloneWorkspace(DEFAULT_WORKSPACES[0]), id: nextWorkspaceId(), name: 'Neue Ansicht' };
+    onSave(created);
+    onSelect(created.id);
   }
 
-  function selectWorkspace(id: string): void {
-    onSelect(id);
+  function exportActive(): void {
+    const blob = new Blob([serializeWorkspace(active)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${active.name.replace(/[^\wäöüÄÖÜß-]+/g, '_') || 'ansicht'}.aublst-layout.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importFile(event: Event): Promise<void> {
+    const file = (event.currentTarget as HTMLInputElement).files?.[0];
+    if (!file) return;
+    importError = '';
+    try {
+      const imported = parseWorkspaceImport(await file.text());
+      if (!imported) throw new Error('Die Datei enthält keine Arbeitsansicht.');
+      const workspace = { ...imported, id: nextWorkspaceId() };
+      onSave(workspace);
+      onSelect(workspace.id);
+    } catch (error) {
+      importError = (error as Error).message;
+    } finally {
+      if (importInput) importInput.value = '';
+    }
   }
 
   function onKeydown(event: KeyboardEvent): void {
@@ -102,94 +182,92 @@
   }
 </script>
 
-{#snippet panelRow(panel: PanelId, area: AreaId | 'hidden', position: number, lastPosition: number)}
-  <div class="panel-row">
-    <span class="panel-name">{panelLabels[panel]}</span>
-    <select aria-label={`${panelLabels[panel]} platzieren`} value={area} onchange={(event) => placePanel(panel, event.currentTarget.value as AreaId | 'hidden')}>
-      {#each AREA_IDS as candidate (candidate)}<option value={candidate}>{areaLabels[candidate]}</option>{/each}
-      <option value="hidden">Ausgeblendet</option>
-    </select>
-    <span class="order-actions">
-      <span class="position-number" aria-label={`Position ${position + 1}`}>{area === 'hidden' ? '–' : position + 1}</span>
-      <button class="ghost icon-button" aria-label={`${panelLabels[panel]} nach vorne`} disabled={area === 'hidden' || position === 0} onclick={() => move(panel, -1)}><FaIcon icon={ArrowUp} size={14} /></button>
-      <button class="ghost icon-button" aria-label={`${panelLabels[panel]} nach hinten`} disabled={area === 'hidden' || position === lastPosition} onclick={() => move(panel, 1)}><FaIcon icon={ArrowDown} size={14} /></button>
-    </span>
-  </div>
-{/snippet}
-
 <div class="backdrop" role="presentation" onclick={(event) => event.target === event.currentTarget && onClose()} onkeydown={onKeydown} use:focusTrap={{ initial: '[data-autofocus]' }} tabindex="-1">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="workspace-title">
     <header>
       <FaIcon icon={LayoutGrid} size={17} />
-      <h3 id="workspace-title">Arbeitsansicht bearbeiten</h3>
+      <h3 id="workspace-title">Ansichten</h3>
       <button class="ghost icon-button" data-autofocus aria-label="Schließen" onclick={onClose}><FaIcon icon={X} size={18} /></button>
     </header>
 
-    <div class="toolbar">
-      <label>
-        <span>Ansicht</span>
-        <select value={activeId} onchange={(event) => selectWorkspace(event.currentTarget.value)}>
-          {#each workspaces as workspace (workspace.id)}
-            <option value={workspace.id}>{workspace.name}</option>
-          {/each}
-        </select>
-      </label>
-      <button class="ghost" onclick={duplicate}><FaIcon icon={Copy} size={14} /> Duplizieren</button>
-      <button class="ghost" onclick={openTab}><FaIcon icon={ExternalLink} size={14} /> In neuem Tab</button>
-    </div>
-
     <div class="body">
-      <label class="name-field">
-        <span>Name</span>
-        <input type="text" maxlength="60" bind:value={draft.name} />
-      </label>
-
-      <div class="panel-table">
-        <div class="table-head"><span>Panel</span><span>Bereich</span><span>Reihenfolge</span></div>
-        {#each AREA_IDS as area (area)}
-          <section class="area-group" data-area={area}>
-            <div class="area-group-title">{areaLabels[area]}</div>
-            {#if draft.areas[area].length}
-              {#each draft.areas[area] as panel, position (panel)}
-                {@render panelRow(panel, area, position, draft.areas[area].length - 1)}
-              {/each}
-            {:else}
-              <div class="empty-area">Keine Fenster</div>
-            {/if}
-          </section>
+      <ul class="workspace-list" aria-label="Gespeicherte Ansichten">
+        {#each workspaces as workspace (workspace.id)}
+          <li>
+            <button class="workspace-row" class:active={workspace.id === activeId} aria-current={workspace.id === activeId ? 'true' : undefined} onclick={() => onSelect(workspace.id)}>
+              <span class="workspace-name">{workspace.name}{#if workspace.code}<span class="code" title="Teilcode">{workspace.code}</span>{/if}</span>
+              <span class="workspace-panels">{panelSummary(workspace)}</span>
+            </button>
+          </li>
         {/each}
-        {#if hiddenPanels.length}
-          <section class="area-group" data-area="hidden">
-            <div class="area-group-title">Ausgeblendet</div>
-            {#each hiddenPanels as panel (panel)}
-              {@render panelRow(panel, 'hidden', -1, -1)}
-            {/each}
-          </section>
-        {/if}
+      </ul>
+
+      <div class="active-section">
+        <label class="name-field">
+          <span>Name der Ansicht</span>
+          <input type="text" maxlength="60" bind:value={name} onblur={rename} onkeydown={(event) => event.key === 'Enter' && rename()} />
+        </label>
+        <div class="actions">
+          <button class="primary" onclick={onEditLayout}><FaIcon icon={LayoutGrid} size={14} /> Anordnung bearbeiten</button>
+          <button class="ghost" onclick={duplicate}><FaIcon icon={Copy} size={14} /> Duplizieren</button>
+          <button class="ghost" onclick={() => onOpenTab(activeId)}><FaIcon icon={ExternalLink} size={14} /> In neuem Tab</button>
+          {#if activeId !== 'standard'}
+            <button class="ghost delete" onclick={() => onDelete(activeId)}><FaIcon icon={Trash2} size={14} /> Löschen</button>
+          {/if}
+        </div>
       </div>
 
-      <div class="area-settings">
-        {#each AREA_IDS as area (area)}
-          <label>
-            <span>{areaLabels[area]}</span>
-            <select bind:value={draft.directions[area]} disabled={draft.areas[area].length < 2}>
-              <option value="row">Nebeneinander</option>
-              <option value="column">Untereinander</option>
-              <option value="mosaic" disabled={draft.areas[area].length !== 4}>1 oben, 2 unten, 1 rechts groß</option>
-            </select>
+      <section class="server-section" aria-labelledby="server-title">
+        <div class="section-head">
+          <h4 id="server-title">Server-Bibliothek</h4>
+          <button class="ghost icon-button" aria-label="Liste neu laden" disabled={serverBusy} onclick={() => void loadServerList()}><FaIcon icon={RefreshCw} size={14} /></button>
+        </div>
+        <div class="actions">
+          <button class="ghost" disabled={serverBusy || !canWrite()} onclick={() => void saveToServer(false)}>
+            <FaIcon icon={Upload} size={14} /> {active?.code ? `Auf Server speichern (${active.code})` : 'Auf Server speichern'}
+          </button>
+          {#if active?.code}
+            <button class="ghost" disabled={serverBusy || !canWrite()} onclick={() => void saveToServer(true)}><FaIcon icon={Copy} size={14} /> Als neues Layout speichern</button>
+            <button class="ghost" onclick={() => void copyShareLink()}><FaIcon icon={ExternalLink} size={14} /> Link kopieren</button>
+          {/if}
+        </div>
+        {#if shareUrl}
+          <label class="share-field">
+            <span>Teil-Link</span>
+            <input type="text" readonly value={shareUrl} onfocus={(event) => event.currentTarget.select()} />
           </label>
-        {/each}
+        {/if}
+        {#if serverError}<span class="import-error" role="alert">{serverError}</span>{/if}
+        {#if serverLoaded && !serverLayouts.length}
+          <span class="server-empty">Noch keine Layouts auf dem Server.</span>
+        {/if}
+        {#if serverLayouts.length}
+          <ul class="server-list" aria-label="Layouts auf dem Server">
+            {#each serverLayouts as summary (summary.code)}
+              <li>
+                <span class="server-name">{summary.name}<span class="code">{summary.code}</span></span>
+                <span class="server-actions">
+                  <button class="ghost" disabled={serverBusy} aria-label={`${summary.name} laden`} onclick={() => void loadFromServer(summary.code)}><FaIcon icon={Download} size={14} /> Laden</button>
+                  <button class="ghost icon-button delete" disabled={serverBusy || !canWrite()} aria-label={`${summary.name} vom Server löschen`} onclick={() => void removeFromServer(summary)}><FaIcon icon={Trash2} size={14} /></button>
+                </span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+
+      <div class="file-section">
+        <button class="ghost" onclick={createNew}><FaIcon icon={Plus} size={14} /> Neue Ansicht</button>
+        <button class="ghost" onclick={exportActive}><FaIcon icon={Download} size={14} /> Als Datei exportieren</button>
+        <button class="ghost" onclick={() => importInput?.click()}><FaIcon icon={Upload} size={14} /> Datei importieren</button>
+        <input bind:this={importInput} class="import-input" type="file" accept="application/json,.json" aria-label="Ansicht aus Datei importieren" onchange={(event) => void importFile(event)} />
+        {#if importError}<span class="import-error" role="alert">{importError}</span>{/if}
       </div>
-      <p class="layout-note">Bei „1 oben, 2 unten, 1 rechts groß“ legt die Reihenfolge die Position fest: Das erste Fenster steht oben links, das zweite und dritte darunter, das vierte rechts. Ein einzelner belegter Bereich füllt seine Spalte.</p>
     </div>
 
     <footer>
-      {#if activeId !== 'standard'}
-        <button class="ghost delete" onclick={() => onDelete(activeId)}><FaIcon icon={Trash2} size={14} /> Ansicht löschen</button>
-      {/if}
       <span class="spacer"></span>
-      <button onclick={onClose}>Abbrechen</button>
-      <button class="primary save" onclick={() => save()}><FaIcon icon={Save} size={14} /> Speichern</button>
+      <button onclick={onClose}><FaIcon icon={Save} size={14} /> Schließen</button>
     </footer>
   </div>
 </div>
@@ -202,31 +280,33 @@
   footer { border-top: 1px solid var(--border); }
   header :global(svg) { color: var(--text-dim); }
   h3 { margin: 0; flex: 1; font-size: 15px; }
-  .toolbar { display: flex; align-items: end; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
-  .toolbar label { flex: 1; }
-  label { display: flex; flex-direction: column; gap: 4px; color: var(--text-dim); font-size: 12px; }
   .body { padding: 14px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+  .workspace-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); }
+  .workspace-list li + li { border-top: 1px solid var(--border); }
+  .workspace-row { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; padding: 8px 10px; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; }
+  .workspace-row.active { background: var(--bg-raised); box-shadow: inset 3px 0 0 var(--accent); }
+  .workspace-name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .code { padding: 1px 6px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-dim); font-family: ui-monospace, monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; }
+  .workspace-panels { color: var(--text-dim); font-size: 12px; }
+  .active-section { display: flex; flex-direction: column; gap: 10px; }
+  label { display: flex; flex-direction: column; gap: 4px; color: var(--text-dim); font-size: 12px; }
   .name-field input { width: 100%; }
-  .panel-table { border: 1px solid var(--border); }
-  .table-head, .panel-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(150px, 1fr) 84px; align-items: center; gap: 10px; min-height: 42px; padding: 6px 10px; }
-  .table-head { min-height: 32px; color: var(--text-dim); background: var(--bg-raised); font-size: 11px; }
-  .area-group + .area-group { border-top: 1px solid var(--border-strong); }
-  .area-group-title { padding: 7px 10px; border-bottom: 1px solid var(--border); background: var(--panel-header); color: var(--text); font-size: 12px; font-weight: 700; }
-  .area-group .panel-row + .panel-row { border-top: 1px solid var(--border); }
-  .empty-area { padding: 9px 10px; color: var(--text-dim); font-size: 12px; }
-  .panel-name { font-weight: 600; }
-  .order-actions { display: flex; justify-content: flex-end; gap: 3px; }
-  .position-number { min-width: 20px; align-self: center; color: var(--text-dim); text-align: center; font-variant-numeric: tabular-nums; }
-  .area-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .layout-note { margin: -4px 0 0; color: var(--text-dim); font-size: 12px; }
+  .actions, .file-section { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .file-section { padding-top: 10px; border-top: 1px solid var(--border); }
+  .server-section { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .section-head { display: flex; align-items: center; gap: 8px; }
+  .section-head h4 { margin: 0; flex: 1; font-size: 13px; }
+  .share-field input { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }
+  .server-empty { color: var(--text-dim); font-size: 12px; }
+  .server-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); }
+  .server-list li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
+  .server-list li + li { border-top: 1px solid var(--border); }
+  .server-name { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .server-actions { display: flex; gap: 4px; }
+  .import-input { display: none; }
+  .import-error { flex-basis: 100%; color: var(--danger-text); font-size: 12px; }
   .spacer { flex: 1; }
   .delete { color: var(--danger-text); }
-  .save { background: var(--accent); border-color: var(--accent); }
+  .primary { background: var(--accent); border-color: var(--accent); }
   .icon-button { width: 28px; height: 28px; padding: 0; justify-content: center; }
-  @media (max-width: 620px) {
-    .toolbar { flex-wrap: wrap; }
-    .toolbar label { flex-basis: 100%; }
-    .table-head, .panel-row { grid-template-columns: minmax(90px, 1fr) minmax(130px, 1fr) 64px; gap: 6px; padding-inline: 7px; }
-    .area-settings { grid-template-columns: 1fr; }
-  }
 </style>
