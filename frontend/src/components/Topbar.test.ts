@@ -78,7 +78,7 @@ describe('Kopfzeile', () => {
     app.sessionToken = '758c';
     render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Sitzung 758c' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Sitzungseinstellungen' }));
 
     expect(screen.getByRole('button', { name: 'Alarmmonitor öffnen' })).toBeTruthy();
   });
@@ -89,7 +89,7 @@ describe('Kopfzeile', () => {
     app.lastSuccessfulSync = Date.now();
     render(Topbar, { props: { onResetLayout: vi.fn(), onOpenWorkspaceEditor: vi.fn(), workspaceName: 'Standard' } });
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Sitzung 758c' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Sitzungseinstellungen' }));
     await fireEvent.click(screen.getByLabelText('Krankenhauskapazität im Alarmmonitor anzeigen'));
 
     expect(apiMocks.api).toHaveBeenCalledWith('session_monitor_hospital_capacity_set', { enabled: true });

@@ -206,7 +206,7 @@
       onclick={() => (settingsOpen = !settingsOpen)}
     >
       <FaIcon icon={Settings} size={16} />
-      <span>{app.sessionToken ? `Sitzung ${app.sessionToken}` : 'Sitzung einrichten'}</span>
+      <span>{app.sessionToken ? 'Sitzungseinstellungen' : 'Sitzung einrichten'}</span>
     </button>
     {#if settingsOpen}
       <div
