@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Assignment, EventItem, LogRow, Vehicle } from './types';
-import { buildSpeechRequestEntries, isSpeechRequest, speechRequestVehicle } from './speech-requests';
+import { buildSpeechRequestEntries, calledVehicleIds, isSpeechRequest, speechRequestVehicle } from './speech-requests';
 
 const vehicles: Vehicle[] = [
   { id: 1, game_vehicle_id: '4_RTW_B', name: '4-RTW-B', type: 'RTW', modes: null, x: 0, y: 0, status: 5, assigned_player_id: null },
@@ -76,5 +76,19 @@ describe('Sprechwunsch-Warteschlange', () => {
 
   it('blendet abgearbeitete Meldungen aus', () => {
     expect(buildSpeechRequestEntries([{ ...log(1, '4_RTW_B'), state: 'inactive' }], vehicles, [], [])).toEqual([]);
+  });
+});
+
+describe('Sprechaufforderung', () => {
+  it('gilt nur für aktive und quittierte Sprechwünsche', () => {
+    const rows: LogRow[] = [
+      { ...log(1, '4_RTW_B'), acknowledged: 1 },
+      log(2, '74_RTW_B'),
+      { ...log(3, '74_RTW_B'), acknowledged: true, state: 'inactive' },
+      { ...log(4, ''), acknowledged: 1, type: 'global', message: 'Lage', long_message: 'Tramverkehr eingestellt' },
+    ];
+
+    expect([...calledVehicleIds(rows, vehicles)]).toEqual([1]);
+    expect(calledVehicleIds([], vehicles).size).toBe(0);
   });
 });

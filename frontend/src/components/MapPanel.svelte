@@ -1824,7 +1824,7 @@
         <span class="tt-copy">
           <span class="tt-name">{tooltipVehicle.name || tooltipVehicle.type || tooltipVehicle.game_vehicle_id}</span>
         </span>
-        <StatusBadge value={tooltipVehicle.status} />
+        <StatusBadge value={tooltipVehicle.status} gameStatus={tooltipVehicle.game_status} />
       </div>
     {/if}
     {#if !app.mapImageUrl}

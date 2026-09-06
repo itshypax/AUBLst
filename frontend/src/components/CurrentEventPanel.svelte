@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { calledVehicleIds } from '../lib/speech-requests';
   import FaIcon from './FaIcon.svelte';
   import {
     BellRing,
@@ -401,6 +402,7 @@
       feedbackBusy = false;
     }
   }
+  const calledIds = $derived(calledVehicleIds(app.logs, app.vehicles));
 </script>
 
 <section class="panel current-event">
@@ -465,7 +467,7 @@
             {#each matchingVehicles as vehicle (vehicle.id)}
               {@const distance = distanceText(vehicle)}
               <button aria-label={displayName(vehicle)} onclick={() => stageVehicle(vehicle)}>
-                {#if !isHiddenUnit(vehicle)}<StatusBadge value={vehicle.status} />{/if}
+                {#if !isHiddenUnit(vehicle)}<StatusBadge value={vehicle.status} gameStatus={vehicle.game_status} called={calledIds.has(vehicle.id)} />{/if}
                 <span class="result-identity"
                   ><strong>{displayName(vehicle)}</strong><small
                     >{vehicle.type && vehicle.type.toLocaleLowerCase('de') !== 'none'
@@ -590,7 +592,7 @@
           {/each}
           {#each stagedVehicles as vehicle (vehicle.id)}
             <div class="vehicle-row staged">
-              {#if !isHiddenUnit(vehicle)}<StatusBadge value={vehicle.status} />{:else}<span aria-hidden="true"
+              {#if !isHiddenUnit(vehicle)}<StatusBadge value={vehicle.status} gameStatus={vehicle.game_status} called={calledIds.has(vehicle.id)} />{:else}<span aria-hidden="true"
                 ></span>{/if}
               <div class="vehicle-name with-mode">
                 <span>{displayName(vehicle)}</span>

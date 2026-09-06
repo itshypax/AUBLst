@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { calledVehicleIds } from '../lib/speech-requests';
   import FaIcon from './FaIcon.svelte';
   import { Check, Hospital, Play, Plus, Search, TrafficCone, TriangleAlert, Undo2 } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
@@ -134,6 +135,7 @@
     activeTab = activeTab === 'fire' ? 'rescue' : 'fire';
     (activeTab === 'fire' ? fireTab : rescueTab)?.focus();
   }
+  const calledIds = $derived(calledVehicleIds(app.logs, app.vehicles));
 </script>
 
 <section class="panel">
@@ -236,7 +238,7 @@
                       onclick={() => focusVehicle(v)}
                       aria-label={`${displayName(v)}, Status ${v.status}, auf Karte zeigen`}
                     >
-                      <StatusBadge value={v.status} />
+                      <StatusBadge value={v.status} gameStatus={v.game_status} called={calledIds.has(v.id)} />
                       <span class="vehicle-label" data-tooltip={rowTitle(v, reservation)}>
                         <span class="name">{displayName(v)}</span>
                         {#if reservation}

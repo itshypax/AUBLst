@@ -110,3 +110,15 @@ export function buildSpeechRequestEntries(
 
   return [...grouped.values()].sort((a, b) => a.requestedAt.localeCompare(b.requestedAt) || a.row.id - b.row.id);
 }
+
+// Aufgerufene Fahrzeuge: offener Sprechwunsch, in der Leitstelle quittiert.
+export function calledVehicleIds(rows: LogRow[], vehicles: Vehicle[]): Set<number> {
+  const ids = new Set<number>();
+  for (const row of rows) {
+    if (row.state !== 'active' || !isSpeechRequest(row)) continue;
+    if (!(row.acknowledged === true || Number(row.acknowledged) === 1)) continue;
+    const vehicle = speechRequestVehicle(row, vehicles);
+    if (vehicle) ids.add(vehicle.id);
+  }
+  return ids;
+}

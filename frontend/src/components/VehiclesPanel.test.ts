@@ -124,3 +124,20 @@ describe('Fahrzeugliste ohne Tabtrennung', () => {
     expect(document.querySelectorAll('.group-header.rescue')).toHaveLength(2);
   });
 });
+
+describe('Statusbadge mit Spielstatus und Sprechaufforderung', () => {
+  it('zeigt 2C für ein alarmiertes Fahrzeug und 3J nach quittiertem Sprechwunsch', () => {
+    app.vehicles = [
+      { ...fireVehicle(1, 1, 'HLF', 0), game_status: 2 },
+      fireVehicle(2, 1, 'DLK', 3),
+    ];
+    app.logs = [
+      { id: 9, type: 'vehicle', entity_id: '1_DLK_2', event_id: null, message: 'Sprechwunsch', long_message: 'DLK 2 mit Sprechwunsch', state: 'active', acknowledged: 1, updated_at: '2026-09-06 10:00:00' },
+    ];
+    render(VehiclesPanel);
+
+    expect(screen.getByText('2C')).toBeTruthy();
+    expect(screen.getByText('3J')).toBeTruthy();
+    expect(screen.getByText('3J').classList.contains('status-called')).toBe(true);
+  });
+});

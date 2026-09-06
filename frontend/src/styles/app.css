@@ -55,6 +55,9 @@
   --status-5-start: #1e66b5;
   --status-5-end: #164b88;
   --status-5-border: #3f7ee4;
+  --status-called-start: #6d5aa8;
+  --status-called-end: #4d3f7c;
+  --status-called-border: #9a86d8;
   --status-6-start: #4b5563;
   --status-6-end: #343b45;
   --status-6-border: #697281;
@@ -305,6 +308,7 @@ input[type='range']:focus-visible {
 .status-3 { background: linear-gradient(135deg, var(--status-3-start), var(--status-3-end)); border-color: var(--status-3-border); }
 .status-4 { background: linear-gradient(135deg, var(--status-4-start), var(--status-4-end)); border-color: var(--status-4-border); }
 .status-5 { background: linear-gradient(135deg, var(--status-5-start), var(--status-5-end)); border-color: var(--status-5-border); }
+.status-called { background: linear-gradient(135deg, var(--status-called-start), var(--status-called-end)); border-color: var(--status-called-border); }
 .status-6 { background: linear-gradient(135deg, var(--status-6-start), var(--status-6-end)); border-color: var(--status-6-border); }
 .status-7 { background: linear-gradient(135deg, var(--status-7-start), var(--status-7-end)); border-color: var(--status-7-border); }
 .status-8 { background: linear-gradient(135deg, var(--status-8-start), var(--status-8-end)); border-color: var(--status-8-border); }
