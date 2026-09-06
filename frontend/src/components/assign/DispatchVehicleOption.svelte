@@ -30,7 +30,7 @@
 <div class="veh" class:checked>
   <label>
     <input type="checkbox" {checked} {disabled} onchange={onToggle} />
-    {#if !hideStatus}<StatusBadge value={vehicle.status} gameStatus={vehicle.game_status} />{/if}
+    {#if !hideStatus}<StatusBadge value={vehicle.status} alarmFrom={vehicle.alarm_from_status} />{/if}
     <span class="identity" data-tooltip={title}>
       <span class="name">{vehicleDisplayName(vehicle)}</span>
       {#if secondary}<span class="secondary">{secondary}</span>{/if}

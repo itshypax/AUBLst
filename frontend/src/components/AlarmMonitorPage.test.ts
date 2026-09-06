@@ -108,7 +108,7 @@ describe('Spieler-Alarmmonitor', () => {
     app.stateHealthy = true;
     app.lastSuccessfulSync = Date.now();
     app.vehicles = [
-      { id: 1, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', type: 'HLF', modes: null, x: 0, y: 0, status: 0, game_status: 2, assigned_player_id: null },
+      { id: 1, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', type: 'HLF', modes: null, x: 0, y: 0, status: 0, alarm_from_status: 2, assigned_player_id: null },
       { id: 2, game_vehicle_id: '1_DLK_1', name: '1-DLK-1', type: 'DLK', modes: null, x: 0, y: 0, status: 3, assigned_player_id: null },
       { id: 3, game_vehicle_id: '1_ELW_1', name: '1-ELW-1', type: 'ELW', modes: null, x: 0, y: 0, status: 3, assigned_player_id: null },
     ];

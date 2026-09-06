@@ -128,7 +128,7 @@ describe('Fahrzeugliste ohne Tabtrennung', () => {
 describe('Statusbadge mit Spielstatus und Sprechaufforderung', () => {
   it('zeigt 2C für ein alarmiertes Fahrzeug und 3J nach quittiertem Sprechwunsch', () => {
     app.vehicles = [
-      { ...fireVehicle(1, 1, 'HLF', 0), game_status: 2 },
+      { ...fireVehicle(1, 1, 'HLF', 0), alarm_from_status: 2 },
       fireVehicle(2, 1, 'DLK', 3),
     ];
     app.logs = [

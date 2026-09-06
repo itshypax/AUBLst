@@ -160,7 +160,7 @@
   ></div>
   <div class="menu" bind:this={el} style="left: {pos.x}px; top: {pos.y}px;" role="menu" aria-label={`Aktionen für ${vehicle.name || vehicle.game_vehicle_id}`} onkeydown={onKeydown} use:focusTrap={{ initial: '[role="menuitem"]:not([disabled])', inertSiblings: false }} tabindex="-1">
     <div class="head">
-      <StatusBadge value={vehicle.status} gameStatus={vehicle.game_status} />
+      <StatusBadge value={vehicle.status} alarmFrom={vehicle.alarm_from_status} />
       <span class="vehicle-title">
         <span class="name">{vehicle.name || vehicle.type || vehicle.game_vehicle_id}</span>
         {#if currentEvent}<span class="assignment">{currentEvent.name || `Einsatz ${currentEvent.id}`}</span>{/if}

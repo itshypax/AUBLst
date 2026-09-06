@@ -23,12 +23,12 @@ describe('Statusanzeige', () => {
 });
 
 describe('Spielstatus plus Buchstabe', () => {
-  it('hängt C an den Spielstatus, wenn das Fahrzeug alarmiert ist', () => {
-    expect(statusDisplay(0, { gameStatus: 2 })).toBe('2C');
-    expect(statusDisplay('C', { gameStatus: 1 })).toBe('1C');
-    expect(statusDisplay(0, { gameStatus: 0 })).toBe('C');
-    expect(statusDisplay(0, { gameStatus: null })).toBe('C');
-    expect(statusDisplay(0, { gameStatus: 2, called: true })).toBe('2C');
+  it('hängt C an den Status vor der Alarmierung', () => {
+    expect(statusDisplay(0, { alarmFrom: 2 })).toBe('2C');
+    expect(statusDisplay('C', { alarmFrom: 1 })).toBe('1C');
+    expect(statusDisplay(0, { alarmFrom: 0 })).toBe('C');
+    expect(statusDisplay(0, { alarmFrom: null })).toBe('C');
+    expect(statusDisplay(0, { alarmFrom: 2, called: true })).toBe('2C');
   });
 
   it('hängt J an den Status bei einer Sprechaufforderung', () => {

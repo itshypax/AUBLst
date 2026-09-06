@@ -149,12 +149,12 @@ function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders
     $savedByGameId = [];
     foreach ($lookup->fetchAll() as $row) $savedByGameId[(string)$row['game_vehicle_id']] = $row;
 
-    $upsert = $pdo->prepare('INSERT INTO vehicles (session_id, game_vehicle_id, name, type, modes, x, y, status, game_status, unavailable_override)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    $upsert = $pdo->prepare('INSERT INTO vehicles (session_id, game_vehicle_id, name, type, modes, x, y, status, game_status, unavailable_override, alarm_from_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), name = VALUES(name), type = VALUES(type),
             modes = VALUES(modes), x = VALUES(x), y = VALUES(y), status = VALUES(status),
             game_status = VALUES(game_status), unavailable_override = VALUES(unavailable_override),
-            updated_at = CURRENT_TIMESTAMP');
+            alarm_from_status = VALUES(alarm_from_status), updated_at = CURRENT_TIMESTAMP');
     $history = $pdo->prepare('INSERT INTO vehicle_status_history
         (session_id, vehicle_id, game_vehicle_id, vehicle_name, status) VALUES (?, ?, ?, ?, ?)');
 
@@ -178,6 +178,7 @@ function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders
             'status' => $effective['status'],
             'game_status' => $effective['game_status'],
             'unavailable_override' => $effective['override'] ? 1 : 0,
+            'alarm_from_status' => vehicle_alarm_from_status($saved, (int)$effective['status']),
         ];
         $kinds = vehicle_change_kinds($saved, $row);
         if ($changes !== null) {
@@ -186,7 +187,7 @@ function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders
         }
         $upsert->execute([
             $session_id, $gameId, $row['name'], $row['type'], $row['modes'], $row['x'], $row['y'],
-            $row['status'], $row['game_status'], $row['unavailable_override'],
+            $row['status'], $row['game_status'], $row['unavailable_override'], $row['alarm_from_status'],
         ]);
         $vehicleId = $saved ? (int)$saved['id'] : (int)$pdo->lastInsertId();
         $current = array_merge($saved ?: [], $row, [

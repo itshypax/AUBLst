@@ -527,7 +527,7 @@
                 <div class="wall-units">
                   {#each eventVehicles as vehicle (vehicle.id)}
                     <span
-                      ><b class={statusClass(vehicle.status, isCalled(vehicle))}>{statusDisplay(vehicle.status, { gameStatus: vehicle.game_status, called: isCalled(vehicle) })}</b>{vehicleDisplayName(
+                      ><b class={statusClass(vehicle.status, isCalled(vehicle))}>{statusDisplay(vehicle.status, { alarmFrom: vehicle.alarm_from_status, called: isCalled(vehicle) })}</b>{vehicleDisplayName(
                         vehicle,
                       )}</span
                     >
@@ -538,7 +538,7 @@
                     <span class="wall-group-label">Weitere alarmierte Kräfte</span>
                     {#each additionalEventVehicles as vehicle (vehicle.id)}
                       <span
-                        ><b class={statusClass(vehicle.status, isCalled(vehicle))}>{statusDisplay(vehicle.status, { gameStatus: vehicle.game_status, called: isCalled(vehicle) })}</b>{vehicleDisplayName(
+                        ><b class={statusClass(vehicle.status, isCalled(vehicle))}>{statusDisplay(vehicle.status, { alarmFrom: vehicle.alarm_from_status, called: isCalled(vehicle) })}</b>{vehicleDisplayName(
                           vehicle,
                         )}</span
                       >
@@ -571,7 +571,7 @@
               {#each displayVehicles as vehicle (vehicle.id)}
                 {@const modes = assignmentModes(app.assignments, displayEvent.id, vehicle.id)}
                 <div class="dispatch-unit" class:with-subtext={modes.length > 0}>
-                  <span class="unit-status {statusClass(vehicle.status, isCalled(vehicle))}">{statusDisplay(vehicle.status, { gameStatus: vehicle.game_status, called: isCalled(vehicle) })}</span>
+                  <span class="unit-status {statusClass(vehicle.status, isCalled(vehicle))}">{statusDisplay(vehicle.status, { alarmFrom: vehicle.alarm_from_status, called: isCalled(vehicle) })}</span>
                   <span class="unit-name">{vehicleDisplayName(vehicle)}</span>
                   {#if modes.length}<span class="unit-mode">{modes.join(' · ')}</span>{/if}
                 </div>
@@ -585,7 +585,7 @@
                 {#each additionalDisplayVehicles as vehicle (vehicle.id)}
                   {@const modes = assignmentModes(app.assignments, displayEvent.id, vehicle.id)}
                   <div class="dispatch-unit" class:with-subtext={modes.length > 0}>
-                    <span class="unit-status {statusClass(vehicle.status, isCalled(vehicle))}">{statusDisplay(vehicle.status, { gameStatus: vehicle.game_status, called: isCalled(vehicle) })}</span>
+                    <span class="unit-status {statusClass(vehicle.status, isCalled(vehicle))}">{statusDisplay(vehicle.status, { alarmFrom: vehicle.alarm_from_status, called: isCalled(vehicle) })}</span>
                     <span class="unit-name">{vehicleDisplayName(vehicle)}</span>
                     {#if modes.length}<span class="unit-mode">{modes.join(' · ')}</span>{/if}
                   </div>
@@ -626,7 +626,7 @@
               class:status-j-call={called}
               title={`${vehicleDisplayName(vehicle)} · ${statusLabel(vehicle.status, { called })}${reservation ? ` · Ziel ${hospitalDestination(reservation)}` : ''}`}
             >
-              <span class="status-block {statusClass(vehicle.status, called)}">{statusDisplay(vehicle.status, { gameStatus: vehicle.game_status, called })}</span>
+              <span class="status-block {statusClass(vehicle.status, called)}">{statusDisplay(vehicle.status, { alarmFrom: vehicle.alarm_from_status, called })}</span>
               <span class="vehicle-main">
                 <strong class="vehicle-name">{vehicleDisplayName(vehicle)}</strong>
                 <span class="status-text">{statusLabel(vehicle.status, { called })}</span>

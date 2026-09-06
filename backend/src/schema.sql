@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   status INT,
   game_status INT NULL,
   unavailable_override TINYINT(1) NOT NULL DEFAULT 0,
+  alarm_from_status INT NULL,
   assigned_player_id INT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

@@ -11,10 +11,10 @@ export const STATUS_LABELS: Readonly<Record<number, string>> = {
   9: 'Sonderstatus',
 };
 
-// Zusatz zur Anzeige: Spielstatus für "2C" (alarmiert, laut Spiel noch auf 2)
-// und Sprechaufforderung für "3J". C hat Vorrang vor J.
+// Zusatz zur Anzeige: Status vor der Alarmierung für "2C" (alarmiert, vorher
+// auf 2) und Sprechaufforderung für "3J". C hat Vorrang vor J.
 export interface StatusExtras {
-  gameStatus?: number | null;
+  alarmFrom?: number | null;
   called?: boolean;
 }
 
@@ -26,8 +26,8 @@ export function statusCode(value: number | string): number | null {
 
 export function statusDisplay(value: number | string, extra: StatusExtras = {}): string {
   if (statusCode(value) === 0) {
-    const game = extra.gameStatus == null ? NaN : Number(extra.gameStatus);
-    return Number.isFinite(game) && game !== 0 ? `${game}C` : 'C';
+    const before = extra.alarmFrom == null ? NaN : Number(extra.alarmFrom);
+    return Number.isFinite(before) && before !== 0 ? `${before}C` : 'C';
   }
   if (extra.called) return `${value}J`;
   return String(value);

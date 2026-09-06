@@ -168,6 +168,19 @@ function sync_fingerprint(array $data): string {
     return hash('sha256', (string)json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 }
 
+// Status vor der Alarmierung, damit die Anzeige "2C" zeigen kann: Beim
+// Wechsel auf Status 0 wird der bisherige Status gemerkt, solange 0 anliegt
+// bleibt er stehen, mit dem nächsten anderen Status ist er weg.
+function vehicle_alarm_from_status($saved, int $new_status): ?int {
+    if ($new_status !== 0) return null;
+    $saved_status = $saved && isset($saved['status']) ? (int)$saved['status'] : null;
+    if ($saved_status === 0) {
+        $kept = $saved['alarm_from_status'] ?? null;
+        return $kept === null ? null : (int)$kept;
+    }
+    return $saved_status === null || $saved_status === 0 ? null : $saved_status;
+}
+
 // Wirkstatus eines Fahrzeugs. Hat der Disponent das Fahrzeug außer Dienst
 // gesetzt (Status 6), bleibt dieser Status stehen, bis das Spiel Status 2
 // meldet; der echte Spielstatus läuft in game_status mit. Ein vom Spiel

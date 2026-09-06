@@ -297,6 +297,11 @@ function migration_definitions(): array {
                   INDEX idx_layouts_updated (updated_at)
                 ) ENGINE=InnoDB");
         },
+        '2026090601_vehicle_alarm_from_status' => static function (PDO $pdo): void {
+            if (!database_column_exists($pdo, 'vehicles', 'alarm_from_status')) {
+                $pdo->exec('ALTER TABLE vehicles ADD COLUMN alarm_from_status INT NULL AFTER unavailable_override');
+            }
+        },
     ];
 }
 

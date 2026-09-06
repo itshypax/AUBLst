@@ -238,7 +238,7 @@
                       onclick={() => focusVehicle(v)}
                       aria-label={`${displayName(v)}, Status ${v.status}, auf Karte zeigen`}
                     >
-                      <StatusBadge value={v.status} gameStatus={v.game_status} called={calledIds.has(v.id)} />
+                      <StatusBadge value={v.status} alarmFrom={v.alarm_from_status} called={calledIds.has(v.id)} />
                       <span class="vehicle-label" data-tooltip={rowTitle(v, reservation)}>
                         <span class="name">{displayName(v)}</span>
                         {#if reservation}

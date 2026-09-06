@@ -102,7 +102,8 @@ gewählten Wachen zugeordnet ist; eine PIN wird dafür nicht benötigt. Aktive
 Lagemeldungen wie „Tramverkehr eingestellt“ laufen unter der Kopfzeile als
 Band durch. Ein in der Leitstelle quittierter Sprechwunsch erscheint auf der
 Fahrzeugtafel als Sprechaufforderung, etwa „3J“; ein alarmiertes Fahrzeug
-zeigt Spielstatus plus C, etwa „2C“, in der Leitstelle genauso. Hat die Leitstelle einem RTW oder ITW eine
+zeigt den Status vor der Alarmierung plus C, etwa „2C“, in der Leitstelle
+genauso. Hat die Leitstelle einem RTW oder ITW eine
 Klinik zugewiesen, steht das Ziel in der Fahrzeugtafel unter dem Fahrzeug,
 solange die Zuweisung besteht. Der Einstieg ist auch direkt im
 Verbindungsdialog und in den Sitzungseinstellungen verlinkt.

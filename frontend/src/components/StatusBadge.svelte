@@ -5,13 +5,13 @@
     value,
     status,
     title,
-    gameStatus = null,
+    alarmFrom = null,
     called = false,
-  }: { value: number | string; status?: number | string; title?: string; gameStatus?: number | null; called?: boolean } = $props();
+  }: { value: number | string; status?: number | string; title?: string; alarmFrom?: number | null; called?: boolean } = $props();
 
   const cls = $derived(statusClass(status ?? value, called));
 
-  const display = $derived(statusDisplay(value, { gameStatus, called }));
+  const display = $derived(statusDisplay(value, { alarmFrom, called }));
   const accessibleTitle = $derived(title ?? statusLabel(status ?? value, { called }));
 </script>
 

@@ -31,6 +31,8 @@ export interface Vehicle {
   // Spielstatus und Disponenten-Override (Status 6 außer Dienst)
   game_status?: number | null;
   unavailable_override?: number | boolean;
+  // Status vor der Alarmierung, solange Status 0 anliegt (Anzeige "2C")
+  alarm_from_status?: number | null;
   assigned_player_id: number | null;
 }
 
