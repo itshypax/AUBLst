@@ -9,8 +9,9 @@
   const duration = $derived(Math.max(14, Math.round(text.length * 0.18)));
 </script>
 
-<!-- Immer im DOM, damit die Rasterzeile des Monitors erhalten bleibt; ohne Text versteckt. -->
-<div class="ticker" role="status" aria-live="polite" aria-label="Lagemeldungen" hidden={!text}>
+<!-- Bleibt als Rasterzeile im Monitor; ohne Text mit Höhe 0, nicht display:none,
+     sonst rutschen Inhalt und Fußzeile in die falschen Zeilen. -->
+<div class="ticker" class:empty={!text} role="status" aria-live="polite" aria-label="Lagemeldungen" aria-hidden={!text}>
   {#if text}
     <div class="track" style={`--ticker-duration: ${duration}s`}>
       <span>{unit}</span>
@@ -29,6 +30,10 @@
     font-weight: 700;
     letter-spacing: 0.04em;
     white-space: nowrap;
+  }
+  .ticker.empty {
+    height: 0;
+    border-bottom: 0;
   }
   .track {
     display: inline-flex;
