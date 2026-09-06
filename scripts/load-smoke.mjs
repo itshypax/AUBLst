@@ -151,6 +151,10 @@ async function testSession() {
     deleted = true;
   }
   if (!deleted) throw new Error("Layout ist nach dem Löschen noch abrufbar");
+  const monitor = await post("monitor_state", { session_token: token });
+  if (!Array.isArray(monitor.global_messages) || !Array.isArray(monitor.speech_requests)) {
+    throw new Error("Monitor-Zustand ohne Lagemeldungen oder Sprechwünsche");
+  }
   return token;
 }
 

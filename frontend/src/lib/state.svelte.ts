@@ -2,6 +2,7 @@ import type {
   Assignment,
   ClockTime,
   EventItem,
+  GlobalMessage,
   Hospital,
   HospitalReservation,
   LogRow,
@@ -50,6 +51,9 @@ export const app = $state({
   hospitalReservations: [] as HospitalReservation[],
   monitorHospitalCapacities: [] as MonitorHospitalCapacity[],
   monitorShowHospitalCapacity: false,
+  // Nur im Alarmmonitor gefüllt (aus monitor_state); die Leitstelle liest die Logs.
+  globalMessages: [] as GlobalMessage[],
+  speechRequests: [] as LogRow[],
   clock: null as ClockTime | null,
   positionRevision: 0,
   modId: null as string | null,
@@ -255,6 +259,8 @@ export function resetSessionData(): void {
   app.hospitalReservations = [];
   app.monitorHospitalCapacities = [];
   app.monitorShowHospitalCapacity = false;
+  app.globalMessages = [];
+  app.speechRequests = [];
   app.clock = null;
   app.positionRevision = 0;
   app.modId = null;

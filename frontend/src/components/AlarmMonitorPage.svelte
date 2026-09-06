@@ -19,14 +19,20 @@
   } from '../lib/fontawesome-icons';
   import {
     MONITOR_STATIONS,
+    MONITOR_STATIONS_STORAGE,
     additionalVehiclesAssignedToEvent,
     assignmentModes,
-    isMonitorStation,
     monitorEvents,
+    monitorStationsLabel,
     monitorVehicles,
+    parseMonitorStations,
+    serializeMonitorStations,
+    tickerText,
     vehiclesAssignedToEvent,
     type MonitorStation,
   } from '../lib/alarm-monitor';
+  import MonitorTicker from './MonitorTicker.svelte';
+  import { calledVehicleIds } from '../lib/speech-requests';
   import {
     MONITOR_GONGS,
     MONITOR_VOICES,
@@ -42,31 +48,41 @@
   import { switchSession } from '../lib/polling';
   import { roadLocationLabel } from '../lib/routing';
   import { app } from '../lib/state.svelte';
-  import { statusCode, statusDisplay, statusLabel } from '../lib/status';
+  import { statusClass, statusCode, statusDisplay, statusLabel } from '../lib/status';
   import { userFacingError } from '../lib/user-facing-error';
   import { compareHospitalNames, hospitalCapacityLabel, type HospitalCapacityLevel } from '../lib/hospital-capacity';
 
   const params = new URLSearchParams(location.search);
   const appCommit = import.meta.env.VITE_APP_COMMIT || 'dev';
-  const storedStation = params.get('wache') ?? localStorage.getItem('alarmMonitorStation');
-  const initialStation = isMonitorStation(storedStation) ? storedStation : null;
+  // Mehrere Wachen zugleich möglich; der alte Einzelwert im Speicher gilt weiter.
+  const initialStations = parseMonitorStations(
+    params.get('wache') ?? localStorage.getItem(MONITOR_STATIONS_STORAGE) ?? localStorage.getItem('alarmMonitorStation'),
+  );
 
-  let selectedStation = $state<MonitorStation | null>(initialStation);
-  let draftStation = $state<MonitorStation>(initialStation ?? '1');
+  let selectedStations = $state<MonitorStation[]>(initialStations);
+  let draftStations = $state<MonitorStation[]>(initialStations.length ? initialStations : ['1']);
   let roomCode = $state(app.sessionToken);
   let apiBase = $state(app.apiBase);
-  let setupOpen = $state(!initialStation);
+  let setupOpen = $state(!initialStations.length);
   let connecting = $state(false);
   let localError = $state('');
   let now = $state(new Date());
   let focusEventId = $state<number | null>(null);
   let focusTimer: number | null = null;
   let knownEventIds = new Set<number>();
-  let knownStation: MonitorStation | null = null;
+  let knownStationKey = '';
   let eventTrackingInitialized = false;
   let monitorSound = $state<MonitorSoundSettings>(loadMonitorSoundSettings());
 
-  const stationVehicles = $derived(selectedStation ? monitorVehicles(app.vehicles, selectedStation) : []);
+  const stationVehicles = $derived(monitorVehicles(app.vehicles, selectedStations));
+  const stationsLabel = $derived(monitorStationsLabel(selectedStations));
+  const ticker = $derived(tickerText(app.globalMessages));
+  // Sprechaufforderung: quittierter, offener Sprechwunsch aus dem Monitor-Zustand.
+  const calledIds = $derived(calledVehicleIds(app.speechRequests, app.vehicles));
+
+  function isCalled(vehicle: Vehicle): boolean {
+    return calledIds.has(vehicle.id) && statusCode(vehicle.status) !== 0;
+  }
 
   // Gleiche Regel wie im Fahrzeugpanel der Leitstelle: Ziel sichtbar, solange
   // die Reservierung existiert (der Server löscht sie bei Status 1 oder 2).
@@ -88,20 +104,14 @@
   });
   const vehicleGridRows = $derived(Math.max(1, Math.ceil(stationVehicles.length / vehicleGridColumns)));
   const vehicleBoardHeight = $derived(Math.max(160, 40 + vehicleGridRows * 59));
-  const stationEvents = $derived(
-    selectedStation ? monitorEvents(app.events, app.assignments, app.vehicles, selectedStation) : [],
-  );
+  const stationEvents = $derived(monitorEvents(app.events, app.assignments, app.vehicles, selectedStations));
   const primaryEvent = $derived(stationEvents[0] ?? null);
   const displayEvent = $derived(stationEvents.find((event) => event.id === focusEventId) ?? primaryEvent);
   const displayVehicles = $derived(
-    displayEvent && selectedStation
-      ? vehiclesAssignedToEvent(app.vehicles, app.assignments, displayEvent.id, selectedStation)
-      : [],
+    displayEvent ? vehiclesAssignedToEvent(app.vehicles, app.assignments, displayEvent.id, selectedStations) : [],
   );
   const additionalDisplayVehicles = $derived(
-    displayEvent && selectedStation
-      ? additionalVehiclesAssignedToEvent(app.vehicles, app.assignments, displayEvent.id, selectedStation)
-      : [],
+    displayEvent ? additionalVehiclesAssignedToEvent(app.vehicles, app.assignments, displayEvent.id, selectedStations) : [],
   );
   const sortedHospitalCapacities = $derived(
     [...app.monitorHospitalCapacities].sort((left, right) => compareHospitalNames(left.name, right.name)),
@@ -112,12 +122,12 @@
     return roadLocationLabel(point, app.routing) ?? `Position ${Number(point.x).toFixed(0)} / ${Number(point.y).toFixed(0)}`;
   }
   const mapIncidents = $derived.by(() => {
-    const station = selectedStation;
-    if (!station) return [];
+    const stations = selectedStations;
+    if (!stations.length) return [];
     return stationEvents.map((event) => {
       return {
         event,
-        vehicles: vehiclesAssignedToEvent(app.vehicles, app.assignments, event.id, station),
+        vehicles: vehiclesAssignedToEvent(app.vehicles, app.assignments, event.id, stations),
       };
     });
   });
@@ -149,10 +159,11 @@
   );
 
   $effect(() => {
-    const station = selectedStation;
+    const stations = selectedStations;
+    const stationKey = stations.join(',');
     const events = stationEvents;
-    if (station !== knownStation) {
-      knownStation = station;
+    if (stationKey !== knownStationKey) {
+      knownStationKey = stationKey;
       knownEventIds = new Set();
       eventTrackingInitialized = false;
       focusEventId = null;
@@ -165,8 +176,8 @@
     eventTrackingInitialized = true;
     knownEventIds = new Set(events.map((event) => event.id));
 
-    if (newEvent && !firstPass && station) {
-      const alarmVehicles = vehiclesAssignedToEvent(app.vehicles, app.assignments, newEvent.id, station).map(
+    if (newEvent && !firstPass && stations.length) {
+      const alarmVehicles = vehiclesAssignedToEvent(app.vehicles, app.assignments, newEvent.id, stations).map(
         (vehicle) => ({
           gameVehicleId: vehicle.game_vehicle_id,
           displayName: vehicleDisplayName(vehicle),
@@ -202,12 +213,14 @@
     focusEventId = null;
   }
 
-  function persistSelection(station: MonitorStation): void {
-    selectedStation = station;
-    localStorage.setItem('alarmMonitorStation', station);
+  function persistSelection(stations: MonitorStation[]): void {
+    const value = serializeMonitorStations(stations);
+    selectedStations = parseMonitorStations(value);
+    localStorage.setItem(MONITOR_STATIONS_STORAGE, value);
+    localStorage.removeItem('alarmMonitorStation');
     const next = new URLSearchParams(location.search);
     next.set('view', 'monitor');
-    next.set('wache', station);
+    next.set('wache', value);
     next.delete('monitor');
     history.replaceState(null, '', `${location.pathname}?${next.toString()}${location.hash}`);
   }
@@ -216,6 +229,10 @@
     const token = roomCode.trim();
     if (!token) {
       localError = 'Gib zuerst den Raumcode ein.';
+      return;
+    }
+    if (!draftStations.length) {
+      localError = 'Wähle mindestens eine Wache.';
       return;
     }
     localError = '';
@@ -227,7 +244,7 @@
         localError = issue?.message ?? 'Die Verbindung konnte nicht hergestellt werden.';
         return;
       }
-      persistSelection(draftStation);
+      persistSelection(draftStations);
       setupOpen = false;
     } catch (error) {
       localError = (error as Error).message;
@@ -236,10 +253,23 @@
     }
   }
 
+  // Der letzte aktive Knopf bleibt, damit nie eine leere Auswahl entsteht.
+  function toggleDraftStation(station: MonitorStation): void {
+    if (draftStations.includes(station)) {
+      if (draftStations.length > 1) draftStations = draftStations.filter((item) => item !== station);
+      return;
+    }
+    draftStations = parseMonitorStations([...draftStations, station].join(','));
+  }
+
+  function stationButtonLabel(station: MonitorStation): string {
+    return station === 'RD' ? 'Rettungsdienst' : `Wache ${station}`;
+  }
+
   function openSetup(): void {
     roomCode = app.sessionToken;
     apiBase = app.apiBase;
-    draftStation = selectedStation ?? '1';
+    draftStations = selectedStations.length ? [...selectedStations] : ['1'];
     localError = '';
     setupOpen = true;
   }
@@ -294,7 +324,7 @@
         <img class="entry-logo" src="./aublst.png" alt="AUBLST" />
         <div>
           <h1 id="monitor-entry-title">Alarmmonitor öffnen</h1>
-          <p>Raumcode eingeben und die eigene Wache auswählen.</p>
+          <p>Raumcode eingeben und die eigenen Wachen auswählen.</p>
         </div>
       </div>
 
@@ -311,17 +341,17 @@
       </label>
 
       <fieldset>
-        <legend>Wache</legend>
+        <legend>Wachen, mehrere möglich</legend>
         <div class="station-options">
-          {#each MONITOR_STATIONS as station}
+          {#each MONITOR_STATIONS as station (station)}
             <button
-              class:active={draftStation === station}
-              aria-label={`Wache ${station}`}
-              aria-pressed={draftStation === station}
-              onclick={() => (draftStation = station)}
+              class:active={draftStations.includes(station)}
+              aria-label={stationButtonLabel(station)}
+              aria-pressed={draftStations.includes(station)}
+              onclick={() => toggleDraftStation(station)}
             >
               <span>{station}</span>
-              Wache {station}
+              {stationButtonLabel(station)}
             </button>
           {/each}
         </div>
@@ -345,7 +375,7 @@
       <a class="control-room-link" href={controlRoomUrl()}>Zur Leitstellenansicht</a>
     </section>
   </main>
-{:else if !app.stateHealthy || !selectedStation}
+{:else if !app.stateHealthy || !selectedStations.length}
   <main class="monitor-loading">
     <span class="spinner"><FaIcon icon={LoaderCircle} size={22} /></span>
     <strong>{app.sessionChanging ? 'Raum wird verbunden' : 'Verbindung zum Raum unterbrochen'}</strong>
@@ -360,8 +390,8 @@
         <div><strong>Alarmmonitor</strong><span>AUBLst | {appCommit}</span></div>
       </div>
 
-      <button class="station-switch" onclick={openSetup} aria-label="Raumcode oder Wache ändern">
-        <span>Wache {selectedStation}</span>
+      <button class="station-switch" onclick={openSetup} aria-label="Raumcode oder Wachen ändern">
+        <span>{stationsLabel}</span>
         <span>Raum {app.sessionToken.toUpperCase()}</span>
       </button>
 
@@ -457,6 +487,7 @@
         <a class="control-room-action" href={controlRoomUrl()}>Leitstelle <FaIcon icon={ExternalLink} size={11} /></a>
       </div>
     </header>
+    <MonitorTicker text={ticker} />
 
     <div
       class="monitor-body"
@@ -475,12 +506,12 @@
           >
             {#each stationEvents as event, index (event.id)}
               {@const wallCategory = eventCategory(event.name)}
-              {@const eventVehicles = vehiclesAssignedToEvent(app.vehicles, app.assignments, event.id, selectedStation)}
+              {@const eventVehicles = vehiclesAssignedToEvent(app.vehicles, app.assignments, event.id, selectedStations)}
               {@const additionalEventVehicles = additionalVehiclesAssignedToEvent(
                 app.vehicles,
                 app.assignments,
                 event.id,
-                selectedStation,
+                selectedStations,
               )}
               <article class="wall-event {wallCategory}" class:latest={index === 0}>
                 <header>
@@ -496,7 +527,7 @@
                 <div class="wall-units">
                   {#each eventVehicles as vehicle (vehicle.id)}
                     <span
-                      ><b class="status-{vehicle.status}">{statusDisplay(vehicle.status)}</b>{vehicleDisplayName(
+                      ><b class={statusClass(vehicle.status, isCalled(vehicle))}>{statusDisplay(vehicle.status, { gameStatus: vehicle.game_status, called: isCalled(vehicle) })}</b>{vehicleDisplayName(
                         vehicle,
                       )}</span
                     >
@@ -507,7 +538,7 @@
                     <span class="wall-group-label">Weitere alarmierte Kräfte</span>
                     {#each additionalEventVehicles as vehicle (vehicle.id)}
                       <span
-                        ><b class="status-{vehicle.status}">{statusDisplay(vehicle.status)}</b>{vehicleDisplayName(
+                        ><b class={statusClass(vehicle.status, isCalled(vehicle))}>{statusDisplay(vehicle.status, { gameStatus: vehicle.game_status, called: isCalled(vehicle) })}</b>{vehicleDisplayName(
                           vehicle,
                         )}</span
                       >
@@ -535,12 +566,12 @@
           </div>
 
           <div class="dispatch-list">
-            <h2>Alarmierte Fahrzeuge · Wache {selectedStation}</h2>
+            <h2>Alarmierte Fahrzeuge · {stationsLabel}</h2>
             <div class="dispatch-grid">
               {#each displayVehicles as vehicle (vehicle.id)}
                 {@const modes = assignmentModes(app.assignments, displayEvent.id, vehicle.id)}
                 <div class="dispatch-unit" class:with-subtext={modes.length > 0}>
-                  <span class="unit-status status-{vehicle.status}">{statusDisplay(vehicle.status)}</span>
+                  <span class="unit-status {statusClass(vehicle.status, isCalled(vehicle))}">{statusDisplay(vehicle.status, { gameStatus: vehicle.game_status, called: isCalled(vehicle) })}</span>
                   <span class="unit-name">{vehicleDisplayName(vehicle)}</span>
                   {#if modes.length}<span class="unit-mode">{modes.join(' · ')}</span>{/if}
                 </div>
@@ -554,7 +585,7 @@
                 {#each additionalDisplayVehicles as vehicle (vehicle.id)}
                   {@const modes = assignmentModes(app.assignments, displayEvent.id, vehicle.id)}
                   <div class="dispatch-unit" class:with-subtext={modes.length > 0}>
-                    <span class="unit-status status-{vehicle.status}">{statusDisplay(vehicle.status)}</span>
+                    <span class="unit-status {statusClass(vehicle.status, isCalled(vehicle))}">{statusDisplay(vehicle.status, { gameStatus: vehicle.game_status, called: isCalled(vehicle) })}</span>
                     <span class="unit-name">{vehicleDisplayName(vehicle)}</span>
                     {#if modes.length}<span class="unit-mode">{modes.join(' · ')}</span>{/if}
                   </div>
@@ -564,7 +595,7 @@
           </div>
         {:else}
           <div class="standby">
-            <span class="standby-label">Wache {selectedStation}</span>
+            <span class="standby-label">{stationsLabel}</span>
             <strong>{timeText.slice(0, 5)}</strong>
             <span>Keine laufende Alarmierung</span>
           </div>
@@ -581,28 +612,30 @@
 
       <section class="vehicle-board">
         <div class="section-title">
-          <h2>Fahrzeuge der Wache {selectedStation}</h2>
+          <h2>Fahrzeuge · {stationsLabel}</h2>
           <span>{stationVehicles.length}</span>
         </div>
         <div class="vehicle-list" style={`--vehicle-columns:${vehicleGridColumns}`}>
           {#each stationVehicles as vehicle (vehicle.id)}
             {@const typeLabel = vehicleTypeLabel(vehicle)}
             {@const reservation = hospitalReservationFor(vehicle)}
+            {@const called = isCalled(vehicle)}
             <div
               class="vehicle-row"
               class:status-c-alert={statusCode(vehicle.status) === 0}
-              title={`${vehicleDisplayName(vehicle)} · ${statusLabel(vehicle.status)}${reservation ? ` · Ziel ${hospitalDestination(reservation)}` : ''}`}
+              class:status-j-call={called}
+              title={`${vehicleDisplayName(vehicle)} · ${statusLabel(vehicle.status, { called })}${reservation ? ` · Ziel ${hospitalDestination(reservation)}` : ''}`}
             >
-              <span class="status-block status-{vehicle.status}">{statusDisplay(vehicle.status)}</span>
+              <span class="status-block {statusClass(vehicle.status, called)}">{statusDisplay(vehicle.status, { gameStatus: vehicle.game_status, called })}</span>
               <span class="vehicle-main">
                 <strong class="vehicle-name">{vehicleDisplayName(vehicle)}</strong>
-                <span class="status-text">{statusLabel(vehicle.status)}</span>
+                <span class="status-text">{statusLabel(vehicle.status, { called })}</span>
                 {#if reservation}<span class="destination" class:intensive={reservation.bed_type === 'icu'}>→ {hospitalDestination(reservation)}</span>{/if}
               </span>
               {#if typeLabel}<span class="vehicle-type">{typeLabel}</span>{/if}
             </div>
           {:else}
-            <div class="board-empty">Für Wache {selectedStation} wurden noch keine Fahrzeuge gemeldet.</div>
+            <div class="board-empty">Für {stationsLabel} wurden noch keine Fahrzeuge gemeldet.</div>
           {/each}
         </div>
       </section>
@@ -633,7 +666,7 @@
           </div>
           <div class="queue-list">
             {#each stationEvents as event, index (event.id)}
-              {@const eventVehicles = vehiclesAssignedToEvent(app.vehicles, app.assignments, event.id, selectedStation)}
+              {@const eventVehicles = vehiclesAssignedToEvent(app.vehicles, app.assignments, event.id, selectedStations)}
               <div class="queue-row" class:current={index === 0}>
                 <b class="queue-label">{eventReference(event)}</b>
                 <time>{event.created_at ? formatAlarmTime(event.created_at).split(', ').at(-1) : '--:--'}</time>
@@ -739,7 +772,7 @@
   }
   .station-options {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 8px;
   }
   .station-options button {
@@ -837,7 +870,7 @@
     --monitor-border: #34373b;
     height: 100dvh;
     display: grid;
-    grid-template-rows: 72px minmax(0, 1fr) 32px;
+    grid-template-rows: 72px auto minmax(0, 1fr) 32px;
     overflow: hidden;
     background: #0d0f10;
     color: #f1f2f3;
@@ -1610,6 +1643,13 @@
       animation: none;
       background: #b4232d;
     }
+  }
+  /* Sprechaufforderung: ruhig hervorgehoben, kein Blinken. */
+  .vehicle-row.status-j-call {
+    box-shadow: inset 4px 0 0 var(--status-called-border);
+  }
+  .monitor-screen .status-called {
+    background: var(--status-called-start);
   }
   .status-block {
     align-self: stretch;

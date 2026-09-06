@@ -111,6 +111,23 @@ function state_hospital_reservations(PDO $pdo, int $session_id): array {
     return $stmt->fetchAll();
 }
 
+// Der Monitor holt keine Logs. Laufband und Sprechaufforderung brauchen
+// deshalb die aktiven Lagemeldungen und die quittierten Sprechwünsche im
+// Zustand.
+function state_monitor_global_messages(PDO $pdo, int $session_id): array {
+    $stmt = $pdo->prepare("SELECT message, long_message, updated_at FROM activity_logs
+        WHERE session_id = ? AND type = 'global' AND state = 'active' ORDER BY updated_at, id");
+    $stmt->execute([$session_id]);
+    return $stmt->fetchAll();
+}
+
+function state_monitor_acknowledged_requests(PDO $pdo, int $session_id): array {
+    $stmt = $pdo->prepare("SELECT id, type, entity_id, event_id, message, occurrence_id, long_message, state, acknowledged, updated_at
+        FROM activity_logs WHERE session_id = ? AND state = 'active' AND acknowledged = 1 ORDER BY updated_at, id");
+    $stmt->execute([$session_id]);
+    return $stmt->fetchAll();
+}
+
 function action_monitor_state(PDO $pdo): void {
     $session = require_session($pdo, request_value('session_token'));
     state_not_modified($session);
@@ -146,6 +163,8 @@ function action_monitor_state(PDO $pdo): void {
         'monitor_hospital_capacities' => $show_hospital_capacity
             ? state_monitor_hospital_capacities($pdo, (int)$sid)
             : [],
+        'global_messages' => state_monitor_global_messages($pdo, $sid),
+        'speech_requests' => state_monitor_acknowledged_requests($pdo, $sid),
         'time' => $time->fetch() ?: null,
     ];
     state_cache_store($sid, $revision, $position_revision, 'monitor', $payload);

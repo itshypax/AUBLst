@@ -381,6 +381,8 @@ async function applyState(
   app.hospitals = data.hospitals ?? [];
   app.hospitalReservations = data.hospital_reservations ?? [];
   app.monitorHospitalCapacities = data.monitor_hospital_capacities ?? [];
+  app.globalMessages = data.global_messages ?? [];
+  app.speechRequests = data.speech_requests ?? [];
   app.monitorShowHospitalCapacity = Boolean(data.session.monitor_show_hospital_capacity);
   app.clock = data.time ?? null;
   lastRevision = Number(data.session.revision ?? lastRevision);

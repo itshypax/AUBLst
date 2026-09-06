@@ -254,6 +254,13 @@ export interface UnchangedPositionsResponse {
   position_revision: number;
 }
 
+// Aktive Lagemeldung für das Laufband des Alarmmonitors.
+export interface GlobalMessage {
+  message: string;
+  long_message: string | null;
+  updated_at?: string;
+}
+
 export interface StateResponse {
   session: {
     token: string;
@@ -273,6 +280,8 @@ export interface StateResponse {
   assignments?: Assignment[];
   hospital_reservations?: HospitalReservation[];
   monitor_hospital_capacities?: MonitorHospitalCapacity[];
+  global_messages?: GlobalMessage[];
+  speech_requests?: LogRow[];
   status_history?: VehicleStatusChange[];
   time: ClockTime | null;
 }

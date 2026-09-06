@@ -4,7 +4,11 @@ import {
   assignmentModes,
   isMonitorStation,
   monitorEvents,
+  monitorStationsLabel,
   monitorVehicles,
+  parseMonitorStations,
+  serializeMonitorStations,
+  tickerText,
   vehiclesAssignedToEvent,
 } from './alarm-monitor';
 import type { Assignment, EventItem, Vehicle } from './types';
@@ -98,27 +102,76 @@ const assignments: Assignment[] = [
 ];
 
 describe('Alarmmonitor', () => {
-  it('akzeptiert nur die vier Hauptwachen', () => {
+  it('akzeptiert die vier Hauptwachen und RD', () => {
     expect(isMonitorStation('1')).toBe(true);
     expect(isMonitorStation('4')).toBe(true);
+    expect(isMonitorStation('RD')).toBe(true);
     expect(isMonitorStation('11')).toBe(false);
   });
 
+  it('liest die Auswahl aus URL und Speicher, sortiert und ohne Doppelte', () => {
+    expect(parseMonitorStations('1,4')).toEqual(['1', '4']);
+    expect(parseMonitorStations('rd')).toEqual(['RD']);
+    expect(parseMonitorStations('4, 1,1')).toEqual(['1', '4']);
+    expect(parseMonitorStations('11')).toEqual([]);
+    expect(parseMonitorStations(null)).toEqual([]);
+    expect(serializeMonitorStations(['RD', '2'])).toBe('2,RD');
+  });
+
+  it('beschriftet die Auswahl', () => {
+    expect(monitorStationsLabel(['1'])).toBe('Wache 1');
+    expect(monitorStationsLabel(['1', '4'])).toBe('Wache 1 + 4');
+    expect(monitorStationsLabel(['RD'])).toBe('RD');
+    expect(monitorStationsLabel(['2', 'RD'])).toBe('Wache 2 + RD');
+  });
+
   it('zeigt nur Fahrzeuge der gewählten Wache in Alarmreihenfolge', () => {
-    expect(monitorVehicles(vehicles, '1').map((vehicle) => vehicle.id)).toEqual([2, 1]);
+    expect(monitorVehicles(vehicles, ['1']).map((vehicle) => vehicle.id)).toEqual([2, 1]);
+  });
+
+  it('vereinigt mehrere Wachen und den Rettungsdienst ohne Doppelte', () => {
+    const rescue = (id: number, gameId: string): Vehicle => ({
+      id,
+      game_vehicle_id: gameId,
+      name: gameId.replaceAll('_', '-'),
+      type: gameId.split('_')[1] ?? gameId,
+      modes: null,
+      x: 0,
+      y: 0,
+      status: 2,
+      assigned_player_id: null,
+    });
+    const fleet = [...vehicles, rescue(5, '1_RTW_A'), rescue(6, '74_RTW_A'), rescue(7, 'CHRISTOPH_82')];
+
+    expect(monitorVehicles(fleet, ['1', '2']).map((vehicle) => vehicle.id)).toEqual([2, 1, 3, 5]);
+    expect(monitorVehicles(fleet, ['RD']).map((vehicle) => vehicle.id)).toEqual([7, 5, 6]);
+    expect(monitorVehicles(fleet, ['1', 'RD']).map((vehicle) => vehicle.id)).toEqual([2, 1, 7, 5, 6]);
+    expect(additionalVehiclesAssignedToEvent(fleet, assignments, 11, ['1', '2'])).toEqual([]);
   });
 
   it('ordnet einer Wache nur aktive Einsätze ihrer Fahrzeuge zu', () => {
-    expect(monitorEvents(events, assignments, vehicles, '1').map((event) => event.id)).toEqual([11, 10]);
-    expect(monitorEvents(events, assignments, vehicles, '2').map((event) => event.id)).toEqual([11]);
+    expect(monitorEvents(events, assignments, vehicles, ['1']).map((event) => event.id)).toEqual([11, 10]);
+    expect(monitorEvents(events, assignments, vehicles, ['2']).map((event) => event.id)).toEqual([11]);
   });
 
   it('liefert alarmierte Wachfahrzeuge und ihre Alarmierungsart', () => {
-    expect(vehiclesAssignedToEvent(vehicles, assignments, 10, '1').map((vehicle) => vehicle.id)).toEqual([1]);
+    expect(vehiclesAssignedToEvent(vehicles, assignments, 10, ['1']).map((vehicle) => vehicle.id)).toEqual([1]);
     expect(assignmentModes(assignments, 10, 1)).toEqual(['Sondersignal']);
   });
 
   it('liefert reguläre mitalarmierte Fahrzeuge anderer Wachen getrennt', () => {
-    expect(additionalVehiclesAssignedToEvent(vehicles, assignments, 11, '1').map((vehicle) => vehicle.id)).toEqual([3]);
+    expect(additionalVehiclesAssignedToEvent(vehicles, assignments, 11, ['1']).map((vehicle) => vehicle.id)).toEqual([3]);
+  });
+
+  it('baut den Laufbandtext aus den aktiven Lagemeldungen', () => {
+    expect(
+      tickerText([
+        { message: 'Lage', long_message: 'Tramverkehr eingestellt' },
+        { message: 'Alarmstufe 2', long_message: '' },
+        { message: 'Lage', long_message: 'Tramverkehr eingestellt' },
+        { message: '  ', long_message: null },
+      ]),
+    ).toBe('+++ Tramverkehr eingestellt +++ Alarmstufe 2 +++');
+    expect(tickerText([])).toBe('');
   });
 });

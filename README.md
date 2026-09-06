@@ -95,9 +95,14 @@ Für Spieler gibt es zusätzlich einen schreibgeschützten Alarmmonitor:
 https://example.org/leitstelle/?view=monitor
 ```
 
-Dort werden Raumcode und Wache 1–4 gewählt. Der Monitor zeigt nur laufende
-Einsätze, denen mindestens ein Fahrzeug der gewählten Wache zugeordnet ist;
-eine PIN wird dafür nicht benötigt. Hat die Leitstelle einem RTW oder ITW eine
+Dort werden Raumcode und Wachen gewählt: Wache 1–4 und „RD“ für den gesamten
+Rettungsdienst, auch mehrere zugleich (`?wache=1,4` oder `?wache=RD`). Der
+Monitor zeigt nur laufende Einsätze, denen mindestens ein Fahrzeug der
+gewählten Wachen zugeordnet ist; eine PIN wird dafür nicht benötigt. Aktive
+Lagemeldungen wie „Tramverkehr eingestellt“ laufen unter der Kopfzeile als
+Band durch. Ein in der Leitstelle quittierter Sprechwunsch erscheint auf der
+Fahrzeugtafel als Sprechaufforderung, etwa „3J“; ein alarmiertes Fahrzeug
+zeigt Spielstatus plus C, etwa „2C“, in der Leitstelle genauso. Hat die Leitstelle einem RTW oder ITW eine
 Klinik zugewiesen, steht das Ziel in der Fahrzeugtafel unter dem Fahrzeug,
 solange die Zuweisung besteht. Der Einstieg ist auch direkt im
 Verbindungsdialog und in den Sitzungseinstellungen verlinkt.
@@ -180,7 +185,8 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
 - `POST api.php?action=capabilities` – API-Version und optionale Funktionen
 - `POST api.php?action=stream` – SSE-Kanal für Änderungen; Polling bleibt kompatibel
 - `POST api.php?action=state` – aktueller Leitstellenzustand mit laufenden Einsätzen
-- `POST api.php?action=monitor_state` – schlanker Zustand für den Alarmmonitor
+- `POST api.php?action=monitor_state` – schlanker Zustand für den Alarmmonitor, mit aktiven
+  Lagemeldungen (`global_messages`) und quittierten Sprechwünschen (`speech_requests`)
 - `POST api.php?action=positions` – nur Fahrzeugkoordinaten als `[[id, x, y], …]`
   mit eigener `position_revision`; `known_position_revision` liefert bei
   unverändertem Stand nur `unchanged`. Der Sync aus dem Spiel erhöht die

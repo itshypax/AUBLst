@@ -32,6 +32,7 @@ describe('Spieler-Alarmmonitor', () => {
     for (const station of ['1', '2', '3', '4']) {
       expect(screen.getByRole('button', { name: `Wache ${station}` })).toBeTruthy();
     }
+    expect(screen.getByRole('button', { name: 'Rettungsdienst' })).toBeTruthy();
   });
 
   it('verbindet den Monitor ohne PIN und merkt sich die Wache', async () => {
@@ -40,11 +41,87 @@ describe('Spieler-Alarmmonitor', () => {
 
     await user.type(screen.getByLabelText('Raumcode'), '758c');
     await user.click(screen.getByRole('button', { name: 'Wache 3' }));
+    await user.click(screen.getByRole('button', { name: 'Wache 1' }));
     await user.click(screen.getByRole('button', { name: 'Alarmmonitor anzeigen' }));
 
     expect(mocks.switchSession).toHaveBeenCalledWith(app.apiBase, '758c', '', { readOnly: true });
     expect(new URLSearchParams(location.search).get('wache')).toBe('3');
-    expect(localStorage.getItem('alarmMonitorStation')).toBe('3');
+    expect(localStorage.getItem('alarmMonitorStations')).toBe('3');
+  });
+
+  it('lässt mehrere Wachen und den Rettungsdienst zugleich zu, der letzte Knopf bleibt', async () => {
+    const user = userEvent.setup();
+    render(AlarmMonitorPage);
+
+    await user.type(screen.getByLabelText('Raumcode'), '758c');
+    await user.click(screen.getByRole('button', { name: 'Wache 1' }));
+    expect(screen.getByRole('button', { name: 'Wache 1' }).getAttribute('aria-pressed')).toBe('true');
+    await user.click(screen.getByRole('button', { name: 'Wache 4' }));
+    await user.click(screen.getByRole('button', { name: 'Rettungsdienst' }));
+    await user.click(screen.getByRole('button', { name: 'Alarmmonitor anzeigen' }));
+
+    expect(new URLSearchParams(location.search).get('wache')).toBe('1,4,RD');
+    expect(screen.getAllByText('Wache 1 + 4 + RD').length).toBeGreaterThan(0);
+  });
+
+  it('übernimmt eine Mehrfachauswahl aus der Adresse und zeigt RD-Fahrzeuge anderer Wachen', () => {
+    history.replaceState(null, '', '/?view=monitor&wache=2,rd');
+    app.sessionToken = '758c';
+    app.stateHealthy = true;
+    app.lastSuccessfulSync = Date.now();
+    app.vehicles = [
+      { id: 1, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', type: 'HLF', modes: null, x: 0, y: 0, status: 2, assigned_player_id: null },
+      { id: 2, game_vehicle_id: '2_HLF_1', name: '2-HLF-1', type: 'HLF', modes: null, x: 0, y: 0, status: 2, assigned_player_id: null },
+      { id: 3, game_vehicle_id: '74_RTW_A', name: '74-RTW-A', type: 'RTW', modes: null, x: 0, y: 0, status: 2, assigned_player_id: null },
+    ];
+
+    render(AlarmMonitorPage);
+
+    expect(screen.getAllByText('Wache 2 + RD').length).toBeGreaterThan(0);
+    expect(screen.getByText('2-HLF-1')).toBeTruthy();
+    expect(screen.getByText('74-RTW-A')).toBeTruthy();
+    expect(screen.queryByText('1-HLF-1')).toBeNull();
+  });
+
+  it('zeigt das Laufband nur mit aktiven Lagemeldungen', () => {
+    history.replaceState(null, '', '/?view=monitor&wache=1');
+    app.sessionToken = '758c';
+    app.stateHealthy = true;
+    app.lastSuccessfulSync = Date.now();
+
+    const { unmount } = render(AlarmMonitorPage);
+    expect(screen.queryByRole('status', { name: 'Lagemeldungen' })).toBeNull();
+    unmount();
+
+    app.globalMessages = [
+      { message: 'Lage', long_message: 'Tramverkehr eingestellt' },
+      { message: 'Alarmstufe 2', long_message: '' },
+    ];
+    render(AlarmMonitorPage);
+    const ticker = screen.getByRole('status', { name: 'Lagemeldungen' });
+    expect(ticker.textContent).toContain('+++ Tramverkehr eingestellt +++ Alarmstufe 2 ');
+  });
+
+  it('zeigt Spielstatus plus C und die Sprechaufforderung J auf den Kacheln', () => {
+    history.replaceState(null, '', '/?view=monitor&wache=1');
+    app.sessionToken = '758c';
+    app.stateHealthy = true;
+    app.lastSuccessfulSync = Date.now();
+    app.vehicles = [
+      { id: 1, game_vehicle_id: '1_HLF_1', name: '1-HLF-1', type: 'HLF', modes: null, x: 0, y: 0, status: 0, game_status: 2, assigned_player_id: null },
+      { id: 2, game_vehicle_id: '1_DLK_1', name: '1-DLK-1', type: 'DLK', modes: null, x: 0, y: 0, status: 3, assigned_player_id: null },
+      { id: 3, game_vehicle_id: '1_ELW_1', name: '1-ELW-1', type: 'ELW', modes: null, x: 0, y: 0, status: 3, assigned_player_id: null },
+    ];
+    app.speechRequests = [
+      { id: 7, type: 'vehicle', entity_id: '1_DLK_1', event_id: null, message: 'Sprechwunsch', long_message: '1-DLK-1 mit Sprechwunsch', state: 'active', acknowledged: 1, updated_at: '2026-09-06 10:00:00' },
+    ];
+
+    render(AlarmMonitorPage);
+
+    expect(screen.getByText('2C')).toBeTruthy();
+    expect(screen.getByText('3J')).toBeTruthy();
+    expect(screen.getByText('3J').closest('.vehicle-row')?.classList.contains('status-j-call')).toBe(true);
+    expect(screen.getByText('1-ELW-1').closest('.vehicle-row')?.classList.contains('status-j-call')).toBe(false);
   });
 
   it('zeigt nur Alarmierungen und Fahrzeuge der gewählten Wache', () => {
