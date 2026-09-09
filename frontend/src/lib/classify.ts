@@ -336,18 +336,37 @@ export function hasLoeschzug(group: StationGroup): boolean {
   return group.vehicles.some((v) => DEFAULT_ZUG_TYPES.some((types) => types.includes(typeToken(v))));
 }
 
-// Einsatzart anhand des Stichworts
-export type EventCategory = 'fire' | 'hazard' | 'water' | 'thl' | 'medical' | 'other';
+// Einsatzart anhand des Stichworts. Die Wortlisten sind auf den Katalog der
+// AUBMP-Mod abgestimmt (Test "AUBMP-Einsatzkatalog" in classify.test.ts);
+// Titel kommen aus dem Spiel ohne Umlaute, deshalb stehen beide Schreibweisen.
+export type EventCategory = 'fire' | 'hazard' | 'water' | 'thl' | 'medical' | 'info' | 'other';
 
-const FIRE_WORDS = ['brand', 'feuer', 'rauch', 'brennt', 'explosion', 'qualm', 'müllverbrennung', 'muellverbrennung'];
+// Reine Meldungen ohne Einsatzstelle, etwa "INFO Feuerwerk" oder Unwetterwarnungen.
+const INFO_WORDS = [' info ', 'unwetterwarnung'];
+// Polizeilagen, die sonst über "person" beim Rettungsdienst landen würden.
+const OTHER_WORDS = ['kampfhund'];
+const FIRE_WORDS = ['brand', 'feuer', 'rauch', 'brennt', 'fettexplosion', 'qualm', 'müllverbrennung', 'muellverbrennung'];
 const HAZARD_WORDS = ['stoffaustritt', 'gefahrgut', 'chemikal', 'chemieunfall', 'gasaustritt', 'giftstoff', 'radioaktiv', 'säure', 'saeure'];
-const WATER_WORDS = ['wasser', 'gewässer', 'gewaesser', 'ertrink', 'boot', 'schiff', 'hafen', 'deich', 'hochwasser', 'überflut', 'ueberflut', 'eisrettung', 'taucher'];
-const THL_WORDS = ['hilfeleistung', 'thl', 'vu ', 'vu-', 'unfall', 'öl', 'oel', 'baum', ' tür ', ' tuer ', 'türöffnung', 'tueroeffnung', 'sturm', 'keller', 'eingeklemmt', 'absturz'];
-const THL_PHRASES = ['straße unter wasser', 'strasse unter wasser', 'person in aufzug', 'person im aufzug', 'person in fahrstuhl', 'person im fahrstuhl'];
-const MED_WORDS = ['med', 'notfall', 'herz', 'kreislauf', 'sturz', 'gestürzt', 'gestuerzt', 'blutung', 'bewusstlos', 'atemnot', 'reanimation', 'verletzt', 'krank', 'vergiftung', 'psych', 'geburt', 'person'];
+const WATER_WORDS = ['wasser', 'gewässer', 'gewaesser', 'ertrink', 'boot', 'schiff', 'hafen', 'fluss', 'deich', 'hochwasser', 'überflut', 'ueberflut', 'eisrettung', 'taucher'];
+const THL_WORDS = [
+  'hilfeleistung', 'thl', 'vu ', 'vu-', 'unfall', 'öl', 'oel', 'baum', ' tür ', ' tuer ', 'türöffnung', 'tueroeffnung', 'sturm', 'keller',
+  'eingeklemmt', 'absturz', 'explosion', 'entgleist', 'angebaggert', 'kampfstoff', 'bombe', 'auslaufend', 'fallen vom dach', 'schwan',
+  'klettergerüst', 'klettergeruest', 'höhenrettung', 'hoehenrettung', 'drehleiter', 'dlk', 'gerüst', 'geruest', 'fallschirm',
+];
+// Vor der Wasser-Prüfung, weil "Flughafen" sonst als Hafen zählt und "Fahrzeug" nicht nach Wasser gehört.
+const THL_PHRASES = [
+  'straße unter wasser', 'strasse unter wasser', 'person in aufzug', 'person im aufzug', 'person in fahrstuhl', 'person im fahrstuhl',
+  'luftnotlage', 'person unter fahrzeug',
+];
+const MED_WORDS = [
+  'med', 'notfall', 'herz', 'kreislauf', 'sturz', 'gestürzt', 'gestuerzt', 'blutung', 'bewusstlos', 'atemnot', 'reanimation', 'verletzt',
+  'krank', 'vergiftung', 'psych', 'geburt', 'manv', 'infektion', 'sanitätsdienst', 'sanitaetsdienst', 'klimaanlage', 'reizgas', 'gw-san', 'person',
+];
 
 export function eventCategory(name: string | null | undefined): EventCategory {
   const hay = ` ${(name ?? '').toLowerCase()} `;
+  if (INFO_WORDS.some((w) => hay.includes(w))) return 'info';
+  if (OTHER_WORDS.some((w) => hay.includes(w))) return 'other';
   if (FIRE_WORDS.some((w) => hay.includes(w))) return 'fire';
   if (HAZARD_WORDS.some((w) => hay.includes(w))) return 'hazard';
   if (THL_PHRASES.some((phrase) => hay.includes(phrase))) return 'thl';

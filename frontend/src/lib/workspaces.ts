@@ -36,7 +36,7 @@ export const MULTI_INSTANCE_PANELS: ReadonlySet<PanelId> = new Set<PanelId>(['ma
 
 export type EventsFilter = 'new' | 'current';
 export const EVENTS_FILTERS: readonly EventsFilter[] = ['new', 'current'];
-const MAP_CATEGORIES = ['fire', 'hazard', 'water', 'thl', 'medical', 'other'];
+const MAP_CATEGORIES = ['fire', 'hazard', 'water', 'thl', 'medical', 'info', 'other'];
 
 export interface MapFilterSettings {
   showVehicles?: boolean;

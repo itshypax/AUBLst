@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import FaIcon from './FaIcon.svelte';
-  import { Axe, Biohazard, CircleCheck, Cross, Flame, RadioTower, Search, TriangleAlert, Waves } from '../lib/fontawesome-icons';
+  import { Axe, Biohazard, CircleCheck, Cross, Flame, MessageSquareText, RadioTower, Search, TriangleAlert, Waves } from '../lib/fontawesome-icons';
   import { api } from '../lib/api';
   import { eventCategory, type EventCategory } from '../lib/classify';
   import { refreshState } from '../lib/polling';
@@ -51,13 +51,14 @@
       .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id - a.id)
   );
 
-  const categoryIcon = { fire: Flame, hazard: Biohazard, water: Waves, thl: Axe, medical: Cross, other: TriangleAlert };
+  const categoryIcon = { fire: Flame, hazard: Biohazard, water: Waves, thl: Axe, medical: Cross, info: MessageSquareText, other: TriangleAlert };
   const categoryTitle: Record<EventCategory, string> = {
     fire: 'Brandeinsatz',
     hazard: 'Gefahrguteinsatz',
     water: 'Wassereinsatz',
     thl: 'Hilfeleistung',
     medical: 'Medizinischer Einsatz',
+    info: 'Info-Meldung',
     other: 'Einsatz',
   };
 

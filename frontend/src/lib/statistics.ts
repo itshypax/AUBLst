@@ -45,6 +45,7 @@ const CATEGORY_META: Record<EventCategory, { label: string; color: string }> = {
   water: { label: 'Wasser', color: '#2aa6b7' },
   thl: { label: 'Hilfeleistung', color: '#4c8dff' },
   medical: { label: 'Medizin', color: '#2ec98e' },
+  info: { label: 'Info', color: '#7c8ea3' },
   other: { label: 'Sonstige', color: '#9a9da4' },
 };
 

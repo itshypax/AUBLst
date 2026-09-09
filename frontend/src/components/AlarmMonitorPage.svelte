@@ -9,6 +9,7 @@
     ExternalLink,
     Flame,
     LoaderCircle,
+    MessageSquareText,
     RadioTower,
     TriangleAlert,
     Volume2,
@@ -138,6 +139,7 @@
     water: 'Wassereinsatz',
     thl: 'Technische Hilfeleistung',
     medical: 'Rettungsdiensteinsatz',
+    info: 'Info-Meldung',
     other: 'Einsatzalarm',
   };
   const categoryIcons = {
@@ -146,6 +148,7 @@
     water: Waves,
     thl: Axe,
     medical: Cross,
+    info: MessageSquareText,
     other: TriangleAlert,
   };
   const timeText = $derived(now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));

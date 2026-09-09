@@ -11,6 +11,7 @@
     water: 'Wasser',
     thl: 'Hilfeleistung',
     medical: 'Rettungsdienst',
+    info: 'Info',
     other: 'Sonstige',
   };
   const CATEGORIES = Object.keys(CATEGORY_LABELS) as EventCategory[];

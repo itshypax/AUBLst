@@ -46,6 +46,7 @@ describe('Session-Statistik', () => {
       ['water', 1],
       ['thl', 1],
       ['medical', 1],
+      ['info', 0],
       ['other', 1],
     ]);
     expect(model.vehicles[0]).toMatchObject({ label: '1-HLF-1', value: 2 });
