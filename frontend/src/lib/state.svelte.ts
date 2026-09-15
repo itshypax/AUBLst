@@ -286,8 +286,13 @@ export function resetSessionData(): void {
   pendingSyncedEvent = null;
 }
 
+// Ab hier gilt der Zustand als zu alt, um daraus zu disponieren. Der
+// Abfragetakt in polling.ts muss darunter bleiben, sonst sind die Aktionen
+// zwischen zwei Abfragen gesperrt.
+export const STALE_AFTER_MS = 10_000;
+
 export function dataIsStale(now = Date.now()): boolean {
-  return !app.lastSuccessfulSync || now - app.lastSuccessfulSync > 10_000;
+  return !app.lastSuccessfulSync || now - app.lastSuccessfulSync > STALE_AFTER_MS;
 }
 
 export function canWrite(): boolean {

@@ -37,6 +37,46 @@ describe('Echtzeitkanal', () => {
     vi.useRealTimers();
   });
 
+  it('baut einen Kanal neu auf, der keine Lebenszeichen mehr sendet', async () => {
+    vi.useFakeTimers();
+    app.sessionToken = 'demo';
+    // Ein Paket kommt an, danach bleibt die Verbindung stumm offen.
+    const silent = (signal: AbortSignal) => {
+      let sent = false;
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: () => {
+              if (sent)
+                return new Promise<never>((_, reject) =>
+                  signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }),
+                );
+              sent = true;
+              return Promise.resolve({ done: false, value: new TextEncoder().encode('retry: 1500\n\n') });
+            },
+          }),
+        },
+      };
+    };
+    const fetchMock = vi.fn().mockImplementation((_url, init) => Promise.resolve(silent(init.signal)));
+    vi.stubGlobal('fetch', fetchMock);
+    const onStatus = vi.fn();
+
+    const stop = startRealtimeStream({ onChange: () => {}, onStatus });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onStatus).toHaveBeenLastCalledWith(true);
+
+    await vi.advanceTimersByTimeAsync(24_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(onStatus).toHaveBeenLastCalledWith(false);
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
   it('meldet Positionsereignisse getrennt und schickt die Positionsrevision beim Neuaufbau mit', async () => {
     vi.useFakeTimers();
     app.sessionToken = 'demo';

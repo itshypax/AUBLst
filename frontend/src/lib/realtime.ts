@@ -28,6 +28,13 @@ interface StreamOptions {
   onStatus: (connected: boolean) => void;
 }
 
+// Der Server schickt mindestens alle 10 Sekunden einen Heartbeat. Kommt
+// länger nichts, hängt die Verbindung halboffen: der Browser meldet keinen
+// Fehler, es kommen aber auch keine Ereignisse mehr. Dann lieber abbrechen und
+// neu aufbauen, sonst gilt der Kanal als verbunden und das Polling bleibt im
+// langsamen Takt.
+const STREAM_IDLE_TIMEOUT_MS = 25_000;
+
 export function startRealtimeStream({ onChange, onPositions, onStatus }: StreamOptions): () => void {
   let stopped = false;
   let controller: AbortController | null = null;
@@ -38,7 +45,15 @@ export function startRealtimeStream({ onChange, onPositions, onStatus }: StreamO
 
   async function run(): Promise<void> {
     while (!stopped && app.sessionToken) {
-      controller = new AbortController();
+      const request = new AbortController();
+      controller = request;
+      let connected = false;
+      let idleStream = false;
+      const giveUpOnIdleStream = () => {
+        idleStream = true;
+        request.abort();
+      };
+      let idleTimer = window.setTimeout(giveUpOnIdleStream, STREAM_IDLE_TIMEOUT_MS);
       try {
         const response = await fetch(`${app.apiBase}?action=stream`, {
           method: 'POST',
@@ -49,17 +64,24 @@ export function startRealtimeStream({ onChange, onPositions, onStatus }: StreamO
             last_position_revision: lastPositionRevision,
           }),
           cache: 'no-store',
-          signal: controller.signal,
+          signal: request.signal,
         });
         if (response.status === 400 || response.status === 404) return;
         if (!response.ok || !response.body) throw new Error(`Echtzeitkanal nicht verfügbar (${response.status})`);
-        onStatus(true);
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
         while (!stopped) {
           const { done, value } = await reader.read();
           if (done) break;
+          // Erst mit dem ersten Paket gilt der Kanal als verbunden - Header
+          // allein sagen nichts darüber, ob wirklich etwas durchkommt.
+          if (!connected) {
+            connected = true;
+            onStatus(true);
+          }
+          clearTimeout(idleTimer);
+          idleTimer = window.setTimeout(giveUpOnIdleStream, STREAM_IDLE_TIMEOUT_MS);
           const parsed = parseSseChunk(buffer, decoder.decode(value, { stream: true }));
           buffer = parsed.remainder;
           for (const incoming of parsed.events) {
@@ -84,8 +106,10 @@ export function startRealtimeStream({ onChange, onPositions, onStatus }: StreamO
           }
         }
       } catch (error) {
-        if (!controller.signal.aborted && !stopped) console.debug('Echtzeitkanal getrennt', error);
+        if (idleStream) console.debug('Echtzeitkanal ohne Lebenszeichen, wird neu aufgebaut');
+        else if (!request.signal.aborted && !stopped) console.debug('Echtzeitkanal getrennt', error);
       } finally {
+        clearTimeout(idleTimer);
         onStatus(false);
         controller = null;
       }

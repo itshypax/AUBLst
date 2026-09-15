@@ -2,7 +2,7 @@ import { api, apiGet, fetchMapImage } from './api';
 import { advanceLogCursor, INITIAL_LOG_CURSOR, mergeLogRows } from './log-stream';
 import { SoundAlertTracker } from './sound-alerts';
 import { soundCuesForLogs } from './sound-events';
-import { app, clearCurrentEvent, persistSettings, plain, resetSessionData } from './state.svelte';
+import { app, clearCurrentEvent, persistSettings, plain, resetSessionData, STALE_AFTER_MS } from './state.svelte';
 import { getSoundAlertConfig, playPhone, playSoundCue, playSoundCues } from './sounds';
 import type {
   LogRow,
@@ -148,9 +148,15 @@ function isAlertableLogVersion(row: LogRow): boolean {
   return !acknowledgementOnly;
 }
 
+// Auch mit laufendem Stream bleibt eine Grundabfrage nötig: sie hält
+// app.lastSuccessfulSync frisch, und daran hängt der Schreibschutz. Wäre der
+// Takt größer als STALE_AFTER_MS, wären zwischen zwei Abfragen sämtliche
+// Alarmierungen gesperrt - ohne dass der Kanal als gestört auffällt.
+const REALTIME_INTERVAL = STALE_AFTER_MS - STATE_INTERVAL;
+
 function nextDelay(base: number, failures: number): number {
   if (document.hidden) return HIDDEN_INTERVAL;
-  if (realtimeConnected && failures === 0) return HIDDEN_INTERVAL;
+  if (realtimeConnected && failures === 0) return REALTIME_INTERVAL;
   return Math.min(MAX_BACKOFF, base * Math.max(1, 2 ** failures));
 }
 
