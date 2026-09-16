@@ -111,12 +111,12 @@ export interface MarkerLayerInput {
   vehicleOutline: string;
 }
 
-// Maße in Bildschirmpixeln. Der Marker bleibt damit knapp über dem alten
-// gefüllten Punkt (Rand bei 15 statt 13 px) und deutlich unter dem
-// Fahrzeugsymbol.
-const EVENT_RING_RADIUS = 12.5;
-const EVENT_RING_WIDTH = 3;
-const EVENT_CORE_RADIUS = 8.5;
+// Maße in Bildschirmpixeln. Rand bei knapp 18 px, damit der Ring auch bei
+// vielen Fahrzeugen ablesbar bleibt - immer noch deutlich kleiner als das
+// Fahrzeugsymbol mit 54 px.
+const EVENT_RING_RADIUS = 15;
+const EVENT_RING_WIDTH = 3.5;
+const EVENT_CORE_RADIUS = 10.5;
 const EVENT_HIGHLIGHT_SCALE = 1.3;
 
 // Erwartet einen Context, dessen Transformation bereits Pan und Zoom
