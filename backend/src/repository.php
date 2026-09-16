@@ -163,6 +163,8 @@ function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders
     $arrivedVehicleIds = [];
     $clearedVehicleIds = [];
     $returnedVehicleIds = [];
+    $onSceneVehicleIds = [];
+    $leftSceneVehicleIds = [];
     foreach ($updates as $gameId => $vehicle) {
         $saved = $savedByGameId[$gameId] ?? false;
         $incomingStatus = array_key_exists('status', $vehicle) && valid_vehicle_status($vehicle['status'])
@@ -212,6 +214,11 @@ function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders
             if ($status === 8) $arrivedVehicleIds[] = $vehicleId;
             if (in_array($status, [1, 2], true)) $clearedVehicleIds[] = $vehicleId;
             if ($status === 2) $returnedVehicleIds[] = $vehicleId;
+            // 4 heißt an der Einsatzstelle, 7 und 8 liegen dahinter (Patient
+            // aufgenommen, am Transportziel). Status 1 ist abgerückt: die
+            // Zuordnung bleibt bestehen, die Arbeit vor Ort ist aber getan.
+            if (in_array($status, [4, 7, 8], true)) $onSceneVehicleIds[] = $vehicleId;
+            if ($status === 1) $leftSceneVehicleIds[] = $vehicleId;
         }
     }
 
@@ -250,6 +257,18 @@ function upsert_vehicles(PDO $pdo, $session_id, array $vehicles, ?bool &$leaders
     if ($clearedVehicleIds) {
         $stmt = $pdo->prepare('DELETE FROM hospital_reservations WHERE session_id = ? AND vehicle_id IN (' . sql_placeholders($clearedVehicleIds) . ')');
         $stmt->execute(array_merge([$session_id], $clearedVehicleIds));
+    }
+    // Einmal vor Ort gewesen bleibt vor Ort: sonst läuft die Anzeige zurück,
+    // sobald ein Fahrzeug abrückt.
+    if ($onSceneVehicleIds) {
+        $stmt = $pdo->prepare("UPDATE assignments SET status = 'on_scene', updated_at = CURRENT_TIMESTAMP
+            WHERE session_id = ? AND status = 'enroute' AND vehicle_id IN (" . sql_placeholders($onSceneVehicleIds) . ')');
+        $stmt->execute(array_merge([$session_id], $onSceneVehicleIds));
+    }
+    if ($leftSceneVehicleIds) {
+        $stmt = $pdo->prepare("UPDATE assignments SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+            WHERE session_id = ? AND status = 'on_scene' AND vehicle_id IN (" . sql_placeholders($leftSceneVehicleIds) . ')');
+        $stmt->execute(array_merge([$session_id], $leftSceneVehicleIds));
     }
     if ($returnedVehicleIds) {
         $stmt = $pdo->prepare('SELECT DISTINCT event_id FROM assignments WHERE session_id = ? AND vehicle_id IN (' . sql_placeholders($returnedVehicleIds) . ')');

@@ -178,9 +178,14 @@ export interface EventNote {
   content: string;
 }
 
+// on_scene setzt das Backend, sobald das Fahrzeug die Einsatzstelle gemeldet
+// hat, completed beim Abrücken. Beides bleibt stehen, bis die Zuordnung endet.
+export type AssignmentStatus = 'enroute' | 'on_scene' | 'completed' | 'canceled';
+
 export interface Assignment {
   event_id: number;
   vehicle_id: number;
+  status?: AssignmentStatus;
   alarm_modes?: string[];
   leader_role?: IncidentLeaderRole | null;
   leader_source?: IncidentLeaderSource | null;

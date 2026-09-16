@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 function state_assignments(PDO $pdo, $session_id): array {
-    $stmt = $pdo->prepare('SELECT a.event_id, a.vehicle_id, h.mode, leaders.role AS leader_role,
+    $stmt = $pdo->prepare('SELECT a.event_id, a.vehicle_id, a.status, h.mode, leaders.role AS leader_role,
             leaders.source AS leader_source
         FROM assignments a
         JOIN events e ON e.session_id = a.session_id AND e.id = a.event_id AND e.status = \'active\'
@@ -20,6 +20,7 @@ function state_assignments(PDO $pdo, $session_id): array {
             $assignments[$key] = [
                 'event_id' => (int)$row['event_id'],
                 'vehicle_id' => (int)$row['vehicle_id'],
+                'status' => (string)$row['status'],
                 'alarm_modes' => [],
                 'leader_role' => $row['leader_role'],
                 'leader_source' => $row['leader_source'],

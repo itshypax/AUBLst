@@ -222,6 +222,20 @@ describe('Einheiten je Einsatz', () => {
     expect(progress.get(9)).toEqual({ assigned: 1, arrived: 0 });
   });
 
+  it('behält ein abgerücktes Fahrzeug als angekommen', () => {
+    const progress = eventUnitProgress(
+      [
+        { event_id: 7, vehicle_id: 1, status: 'completed' },
+        { event_id: 7, vehicle_id: 2, status: 'on_scene' },
+        { event_id: 7, vehicle_id: 3, status: 'enroute' },
+      ],
+      // Fahrzeug 1 ist abgerückt und steht wieder auf 1, war aber vor Ort
+      [vehicle(1, 1), vehicle(2, 4), vehicle(3, 3)],
+    );
+
+    expect(progress.get(7)).toEqual({ assigned: 3, arrived: 2 });
+  });
+
   it('lässt versteckte Einheiten außen vor', () => {
     const abschlepper = { ...vehicle(2, 3), game_vehicle_id: 'ASF' };
     const streifenwagen = { ...vehicle(3, 3), game_vehicle_id: 'FuSTW' };

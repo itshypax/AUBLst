@@ -66,6 +66,11 @@ export type VehicleIconImage = CanvasImageSource & { naturalWidth: number; natur
 // und der Ring darf nicht zurücklaufen, wenn er weiterfährt.
 const ARRIVED_STATUS = new Set([4, 7, 8]);
 
+// Der Zuordnungsstand hält fest, dass jemand da war - ein abgerücktes
+// Fahrzeug (Status 1) steht auf 1, war aber trotzdem vor Ort. Ältere Backends
+// liefern das Feld nicht, dann trägt allein der Fahrzeugstatus.
+const ARRIVED_ASSIGNMENT = new Set(['on_scene', 'completed']);
+
 export interface EventUnitProgress {
   assigned: number;
   arrived: number;
@@ -78,7 +83,7 @@ export const NO_UNITS: EventUnitProgress = { assigned: 0, arrived: 0 };
 // sie haben keine Position im Spiel und melden nie Status 4, der Ring käme
 // mit ihnen nie zu.
 export function eventUnitProgress(
-  assignments: ReadonlyArray<{ event_id: number; vehicle_id: number }>,
+  assignments: ReadonlyArray<{ event_id: number; vehicle_id: number; status?: string }>,
   vehicles: ReadonlyArray<Pick<Vehicle, 'id' | 'status' | 'game_vehicle_id'>>,
 ): Map<number, EventUnitProgress> {
   const counted = new Map(
@@ -90,7 +95,7 @@ export function eventUnitProgress(
     if (current === undefined) continue;
     const entry = progress.get(assignment.event_id) ?? { assigned: 0, arrived: 0 };
     entry.assigned += 1;
-    if (ARRIVED_STATUS.has(current)) entry.arrived += 1;
+    if (ARRIVED_STATUS.has(current) || ARRIVED_ASSIGNMENT.has(assignment.status ?? '')) entry.arrived += 1;
     progress.set(assignment.event_id, entry);
   }
   return progress;
