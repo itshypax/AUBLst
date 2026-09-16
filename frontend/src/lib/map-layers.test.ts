@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MapLayerScheduler, drawMarkerLayer, type MarkerLayerInput } from './map-layers';
+import { MapLayerScheduler, drawMarkerLayer, eventUnitProgress, NO_UNITS, type MarkerLayerInput } from './map-layers';
 import type { MapView } from './mapview';
 import type { EventItem, Vehicle } from './types';
 
@@ -122,6 +122,7 @@ function baseInput(overrides: Partial<MarkerLayerInput> = {}): MarkerLayerInput 
     eventMarkerKind: () => 'fire',
     eventColor: () => '#f00',
     eventIcon: () => null,
+    eventProgress: () => NO_UNITS,
     vehicleIcon: () => icon,
     statusColor: () => '#0f0',
     statusText: (status) => String(status),
@@ -161,14 +162,38 @@ describe('Markerebene', () => {
     expect(startingWith(calls, 'fillText').map((call) => call.split('(')[1].split(',')[0])).toEqual(['4', '3']);
   });
 
-  it('zeichnet je Einsatz einen Kreis und bei Hervorhebung zusätzlich einen Ring', () => {
-    const plain = recordingContext();
-    drawMarkerLayer(plain.ctx, baseInput({ events: [event(1)] }));
-    expect(startingWith(plain.calls, 'arc').length).toBe(1);
+  // Absatz, Ring und Kern sind drei Bögen; der Fortschrittsbogen und die
+  // Hervorhebung kommen als vierter und fünfter dazu.
+  it('zeichnet den Fortschrittsbogen nur, wenn jemand vor Ort ist', () => {
+    const leer = recordingContext();
+    drawMarkerLayer(leer.ctx, baseInput({ events: [event(1)] }));
+    expect(startingWith(leer.calls, 'arc').length).toBe(3);
 
-    const highlighted = recordingContext();
-    drawMarkerLayer(highlighted.ctx, baseInput({ events: [event(1)], highlightedEventId: 1 }));
-    expect(startingWith(highlighted.calls, 'arc').length).toBe(2);
+    const unterwegs = recordingContext();
+    drawMarkerLayer(unterwegs.ctx, baseInput({ events: [event(1)], eventProgress: () => ({ assigned: 5, arrived: 0 }) }));
+    expect(startingWith(unterwegs.calls, 'arc').length).toBe(3);
+
+    const vorOrt = recordingContext();
+    drawMarkerLayer(vorOrt.ctx, baseInput({ events: [event(1)], eventProgress: () => ({ assigned: 5, arrived: 2 }) }));
+    expect(startingWith(vorOrt.calls, 'arc').length).toBe(4);
+  });
+
+  it('zeichnet bei Hervorhebung einen zusätzlichen Ring', () => {
+    const { ctx, calls } = recordingContext();
+
+    drawMarkerLayer(ctx, baseInput({ events: [event(1)], highlightedEventId: 1 }));
+
+    expect(startingWith(calls, 'arc').length).toBe(4);
+  });
+
+  it('zeichnet einen Einsatz ohne Spiel-ID gestrichelt', () => {
+    const offen = recordingContext();
+    drawMarkerLayer(offen.ctx, baseInput({ events: [{ ...event(1), created_by: 'frontend', game_event_id: null }] }));
+    expect(startingWith(offen.calls, 'setLineDash').length).toBe(1);
+
+    const angekommen = recordingContext();
+    drawMarkerLayer(angekommen.ctx, baseInput({ events: [{ ...event(1), created_by: 'frontend', game_event_id: '18' }] }));
+    expect(startingWith(angekommen.calls, 'setLineDash').length).toBe(0);
   });
 
   it('zeichnet das Einsatzsymbol, sobald es geladen ist', () => {
@@ -177,5 +202,29 @@ describe('Markerebene', () => {
     drawMarkerLayer(ctx, baseInput({ events: [event(1)], eventIcon: () => icon }));
 
     expect(startingWith(calls, 'drawImage').length).toBe(1);
+  });
+});
+
+describe('Einheiten je Einsatz', () => {
+  it('zählt zugeordnete und angekommene Fahrzeuge', () => {
+    const progress = eventUnitProgress(
+      [
+        { event_id: 7, vehicle_id: 1 },
+        { event_id: 7, vehicle_id: 2 },
+        { event_id: 7, vehicle_id: 3 },
+        { event_id: 9, vehicle_id: 4 },
+      ],
+      [vehicle(1, 4), vehicle(2, 3), vehicle(3, 7), vehicle(4, 3)],
+    );
+
+    // Status 4 und 7 stehen an der Einsatzstelle oder darüber hinaus
+    expect(progress.get(7)).toEqual({ assigned: 3, arrived: 2 });
+    expect(progress.get(9)).toEqual({ assigned: 1, arrived: 0 });
+  });
+
+  it('zählt ein Fahrzeug mit, das gar nicht mehr im Zustand steht', () => {
+    const progress = eventUnitProgress([{ event_id: 7, vehicle_id: 99 }], [vehicle(1, 4)]);
+
+    expect(progress.get(7)).toEqual({ assigned: 1, arrived: 0 });
   });
 });

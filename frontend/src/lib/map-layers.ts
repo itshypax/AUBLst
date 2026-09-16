@@ -60,6 +60,40 @@ export const VEHICLE_ICON_HIGHLIGHT_SIZE = 66;
 
 export type VehicleIconImage = CanvasImageSource & { naturalWidth: number; naturalHeight: number };
 
+// Ein Fahrzeug gilt als angekommen, sobald es die Einsatzstelle gemeldet hat.
+// 7 und 8 zählen mit: ein RTW, der seinen Patienten geladen hat, war vor Ort,
+// und der Ring darf nicht zurücklaufen, wenn er weiterfährt.
+const ARRIVED_STATUS = new Set([4, 7, 8]);
+
+export interface EventUnitProgress {
+  assigned: number;
+  arrived: number;
+}
+
+export const NO_UNITS: EventUnitProgress = { assigned: 0, arrived: 0 };
+
+// Zählt je Einsatz die zugeordneten und die bereits angekommenen Fahrzeuge.
+export function eventUnitProgress(
+  assignments: ReadonlyArray<{ event_id: number; vehicle_id: number }>,
+  vehicles: ReadonlyArray<Pick<Vehicle, 'id' | 'status'>>,
+): Map<number, EventUnitProgress> {
+  const status = new Map(vehicles.map((vehicle) => [vehicle.id, Number(vehicle.status)]));
+  const progress = new Map<number, EventUnitProgress>();
+  for (const assignment of assignments) {
+    const entry = progress.get(assignment.event_id) ?? { assigned: 0, arrived: 0 };
+    entry.assigned += 1;
+    const current = status.get(assignment.vehicle_id);
+    if (current !== undefined && ARRIVED_STATUS.has(current)) entry.arrived += 1;
+    progress.set(assignment.event_id, entry);
+  }
+  return progress;
+}
+
+// Ein Leitstellen-Einsatz ohne Spiel-ID ist im Spiel noch nicht angekommen.
+function eventIsPending(event: EventItem): boolean {
+  return event.created_by === 'frontend' && !String(event.game_event_id ?? '').trim();
+}
+
 export interface MarkerLayerInput {
   events: EventItem[];
   vehicles: Vehicle[];
@@ -70,11 +104,20 @@ export interface MarkerLayerInput {
   eventMarkerKind: (event: EventItem) => string;
   eventColor: (kind: string) => string;
   eventIcon: (kind: string) => CanvasImageSource | null;
+  eventProgress: (event: EventItem) => EventUnitProgress;
   vehicleIcon: (vehicle: Vehicle) => VehicleIconImage | null;
   statusColor: (status: number | string) => string;
   statusText: (status: number | string) => string;
   vehicleOutline: string;
 }
+
+// Maße in Bildschirmpixeln. Der Marker bleibt damit knapp über dem alten
+// gefüllten Punkt (Rand bei 15 statt 13 px) und deutlich unter dem
+// Fahrzeugsymbol.
+const EVENT_RING_RADIUS = 12.5;
+const EVENT_RING_WIDTH = 3;
+const EVENT_CORE_RADIUS = 8.5;
+const EVENT_HIGHLIGHT_SCALE = 1.3;
 
 // Erwartet einen Context, dessen Transformation bereits Pan und Zoom
 // enthält. Zeichnet Einsätze und darüber die Fahrzeuge; das hervorgehobene
@@ -83,32 +126,81 @@ export function drawMarkerLayer(ctx: CanvasRenderingContext2D, input: MarkerLaye
   const { view, bounds } = input;
   const zoom = view.zoom;
 
+  // Einsatzmarker: die Ringfarbe trägt die Kategorie, die Füllung des Rings
+  // den Anteil der Fahrzeuge, die schon vor Ort sind. Zahlen stehen bewusst
+  // nicht daneben - dafür gibt es den Hover.
   for (const ev of input.events) {
     const p = worldToCanvas(ev, bounds, view);
     const markerKind = input.eventMarkerKind(ev);
     const markerColor = input.eventColor(markerKind);
     const isHighlighted = input.highlightedEventId === ev.id;
-    const baseRadius = Math.min(12 / zoom, 12);
-    const radius = isHighlighted ? baseRadius * 1.4 : baseRadius;
+    const scale = isHighlighted ? EVENT_HIGHLIGHT_SCALE : 1;
+    // Größe am Bildschirm halten, beim Herauszoomen aber mitschrumpfen
+    const size = (value: number) => Math.min((value * scale) / zoom, value * scale);
+    const ringRadius = size(EVENT_RING_RADIUS);
+    const ringWidth = size(EVENT_RING_WIDTH);
+    const coreRadius = size(EVENT_CORE_RADIUS);
+    const { assigned, arrived } = input.eventProgress(ev);
+
+    // Dunkler Absatz, damit der Ring auch über hellen Flächen stehen bleibt
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, ringRadius, 0, Math.PI * 2);
+    ctx.lineWidth = ringWidth + size(2);
+    ctx.strokeStyle = 'rgba(12, 13, 15, 0.55)';
+    ctx.stroke();
+
+    if (eventIsPending(ev)) {
+      ctx.save();
+      ctx.setLineDash([size(3), size(4)]);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, ringRadius, 0, Math.PI * 2);
+      ctx.lineWidth = ringWidth;
+      ctx.strokeStyle = markerColor;
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      // Heller Ring heißt: es ist jemand unterwegs. Der farbige Bogen zeigt,
+      // wie viele davon angekommen sind.
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, ringRadius, 0, Math.PI * 2);
+      ctx.lineWidth = ringWidth;
+      ctx.strokeStyle = assigned > 0 ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.12)';
+      ctx.stroke();
+
+      if (arrived > 0 && assigned > 0) {
+        const share = Math.min(1, arrived / assigned);
+        ctx.save();
+        ctx.lineCap = share < 1 ? 'round' : 'butt';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, ringRadius, -Math.PI / 2, -Math.PI / 2 + share * Math.PI * 2);
+        ctx.lineWidth = ringWidth;
+        ctx.strokeStyle = markerColor;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
 
     ctx.beginPath();
-    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = markerColor;
+    ctx.arc(p.x, p.y, coreRadius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(19, 20, 23, 0.92)';
     ctx.fill();
-    ctx.lineWidth = (isHighlighted ? 3 : 2) / zoom;
-    ctx.strokeStyle = isHighlighted ? '#ffffff' : 'rgba(255, 255, 255, 0.8)';
+    // Dünner Rand in der Kategoriefarbe, damit die Art auch bei leerem Ring trägt
+    ctx.lineWidth = size(1);
+    ctx.strokeStyle = markerColor;
     ctx.stroke();
+
     const eventIcon = input.eventIcon(markerKind);
     if (eventIcon) {
-      const iconSize = radius * 1.5;
+      const iconSize = coreRadius * 1.5;
       ctx.drawImage(eventIcon, p.x - iconSize / 2, p.y - iconSize / 2, iconSize, iconSize);
     }
+
     if (isHighlighted) {
       ctx.save();
       ctx.globalAlpha = 0.55;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, radius + 6 / zoom, 0, Math.PI * 2);
-      ctx.lineWidth = 1 / zoom;
+      ctx.arc(p.x, p.y, ringRadius + size(5), 0, Math.PI * 2);
+      ctx.lineWidth = size(1);
       ctx.strokeStyle = markerColor;
       ctx.stroke();
       ctx.restore();

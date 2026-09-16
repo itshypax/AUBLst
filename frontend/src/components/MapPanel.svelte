@@ -5,7 +5,7 @@
   import { api } from '../lib/api';
   import { eventCategory, station, type EventCategory } from '../lib/classify';
   import { dismissibleDetails } from '../lib/dismissible-details';
-  import { MapLayerScheduler, drawMarkerLayer, type MapLayer } from '../lib/map-layers';
+  import { MapLayerScheduler, drawMarkerLayer, eventUnitProgress, NO_UNITS, type MapLayer } from '../lib/map-layers';
   import { canvasToWorld, imageDrawRect, mapContentDrawRect, screenPointInMapContent, toScreen, worldToCanvas, type MapView, type Point } from '../lib/mapview';
   import { cloneRoutingConfig, formatDistance, nearestRoadSnap, parseRoutingConfig, roadLocationLabel, roadRoutePreview, validateRoutingNetwork, type BmaZone, type RoadEdge, type RoadKind, type RoadNode, type RoadRoutePreview, type RoadSnap, type RoutingConfig, type RoutingNetworkReport } from '../lib/routing';
   import { app, askConfirm, assignedEventForVehicle, canWrite, openAssign, openVehicleMenu, setHighlightedEvent, setHighlightedVehicle, showNotice } from '../lib/state.svelte';
@@ -336,6 +336,7 @@
     void app.vehicles;
     void app.positionRevision;
     void app.events;
+    void app.assignments;
     void app.highlightedEventId;
     void app.highlightedVehicleId;
     void visibleEvents;
@@ -1599,6 +1600,9 @@
     if (!canvas) return;
     const ctx = prepareContext(canvas);
     if (!ctx) return;
+    // Je Zeichenvorgang einmal zusammengezählt, damit der Ring nicht für
+    // jeden Einsatz erneut durch alle Zuordnungen läuft.
+    const unitsPerEvent = eventUnitProgress(app.assignments, app.vehicles);
     drawMarkerLayer(ctx, {
       events: visibleEvents,
       vehicles: visibleVehicles,
@@ -1609,6 +1613,7 @@
       eventMarkerKind: (ev) => (ev.created_by === 'frontend' ? 'control-room' : eventCategory(ev.name)),
       eventColor: (kind) => eventColor(kind as EventMarkerKind),
       eventIcon: (kind) => eventIconFor(kind as EventMarkerKind),
+      eventProgress: (ev) => unitsPerEvent.get(ev.id) ?? NO_UNITS,
       vehicleIcon: iconFor,
       statusColor,
       statusText: statusDisplay,
