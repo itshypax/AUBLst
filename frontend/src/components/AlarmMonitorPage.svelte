@@ -194,7 +194,7 @@
 
   onMount(() => {
     const previousTitle = document.title;
-    document.title = 'Alarmmonitor · EMDispatch';
+    document.title = 'Alarmmonitor · AUBLst';
     const timer = window.setInterval(() => (now = new Date()), 1000);
     return () => {
       clearInterval(timer);
