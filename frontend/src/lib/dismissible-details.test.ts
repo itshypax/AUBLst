@@ -49,13 +49,16 @@ describe('Schließbare Details', () => {
     destroy();
   });
 
-  it('schließt bei einem Fokuswechsel nach außen', () => {
+  it('schließt bei einem Fokuswechsel nach außen', async () => {
     const { details, outside, destroy } = createDetails();
     const input = details.querySelector('input')!;
     details.open = true;
     input.focus();
 
     outside.focus();
+    // Der Fokuswechsel schließt erst nach dem laufenden Renderlauf.
+    expect(details.open).toBe(true);
+    await Promise.resolve();
 
     expect(details.open).toBe(false);
     destroy();

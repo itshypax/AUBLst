@@ -15,7 +15,10 @@ export function dismissible(node: HTMLElement, initialOptions: DismissibleOption
 
   function onFocusOut(event: FocusEvent): void {
     if (event.relatedTarget instanceof Node && (node.contains(event.relatedTarget) || options.ignore?.(event.relatedTarget))) return;
-    options.onDismiss();
+    // Verschwindet der fokussierte Knoten während eines Svelte-Updates, feuert
+    // focusout mitten in dessen Renderlauf. Ein Zustandswechsel ist dort
+    // verboten (state_unsafe_mutation), deshalb erst danach schließen.
+    queueMicrotask(() => options.onDismiss());
   }
 
   function onKeydown(event: KeyboardEvent): void {

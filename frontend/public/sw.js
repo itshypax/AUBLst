@@ -16,9 +16,13 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.ok) {
+        // Nur vollständige Antworten. Audio- und Videodateien kommen als
+        // 206-Teilantwort auf einen Range-Request zurück, die der Cache nicht
+        // annimmt. Ein fehlgeschlagener Cache-Schreibvorgang ist egal, aber er
+        // soll nicht als unbehandelte Rejection in der Konsole landen.
+        if (response.status === 200) {
           const copy = response.clone();
-          void caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          void caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
         }
         return response;
       })
