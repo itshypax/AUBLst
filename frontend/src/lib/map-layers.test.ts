@@ -222,9 +222,26 @@ describe('Einheiten je Einsatz', () => {
     expect(progress.get(9)).toEqual({ assigned: 1, arrived: 0 });
   });
 
-  it('zählt ein Fahrzeug mit, das gar nicht mehr im Zustand steht', () => {
+  it('lässt versteckte Einheiten außen vor', () => {
+    const abschlepper = { ...vehicle(2, 3), game_vehicle_id: 'ASF' };
+    const streifenwagen = { ...vehicle(3, 3), game_vehicle_id: 'FuSTW' };
+
+    const progress = eventUnitProgress(
+      [
+        { event_id: 7, vehicle_id: 1 },
+        { event_id: 7, vehicle_id: 2 },
+        { event_id: 7, vehicle_id: 3 },
+      ],
+      [vehicle(1, 4), abschlepper, streifenwagen],
+    );
+
+    // Abschlepper und Polizei melden nie Status 4, der Ring käme sonst nie zu
+    expect(progress.get(7)).toEqual({ assigned: 1, arrived: 1 });
+  });
+
+  it('lässt ein Fahrzeug aus, das gar nicht mehr im Zustand steht', () => {
     const progress = eventUnitProgress([{ event_id: 7, vehicle_id: 99 }], [vehicle(1, 4)]);
 
-    expect(progress.get(7)).toEqual({ assigned: 1, arrived: 0 });
+    expect(progress.get(7)).toBeUndefined();
   });
 });

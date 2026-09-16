@@ -1,3 +1,4 @@
+import { isHiddenUnit } from './classify';
 import { worldToCanvas, type MapView } from './mapview';
 import type { EventItem, MapBounds, Vehicle } from './types';
 
@@ -73,17 +74,23 @@ export interface EventUnitProgress {
 export const NO_UNITS: EventUnitProgress = { assigned: 0, arrived: 0 };
 
 // Zählt je Einsatz die zugeordneten und die bereits angekommenen Fahrzeuge.
+// Versteckte Einheiten (Abschlepper, Polizei, Bestatter) bleiben außen vor:
+// sie haben keine Position im Spiel und melden nie Status 4, der Ring käme
+// mit ihnen nie zu.
 export function eventUnitProgress(
   assignments: ReadonlyArray<{ event_id: number; vehicle_id: number }>,
-  vehicles: ReadonlyArray<Pick<Vehicle, 'id' | 'status'>>,
+  vehicles: ReadonlyArray<Pick<Vehicle, 'id' | 'status' | 'game_vehicle_id'>>,
 ): Map<number, EventUnitProgress> {
-  const status = new Map(vehicles.map((vehicle) => [vehicle.id, Number(vehicle.status)]));
+  const counted = new Map(
+    vehicles.filter((vehicle) => !isHiddenUnit(vehicle)).map((vehicle) => [vehicle.id, Number(vehicle.status)]),
+  );
   const progress = new Map<number, EventUnitProgress>();
   for (const assignment of assignments) {
+    const current = counted.get(assignment.vehicle_id);
+    if (current === undefined) continue;
     const entry = progress.get(assignment.event_id) ?? { assigned: 0, arrived: 0 };
     entry.assigned += 1;
-    const current = status.get(assignment.vehicle_id);
-    if (current !== undefined && ARRIVED_STATUS.has(current)) entry.arrived += 1;
+    if (ARRIVED_STATUS.has(current)) entry.arrived += 1;
     progress.set(assignment.event_id, entry);
   }
   return progress;
