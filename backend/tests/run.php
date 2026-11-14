@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/database.php';
 require_once __DIR__ . '/../src/domain.php';
 require_once __DIR__ . '/../src/http.php';
+require_once __DIR__ . '/../src/adapter_api.php';
 require_once __DIR__ . '/../src/migrations.php';
 require_once __DIR__ . '/../src/repository.php';
 require_once __DIR__ . '/../src/actions/mods.php';
@@ -563,6 +564,26 @@ test_case('Leer-Marke für Befehle verfällt mit jedem neuen Befehl, auch nach d
     command_cache_mark_empty($token, $sid, command_cache_revision($sid));
     command_cache_forget_token($token);
     expect_same(null, command_cache_known_empty($token), 'Ein neu vergebener Code erbt keine Marke');
+});
+
+test_case('Adapter-API v1 löst Pfade auf und liest den Sitzungscode nur aus dem Header', static function (): void {
+    expect_same(['sync', true], adapter_route('POST', '/v1/session/sync/'));
+    expect_same(['session_create', false], adapter_route('post', 'v1/sessions'));
+    expect_same([405, 'Methode nicht erlaubt'], adapter_route('GET', '/v1/session/sync'));
+    expect_same(404, adapter_route('POST', '/v1/session/../sync')[0]);
+    expect_same('ab12', bearer_token('Bearer AB12'));
+    expect_same(null, bearer_token('Basic ab12'));
+    expect_same(null, bearer_token('Bearer ab12 x'));
+});
+
+test_case('Adapter-API v1: Routentabelle und adapter-api.yaml stimmen überein', static function (): void {
+    $yaml = (string)file_get_contents(__DIR__ . '/../adapter-api.yaml');
+    preg_match_all('/^  (\/v1\/\S+):\R    (get|post):/m', $yaml, $m, PREG_SET_ORDER);
+    $documented = array_map(static fn(array $r): string => strtoupper($r[2]) . ' ' . $r[1], $m);
+    sort($documented);
+    $routes = array_keys(ADAPTER_ROUTES);
+    sort($routes);
+    expect_same($routes, $documented);
 });
 
 $failed = 0;

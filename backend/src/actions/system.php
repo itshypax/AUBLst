@@ -4,6 +4,7 @@ declare(strict_types=1);
 function action_capabilities(PDO $pdo): void {
     respond_json(200, [
         'api_version' => 1,
+        'adapter_api' => ADAPTER_API_VERSION,
         'realtime' => ENABLE_REALTIME_STREAM ? 'sse' : 'polling',
         'revision_cache' => revision_cache_available(),
         'anonymous_metrics' => ENABLE_ANONYMOUS_METRICS,

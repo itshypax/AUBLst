@@ -45,16 +45,29 @@ function respond_json(int $code, $data): void {
     exit;
 }
 
+// Die Adapter-API v1 bringt den Sitzungscode im Header mit. adapter.php legt ihn
+// hier ab, und get_json_input() reicht ihn an die Actions weiter, als stünde er im Body.
+function request_session_token(?string $token = null): ?string {
+    static $stored = null;
+    if ($token !== null) $stored = $token;
+    return $stored;
+}
+
 function get_json_input(): array {
     static $cached = null;
     if ($cached !== null) return $cached;
     $raw = file_get_contents('php://input');
-    if (trim($raw) === '') return $cached = [];
-    $data = json_decode($raw, true);
-    if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
-        respond_json(400, ['error' => 'Invalid JSON']);
+    $data = [];
+    if (trim($raw) !== '') {
+        $data = json_decode($raw, true);
+        if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+            respond_json(400, ['error' => 'Invalid JSON']);
+        }
+        if (!is_array($data)) $data = [];
     }
-    return $cached = ($data ?: []);
+    $token = request_session_token();
+    if ($token !== null) $data['session_token'] = $token;
+    return $cached = $data;
 }
 
 function request_value(string $key, $default = null) {

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/src/http.php';
+require_once __DIR__ . '/src/adapter_api.php';
 require_once __DIR__ . '/src/database.php';
 require_once __DIR__ . '/src/domain.php';
 require_once __DIR__ . '/src/session.php';

@@ -1,0 +1,139 @@
+openapi: 3.1.0
+info:
+  title: AUBLst Adapter-API
+  version: "1"
+  description: |
+    Schnittstelle zwischen AUBLstAdapter und Leitstelle. Jede Route läuft auf
+    dieselbe Action wie `api.php?action=…`, dort bleiben Adapter vor 1.5.
+    Ob ein Server diese API kennt, sagt `api.php?action=capabilities` mit
+    `adapter_api: 1`. Der Sitzungscode steht im Header, nie in URL oder Body.
+servers:
+  - url: /backend/adapter.php
+security:
+  - session: []
+components:
+  securitySchemes:
+    session:
+      type: http
+      scheme: bearer
+      description: Sitzungscode aus `POST /v1/sessions`
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+  responses:
+    Error:
+      description: Fehler mit Text für das Log
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+paths:
+  /v1/sessions:
+    post:
+      summary: Sitzung anlegen
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mod_id: { type: string }
+                pin: { type: string }
+                map_bounds:
+                  type: object
+                  properties:
+                    min_x: { type: number }
+                    min_y: { type: number }
+                    max_x: { type: number }
+                    max_y: { type: number }
+      responses:
+        "200":
+          description: Neue Sitzung
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  session_id: { type: integer }
+                  session_token: { type: string }
+                  mod_id: { type: string }
+                  map_bounds: { type: object }
+        "400": { $ref: "#/components/responses/Error" }
+  /v1/session/sync:
+    post:
+      summary: Spielstand melden
+      description: |
+        Kartengrenzen, Spieler, Fahrzeuge, Krankenhäuser, Einsätze, Meldungen
+        und Uhrzeit, Felder wie bei `api.php?action=sync`.
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: Übernommen }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /v1/session/commands:
+    get:
+      summary: Offene Befehle abholen
+      parameters:
+        - name: last_id
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Befehle und wann wieder gefragt werden soll
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commands: { type: array, items: { type: object } }
+                  poll_ms: { type: integer, enum: [1000, 5000] }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /v1/session/commands/ack:
+    post:
+      summary: Befehle quittieren
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [command_ids]
+              properties:
+                command_ids: { type: array, items: { type: integer } }
+      responses:
+        "200": { description: Quittiert }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /v1/session/log:
+    post:
+      summary: Fenster-Log und Zustand des Adapters
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entries:
+                  type: array
+                  maxItems: 50
+                  items:
+                    type: object
+                    properties:
+                      time: { type: string }
+                      level: { type: string, enum: [info, good, warn, bad] }
+                      text: { type: string, maxLength: 500 }
+                status:
+                  type: object
+                  properties:
+                    game: { type: boolean }
+                    round: { type: boolean }
+                    version: { type: string, maxLength: 20 }
+      responses:
+        "200": { description: Gespeichert }
+        "401": { $ref: "#/components/responses/Error" }

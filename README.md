@@ -203,6 +203,22 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
   Mod in einer Runde ist. Die Leitstelle zeigt das in der Kopfzeile und meldet
   den Adapter nach 15 Sekunden ohne Aufruf als offline.
 
+Ab Adapter 1.5 gibt es dieselben Aufrufe auch als Adapter-API v1 unter
+`backend/adapter.php/v1/…`, beschrieben in `backend/adapter-api.yaml`
+(OpenAPI). Der Sitzungscode steht dort im Header
+`Authorization: Bearer <Code>` und damit in keinem Zugriffslog:
+
+| Route | entspricht |
+| --- | --- |
+| `POST /v1/sessions` | `session_create` (ohne Header) |
+| `POST /v1/session/sync` | `sync` |
+| `GET /v1/session/commands?last_id=0` | `commands_pending` |
+| `POST /v1/session/commands/ack` | `commands_ack` |
+| `POST /v1/session/log` | `adapter_log` |
+
+`capabilities` meldet die API mit `adapter_api: 1`. Fehlt das Feld, bleibt der
+Adapter bei den `?action=`-Aufrufen oben, die weiter unverändert gelten.
+
 ## API (Leitstelle → Server)
 
 - `POST api.php?action=capabilities` – API-Version und optionale Funktionen
