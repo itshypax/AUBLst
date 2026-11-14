@@ -10,6 +10,7 @@ require_once __DIR__ . '/../src/actions/mods.php';
 require_once __DIR__ . '/../src/actions/state.php';
 require_once __DIR__ . '/../src/actions/layouts.php';
 require_once __DIR__ . '/../src/actions/system.php';
+require_once __DIR__ . '/../src/actions/session_log.php';
 
 $tests = [];
 
@@ -39,6 +40,36 @@ test_case('Betreiberansicht fasst Messwerte je Tag zusammen', static function ()
     expect_same(2.5, $days[0]['metrics']['active_events']['average']);
     expect_same(3, $days[0]['metrics']['events_created']['count']);
     expect_same(0.0, $days[1]['metrics']['state_load_ms']['average'], 'Ohne Stichproben bleibt der Mittelwert 0');
+});
+
+test_case('Sitzungs-Log wird nach 24 Stunden gelöscht', static function (): void {
+    $pdo = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $pdo->exec('CREATE TABLE session_log (id INTEGER PRIMARY KEY, session_id INT, created_at TEXT, level TEXT, text TEXT)');
+    $now = new DateTimeImmutable('2026-11-14 12:00:00', app_time_zone());
+    $insert = $pdo->prepare("INSERT INTO session_log (session_id, created_at, level, text) VALUES (1, ?, 'info', ?)");
+    foreach (['-25 hours' => 'alt', '-24 hours -1 second' => 'knapp alt', '-23 hours' => 'frisch', '-1 minute' => 'neu'] as $age => $text) {
+        $insert->execute([$now->modify($age)->format('Y-m-d H:i:s'), $text]);
+    }
+    expect_same(2, delete_expired_session_log($pdo, $now));
+    expect_same(['frisch', 'neu'], $pdo->query('SELECT text FROM session_log ORDER BY id')->fetchAll(PDO::FETCH_COLUMN));
+});
+
+test_case('Adapter-Log nimmt nur gültige Einträge und begrenzt Text und Zeit', static function (): void {
+    $now = new DateTimeImmutable('2026-11-14 12:00:00', app_time_zone());
+    $rows = normalize_adapter_log_entries([
+        ['time' => '2026-11-14T11:59:30+01:00', 'level' => 'bad', 'text' => "Server  antwortet\nnicht"],
+        ['time' => '2026-11-14T13:00:00+01:00', 'level' => 'info', 'text' => 'Zukunft'],
+        ['time' => 'Quatsch', 'level' => 'warn', 'text' => str_repeat('ä', 600)],
+        ['level' => 'debug', 'text' => 'falsches Level'],
+        ['level' => 'info', 'text' => '   '],
+        ['level' => 'info', 'text' => ['kein Text']],
+        'kein Eintrag',
+    ], $now);
+    expect_same(3, count($rows));
+    expect_same(['created_at' => '2026-11-14 11:59:30', 'level' => 'bad', 'text' => 'Server antwortet nicht'], $rows[0]);
+    expect_same('2026-11-14 12:00:00', $rows[1]['created_at'], 'Zeiten in der Zukunft werden zur Empfangszeit');
+    expect_same('2026-11-14 12:00:00', $rows[2]['created_at']);
+    expect_same(SESSION_LOG_MAX_TEXT, mb_strlen($rows[2]['text']));
 });
 
 test_case('Alarmierung akzeptiert nur verfügbare Status', static function (): void {

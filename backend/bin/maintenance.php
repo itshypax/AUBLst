@@ -18,7 +18,7 @@ if (!in_array($command, ['migrate', 'cleanup'], true)) {
 $pdo = pdo_conn($command === 'migrate');
 if ($command === 'cleanup') {
     $result = cleanup_expired_data($pdo);
-    fwrite(STDOUT, "Entfernte Sitzungen: {$result['sessions']}\n");
+    fwrite(STDOUT, "Entfernte Sitzungen: {$result['sessions']}, Log-Einträge: {$result['session_log']}\n");
 } else {
     fwrite(STDOUT, "Datenbankschema ist aktuell.\n");
 }

@@ -2,14 +2,20 @@
   import { onMount } from 'svelte';
   import {
     fetchMetricsSummary,
+    fetchSessionLog,
     formatDay,
+    formatLogTime,
     formatMetric,
+    groupSessionLog,
     loadOperatorKey,
+    LOG_LEVEL_LABELS,
     metricSeries,
     OperatorKeyError,
     saveOperatorKey,
+    type LogLevel,
     type MetricName,
     type MetricsSummary,
+    type SessionLogEntry,
   } from '../lib/operator';
 
   let key = $state(loadOperatorKey());
@@ -17,6 +23,10 @@
   let summary = $state<MetricsSummary | null>(null);
   let error = $state('');
   let loading = $state(false);
+  let log = $state<{ entries: SessionLogEntry[]; limit: number } | null>(null);
+  let logError = $state('');
+  let level = $state<LogLevel | ''>('');
+  const groups = $derived(log ? groupSessionLog(log.entries, level) : []);
 
   async function load(): Promise<void> {
     if (!key) return;
@@ -25,12 +35,20 @@
     try {
       summary = await fetchMetricsSummary(key);
       saveOperatorKey(key);
+      // Erst nach geprüftem Schlüssel, sonst zählt ein Tippfehler doppelt als Fehlversuch.
+      try {
+        log = await fetchSessionLog(key);
+        logError = '';
+      } catch (cause) {
+        logError = (cause as Error).message;
+      }
     } catch (cause) {
       error = (cause as Error).message;
       if (cause instanceof OperatorKeyError) {
         key = '';
         saveOperatorKey('');
         summary = null;
+        log = null;
       }
     } finally {
       loading = false;
@@ -48,6 +66,7 @@
     key = '';
     saveOperatorKey('');
     summary = null;
+    log = null;
   }
 
   onMount(() => {
@@ -144,6 +163,51 @@
         </tbody>
       </table>
     {/if}
+  {/if}
+
+  {#if logError}<p class="error">Adapter-Log: {logError}</p>{/if}
+  {#if log}
+    <section class="log">
+      <div class="log-head">
+        <h2>Adapter-Log der letzten 24 Stunden</h2>
+        <label>
+          <span>Level</span>
+          <select bind:value={level}>
+            <option value="">Alle</option>
+            {#each Object.entries(LOG_LEVEL_LABELS) as [value, label] (value)}
+              <option {value}>{label}</option>
+            {/each}
+          </select>
+        </label>
+      </div>
+      {#if !groups.length}
+        <p class="hint">{level ? 'Keine Einträge mit diesem Level.' : 'In den letzten 24 Stunden hat kein Adapter etwas gemeldet.'}</p>
+      {/if}
+      {#each groups as group (group.sessionId)}
+        <details>
+          <summary>
+            <strong>Sitzung {group.sessionId}</strong>
+            <span class="hint">
+              {formatLogTime(group.entries[0].created_at)} bis {formatLogTime(group.entries[group.entries.length - 1].created_at)},
+              {group.entries.length}
+              {group.entries.length === 1 ? 'Eintrag' : 'Einträge'}{#if group.problems}, {group.problems} mit Warnung oder Fehler{/if}
+            </span>
+          </summary>
+          <ol>
+            {#each group.entries as entry (entry.id)}
+              <li class={entry.level}>
+                <time>{formatLogTime(entry.created_at)}</time>
+                <span class="level">{LOG_LEVEL_LABELS[entry.level] ?? entry.level}</span>
+                <span class="text">{entry.text}</span>
+              </li>
+            {/each}
+          </ol>
+        </details>
+      {/each}
+      {#if log.limit && log.entries.length >= log.limit}
+        <p class="hint">Gezeigt werden nur die neuesten {log.limit} Einträge.</p>
+      {/if}
+    </section>
   {/if}
 </main>
 
@@ -257,7 +321,82 @@
   th:not(:first-child) {
     text-align: right;
   }
+  .log {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .log-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .log-head h2 {
+    margin: 0;
+  }
+  .log-head label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  details {
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+  }
+  summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  /* display: flex nimmt dem summary das Dreieck */
+  summary::before {
+    content: '▸';
+    color: var(--text-dim);
+  }
+  details[open] > summary::before {
+    content: '▾';
+  }
+  ol {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+  }
+  li {
+    display: grid;
+    grid-template-columns: max-content 64px 1fr;
+    gap: 10px;
+    padding: 3px 0;
+  }
+  li time {
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  li .text {
+    overflow-wrap: anywhere;
+  }
+  li.good .level {
+    color: var(--good-text);
+  }
+  li.warn .level {
+    color: var(--warn-text);
+  }
+  li.bad .level {
+    color: var(--danger-text);
+  }
   @media (max-width: 720px) {
+    li {
+      grid-template-columns: max-content 1fr;
+    }
+    li .text {
+      grid-column: 1 / -1;
+    }
     table {
       display: block;
       overflow-x: auto;

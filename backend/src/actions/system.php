@@ -36,7 +36,7 @@ function action_metrics_record(PDO $pdo): void {
 // Fehlversuche laufen über dieselbe Sperre wie falsche PINs.
 const METRICS_SUMMARY_DAYS = 30;
 
-function action_metrics_summary(PDO $pdo): void {
+function require_operator_key(PDO $pdo): void {
     if (OPERATOR_KEY === '') {
         respond_json(404, ['error' => 'Die Betreiberansicht ist nicht eingerichtet (OPERATOR_KEY fehlt).']);
     }
@@ -48,6 +48,10 @@ function action_metrics_summary(PDO $pdo): void {
         respond_json(403, ['error' => 'Der Betreiber-Schlüssel stimmt nicht.']);
     }
     clear_auth_failures($pdo, true, 'operator');
+}
+
+function action_metrics_summary(PDO $pdo): void {
+    require_operator_key($pdo);
 
     $stmt = $pdo->query('SELECT metric_day, metric_name, sample_count, value_sum, value_max
         FROM anonymous_metrics

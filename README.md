@@ -40,8 +40,8 @@ Vor dem ersten Start und nach Updates wird das Schema einmalig mit
 `php backend/bin/maintenance.php migrate` eingespielt. Im Docker-Image passiert
 das beim Containerstart. Normale API-Requests führen deshalb keine DDL-Abfragen
 mehr aus. `php backend/bin/maintenance.php cleanup` entfernt abgelaufene
-Sessions anhand von `last_activity_at`; Docker ruft den Befehl alle fünf Minuten
-auf.
+Sessions anhand von `last_activity_at` und Adapter-Log-Einträge, die älter als
+24 Stunden sind; Docker ruft den Befehl alle fünf Minuten auf.
 Wiederholte falsche Sitzungs- oder PIN-Eingaben werden vorübergehend gesperrt.
 
 ### Kartenbilder
@@ -180,6 +180,13 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
   (optional, siehe Kartenbilder)
 - `GET  api.php?action=commands_pending&session_token=…&last_id=0` – Befehle abholen
 - `POST api.php?action=commands_ack` – Befehle quittieren (`{command_ids:[…]}`)
+- `POST api.php?action=adapter_log`: Fenster-Log des Adapters
+  (`{entries:[{time, level, text}]}`, höchstens 50 Einträge je Aufruf, Text bis
+  500 Zeichen, Level `info`, `good`, `warn` oder `bad`, bis 2000 Einträge je
+  Sitzung). Der Adapter kürzt vorher Benutzerpfade zu `~` und ersetzt
+  IP-Adressen; PIN, Spielernamen und Zeilen aus der `logfile.txt` schickt er
+  nicht mit. Die Einträge bleiben 24 Stunden, auch wenn die Sitzung früher
+  verfällt.
 
 ## API (Leitstelle → Server)
 
@@ -196,6 +203,9 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
 - `POST api.php?action=status_history` – letzte 500 Fahrzeugstatusänderungen
 - `POST api.php?action=metrics_summary` – Tagesaggregate der letzten 30 Tage
   für die Betreiberansicht; braucht `operator_key` (siehe `OPERATOR_KEY`).
+- `POST api.php?action=session_log_list`: die neuesten 5000 Adapter-Log-Einträge
+  der letzten 24 Stunden für die Betreiberansicht, je Sitzung gruppiert und
+  nach Level filterbar; braucht ebenfalls `operator_key`.
 - `POST api.php?action=layouts_get` / `layouts_put` / `layouts_delete`
   – geteilte Arbeitsansichten, unabhängig von Sitzungen. Jedes Layout hat
   einen sechsstelligen Code; `layouts_put` ohne Code legt ein neues an, mit Code

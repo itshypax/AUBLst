@@ -302,6 +302,18 @@ function migration_definitions(): array {
                 $pdo->exec('ALTER TABLE vehicles ADD COLUMN alarm_from_status INT NULL AFTER unavailable_override');
             }
         },
+        // Kein Fremdschlüssel: Sitzungen verfallen nach SESSION_TTL_SECONDS, ihr Log bleibt 24 Stunden.
+        '2026111401_session_log' => static function (PDO $pdo): void {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS session_log (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                session_id INT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                level ENUM('info','good','warn','bad') NOT NULL,
+                text VARCHAR(500) NOT NULL,
+                INDEX idx_session_log_session (session_id, created_at),
+                INDEX idx_session_log_created (created_at)
+            ) ENGINE=InnoDB");
+        },
     ];
 }
 

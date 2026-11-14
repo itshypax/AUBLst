@@ -76,5 +76,15 @@ function cleanup_expired_data(PDO $pdo): array {
     $stmt->execute();
     $sessions = $stmt->rowCount();
     $pdo->exec("DELETE FROM auth_rate_limits WHERE updated_at < (NOW() - INTERVAL 1 DAY)");
-    return ['sessions' => $sessions];
+    return ['sessions' => $sessions, 'session_log' => delete_expired_session_log($pdo, new DateTimeImmutable('now', app_time_zone()))];
+}
+
+const SESSION_LOG_KEEP_SECONDS = 86400;
+
+// Grenze in PHP gerechnet statt per NOW(), damit der Test sie mit SQLite prüfen kann.
+function delete_expired_session_log(PDO $pdo, DateTimeImmutable $now): int {
+    $cutoff = $now->setTimezone(app_time_zone())->modify('-' . SESSION_LOG_KEEP_SECONDS . ' seconds');
+    $stmt = $pdo->prepare('DELETE FROM session_log WHERE created_at < ?');
+    $stmt->execute([$cutoff->format('Y-m-d H:i:s')]);
+    return $stmt->rowCount();
 }

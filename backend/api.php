@@ -17,6 +17,7 @@ require_once __DIR__ . '/src/actions/commands.php';
 require_once __DIR__ . '/src/actions/logs.php';
 require_once __DIR__ . '/src/actions/layouts.php';
 require_once __DIR__ . '/src/actions/system.php';
+require_once __DIR__ . '/src/actions/session_log.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     if (!current_cors_request_allowed()) {
@@ -69,6 +70,8 @@ const ACTIONS = [
     'vehicles_set_unavailable' => 'action_vehicles_set_unavailable',
     'commands_pending'       => 'action_commands_pending',
     'commands_ack'           => 'action_commands_ack',
+    'adapter_log'            => 'action_adapter_log',
+    'session_log_list'       => 'action_session_log_list',
     'logs'                   => 'action_logs',
     'log_acknowledge'        => 'action_log_acknowledge',
     'log_viewed'             => 'action_log_viewed',

@@ -70,4 +70,32 @@ describe('Betreiberansicht', () => {
     await screen.findByText(/keine Messwerte/);
     expect(sessionStorage.getItem(OPERATOR_KEY_STORAGE)).toBe('geheim');
   });
+
+  it('zeigt das Adapter-Log je Sitzung und filtert nach Level', async () => {
+    sessionStorage.setItem(OPERATOR_KEY_STORAGE, 'geheim');
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        url.includes('session_log_list')
+          ? jsonResponse(200, {
+              limit: 5000,
+              entries: [
+                { id: 2, session_id: 7, created_at: '2026-11-14 10:00:05', level: 'bad', text: 'Logdatei ~/Spiele/logfile.txt fehlt' },
+                { id: 1, session_id: 7, created_at: '2026-11-14 10:00:00', level: 'good', text: 'Code erhalten' },
+              ],
+            })
+          : jsonResponse(200, { enabled: true, days_back: 30, days: [] }),
+      ),
+    );
+    render(OperatorPage);
+
+    await screen.findByText('Sitzung 7');
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ operator_key: 'geheim' });
+    expect(document.querySelectorAll('li')).toHaveLength(2);
+    expect(screen.getByText(/1 mit Warnung oder Fehler/)).toBeTruthy();
+
+    await fireEvent.change(screen.getByLabelText('Level'), { target: { value: 'bad' } });
+    expect([...document.querySelectorAll('li .text')].map((cell) => cell.textContent)).toEqual(['Logdatei ~/Spiele/logfile.txt fehlt']);
+    await fireEvent.change(screen.getByLabelText('Level'), { target: { value: 'warn' } });
+    expect(screen.getByText('Keine Einträge mit diesem Level.')).toBeTruthy();
+  });
 });

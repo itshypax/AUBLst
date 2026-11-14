@@ -1,7 +1,7 @@
 import { app } from './state.svelte';
 
-// Betreiberansicht: Tagesaggregate aus anonymous_metrics, geschützt über
-// OPERATOR_KEY. Der Schlüssel bleibt im sessionStorage des Tabs.
+// Betreiberansicht: Tagesaggregate aus anonymous_metrics und das Adapter-Log,
+// geschützt über OPERATOR_KEY. Der Schlüssel bleibt im sessionStorage des Tabs.
 
 export const OPERATOR_KEY_STORAGE = 'operatorKey';
 
@@ -67,6 +67,60 @@ export async function fetchMetricsSummary(key: string): Promise<MetricsSummary> 
     daysBack: Number(data?.days_back ?? 30),
     days: Array.isArray(data?.days) ? data.days : [],
   };
+}
+
+// Adapter-Log der letzten 24 Stunden aus session_log, gleicher Schlüssel.
+export const LOG_LEVEL_LABELS = { info: 'Info', good: 'OK', warn: 'Warnung', bad: 'Fehler' } as const;
+
+export type LogLevel = keyof typeof LOG_LEVEL_LABELS;
+
+export interface SessionLogEntry {
+  id: number;
+  session_id: number;
+  created_at: string;
+  level: LogLevel;
+  text: string;
+}
+
+export interface SessionLogGroup {
+  sessionId: number;
+  entries: SessionLogEntry[];
+  problems: number;
+}
+
+export async function fetchSessionLog(key: string): Promise<{ entries: SessionLogEntry[]; limit: number }> {
+  const res = await fetch(`${app.apiBase}?action=session_log_list`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ operator_key: key }),
+    cache: 'no-store',
+  });
+  const data = (await res.json().catch(() => null)) as { error?: string; entries?: SessionLogEntry[]; limit?: number } | null;
+  if (!res.ok) {
+    const message = data?.error ?? `Serverfehler ${res.status}`;
+    throw res.status === 403 ? new OperatorKeyError(message) : new Error(message);
+  }
+  return { entries: Array.isArray(data?.entries) ? data.entries : [], limit: Number(data?.limit ?? 0) };
+}
+
+// Neueste Sitzung zuerst, Einträge darin in zeitlicher Folge. Sitzungen ohne
+// Treffer für das gewählte Level fallen weg.
+export function groupSessionLog(entries: SessionLogEntry[], level: LogLevel | ''): SessionLogGroup[] {
+  const groups = new Map<number, SessionLogGroup>();
+  for (const entry of [...entries].sort((a, b) => a.id - b.id)) {
+    if (level && entry.level !== level) continue;
+    let group = groups.get(entry.session_id);
+    if (!group) groups.set(entry.session_id, (group = { sessionId: entry.session_id, entries: [], problems: 0 }));
+    group.entries.push(entry);
+    if (entry.level === 'warn' || entry.level === 'bad') group.problems++;
+  }
+  return [...groups.values()].sort((a, b) => b.entries[b.entries.length - 1].id - a.entries[a.entries.length - 1].id);
+}
+
+// 2026-11-14 09:05:03 -> 14.11. 09:05:03
+export function formatLogTime(value: string): string {
+  const match = /^\d{4}-(\d{2})-(\d{2})[ T](\d{2}:\d{2}:\d{2})/.exec(value);
+  return match ? `${match[2]}.${match[1]}. ${match[3]}` : value;
 }
 
 // Werte in Tagesreihenfolge (alt nach neu) für die Balken; fehlende Tage zählen 0.
