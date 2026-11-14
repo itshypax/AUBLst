@@ -22,9 +22,10 @@ if (!defined('DB_CHARSET')) define('DB_CHARSET', 'utf8mb4');
 // kommasepariert angegeben, z. B. https://lst.example.de,https://test.example.de.
 if (!defined('CORS_ALLOW_ORIGIN')) define('CORS_ALLOW_ORIGIN', getenv('CORS_ALLOW_ORIGIN') ?: '');
 if (!defined('REQUIRE_SESSION_PIN')) define('REQUIRE_SESSION_PIN', env_flag('REQUIRE_SESSION_PIN'));
-if (!defined('AUTH_MAX_FAILURES')) define('AUTH_MAX_FAILURES', max(3, (int)(getenv('AUTH_MAX_FAILURES') ?: 12)));
+// Bremst nur gehäufte Fehlversuche bei PIN oder Betreiberschlüssel: 30 in fünf Minuten, dann fünf Minuten Pause.
+if (!defined('AUTH_MAX_FAILURES')) define('AUTH_MAX_FAILURES', max(3, (int)(getenv('AUTH_MAX_FAILURES') ?: 30)));
 if (!defined('AUTH_WINDOW_SECONDS')) define('AUTH_WINDOW_SECONDS', max(60, (int)(getenv('AUTH_WINDOW_SECONDS') ?: 300)));
-if (!defined('AUTH_BLOCK_SECONDS')) define('AUTH_BLOCK_SECONDS', max(60, (int)(getenv('AUTH_BLOCK_SECONDS') ?: 900)));
+if (!defined('AUTH_BLOCK_SECONDS')) define('AUTH_BLOCK_SECONDS', max(60, (int)(getenv('AUTH_BLOCK_SECONDS') ?: 300)));
 if (!defined('ENABLE_ANONYMOUS_METRICS')) define('ENABLE_ANONYMOUS_METRICS', env_flag('ENABLE_ANONYMOUS_METRICS', true));
 // Schlüssel für die Betreiberansicht der Tagesaggregate (?view=betreiber). Leer: Ansicht aus.
 if (!defined('OPERATOR_KEY')) define('OPERATOR_KEY', trim((string)(getenv('OPERATOR_KEY') ?: '')));
