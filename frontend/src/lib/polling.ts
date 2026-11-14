@@ -5,6 +5,8 @@ import { soundCuesForLogs } from './sound-events';
 import { app, clearCurrentEvent, persistSettings, plain, resetSessionData, STALE_AFTER_MS } from './state.svelte';
 import { getSoundAlertConfig, playPhone, playSoundCue, playSoundCues } from './sounds';
 import type {
+  AdapterStatus,
+  AdapterView,
   LogRow,
   MapBounds,
   MapContentRect,
@@ -578,14 +580,16 @@ export async function pollLogs(): Promise<void> {
   // Sekunde geändert worden sein, nachdem der Cursor schon daran vorbeigelaufen ist.
   let pageCursor = { timestamp: logCursor.timestamp, id: 0 };
   let nextCursor = logCursor;
+  let adapter: AdapterStatus | null = null;
   try {
     for (let page = 0; page < 5; page += 1) {
-      const data = await apiGet<{ logs: LogRow[] }>(
+      const data = await apiGet<{ logs: LogRow[]; adapter?: AdapterStatus | null }>(
         'logs',
         { since: pageCursor.timestamp, since_id: pageCursor.id },
         { signal: controller.signal },
       );
       if (requestGeneration !== generation) return;
+      adapter = data.adapter ?? null;
       const rows = data.logs ?? [];
       if (!rows.length) break;
       const applicableRows = applyDismissedLogState(rows);
@@ -607,6 +611,7 @@ export async function pollLogs(): Promise<void> {
     app.logsHealthy = true;
     const receivedAt = Date.now();
     app.lastSuccessfulLogPoll = receivedAt;
+    app.adapter = adapterView(adapter, receivedAt);
     app.logError = '';
     logFailures = 0;
     if (logsInitialized && incomingIds.length) {
@@ -617,7 +622,7 @@ export async function pollLogs(): Promise<void> {
       app.lastLogBatch = [];
     }
     logsInitialized = true;
-    broadcastPollingLogs(broadcastRows, logCursor, receivedAt);
+    broadcastPollingLogs(broadcastRows, logCursor, receivedAt, app.adapter ? { ...app.adapter } : null);
   } catch (error) {
     if (controller.signal.aborted || requestGeneration !== generation) return;
     logFailures += 1;
@@ -627,6 +632,11 @@ export async function pollLogs(): Promise<void> {
   } finally {
     if (logController === controller) logController = null;
   }
+}
+
+export function adapterView(status: AdapterStatus | null, receivedAt: number): AdapterView | null {
+  if (!status) return null;
+  return { game: status.game, round: status.round, version: status.version, seenAt: receivedAt - status.age * 1000 };
 }
 
 export async function refreshStatusHistory(): Promise<void> {
@@ -713,11 +723,12 @@ export function startPolling(): void {
     onState: (state, receivedAt) => {
       void applyState(state, false, receivedAt);
     },
-    onLogs: (rows, cursor, receivedAt) => {
+    onLogs: (rows, cursor, receivedAt, adapter) => {
       app.logs = mergeLogRows(app.logs, applyDismissedLogState(rows), MAX_LOG_ROWS);
       logCursor = cursor;
       app.logsHealthy = true;
       app.lastSuccessfulLogPoll = receivedAt;
+      app.adapter = adapter;
       app.logError = '';
       logsInitialized = true;
     },
@@ -756,6 +767,7 @@ export function pollingSnapshot(): PollingSnapshot {
     logsHealthy: app.logsHealthy,
     lastSuccessfulSync: app.lastSuccessfulSync,
     lastSuccessfulLogPoll: app.lastSuccessfulLogPoll,
+    adapter: app.adapter ? { ...app.adapter } : null,
     lastError: app.lastError,
     logError: app.logError,
   };
@@ -771,6 +783,7 @@ async function applyPollingSnapshot(snapshot: PollingSnapshot): Promise<void> {
   app.connected = snapshot.stateHealthy;
   app.lastSuccessfulSync = snapshot.lastSuccessfulSync;
   app.lastSuccessfulLogPoll = snapshot.lastSuccessfulLogPoll;
+  app.adapter = snapshot.adapter ?? null;
   app.lastError = snapshot.lastError;
   app.logError = snapshot.logError;
   logsInitialized = snapshot.logs.length > 0;

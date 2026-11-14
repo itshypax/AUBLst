@@ -8,6 +8,7 @@
   import { app, persistSoundSettings, setColorMode, showNotice } from '../lib/state.svelte';
   import { decodeEntities } from '../lib/text';
   import { userFacingError } from '../lib/user-facing-error';
+  import { adapterIndicator } from '../lib/adapter-status';
   import type { LogRow } from '../lib/types';
   import { desktopNotificationsAvailable, setDesktopNotifications } from '../lib/notifications';
   import { api } from '../lib/api';
@@ -160,6 +161,8 @@
     const age = app.lastSuccessfulSync ? Math.max(0, Math.floor((nowMs - app.lastSuccessfulSync) / 1000)) : 0;
     return { kind: age > 10 ? 'warn' : 'ok', text: age > 10 ? `Datenstand vor ${age} s` : 'Verbunden', title: '' };
   });
+
+  const game = $derived(app.sessionToken ? adapterIndicator(app.adapter, nowMs) : null);
 </script>
 
 <header class="topbar">
@@ -181,6 +184,13 @@
       <span class="game-state {gameStateKind(row)}">{decodeEntities(row.long_message)}</span>
     {/each}
   </div>
+
+  {#if game}
+    <div class="connection {game.kind}" data-tooltip={game.title} aria-live="polite">
+      <FaIcon icon={Play} size={14} />
+      <span>{game.text}</span>
+    </div>
+  {/if}
 
   <div class="connection {connection.kind}" data-tooltip={connection.title} aria-live="polite">
     {#if connection.kind === 'ok'}<FaIcon icon={Wifi} size={14} />{:else}<FaIcon icon={WifiOff} size={14} />{/if}

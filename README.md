@@ -198,7 +198,10 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
   Sitzung). Der Adapter kürzt vorher Benutzerpfade zu `~` und ersetzt
   IP-Adressen; PIN, Spielernamen und Zeilen aus der `logfile.txt` schickt er
   nicht mit. Die Einträge bleiben 24 Stunden, auch wenn die Sitzung früher
-  verfällt.
+  verfällt. Ab Adapter 1.5 kommt alle fünf Sekunden ein Aufruf, auch ohne
+  Einträge, mit `status: {game, round, version}`: ob `Em4.exe` läuft und die
+  Mod in einer Runde ist. Die Leitstelle zeigt das in der Kopfzeile und meldet
+  den Adapter nach 15 Sekunden ohne Aufruf als offline.
 
 ## API (Leitstelle → Server)
 
@@ -227,7 +230,9 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
   einen sechsstelligen Code; `layouts_put` ohne Code legt ein neues an, mit Code
   überschreibt es. Wer den Code hat, darf laden, überschreiben und löschen;
   eine Liste gibt es nicht.
-- `POST api.php?action=logs` – Funkmeldungen; Cursor über `since` und `since_id`
+- `POST api.php?action=logs` – Funkmeldungen; Cursor über `since` und `since_id`.
+  Dazu `adapter`: der zuletzt gemeldete Adapter-Zustand mit `age` in Sekunden,
+  oder `null` bei Adaptern vor 1.5
 - `POST api.php?action=events_create` / `events_finish` / `events_assign` /
   `events_unassign` – Einsätze anlegen, abschließen, Fahrzeuge (de)alarmieren
 - `POST api.php?action=events_get_vehicles` / `events_get_note` /

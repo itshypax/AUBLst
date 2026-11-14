@@ -140,6 +140,22 @@ export interface ClockTime {
   time_minutes: number;
 }
 
+/** Was der Adapter zuletzt gemeldet hat. `age` rechnet der Server in Sekunden. */
+export interface AdapterStatus {
+  game: boolean;
+  round: boolean;
+  version: string;
+  age: number;
+}
+
+/** Wie die Leitstelle ihn hält: mit dem Zeitpunkt der Meldung in Browser-Zeit. */
+export interface AdapterView {
+  game: boolean;
+  round: boolean;
+  version: string;
+  seenAt: number;
+}
+
 export interface LogRow {
   id: number;
   type: 'global' | 'event' | 'vehicle';

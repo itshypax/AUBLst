@@ -1,4 +1,5 @@
 import type {
+  AdapterView,
   Assignment,
   ClockTime,
   EventItem,
@@ -38,6 +39,8 @@ export const app = $state({
   logsHealthy: false,
   lastSuccessfulSync: null as number | null,
   lastSuccessfulLogPoll: null as number | null,
+  // Null, solange der Adapter nichts meldet (vor Version 1.5 tut er das nie).
+  adapter: null as AdapterView | null,
   sessionChanging: false,
   lastError: '',
   logError: '',
@@ -249,6 +252,7 @@ export function resetSessionData(): void {
   app.logsHealthy = false;
   app.lastSuccessfulSync = null;
   app.lastSuccessfulLogPoll = null;
+  app.adapter = null;
   app.lastError = '';
   app.logError = '';
   app.players = [];

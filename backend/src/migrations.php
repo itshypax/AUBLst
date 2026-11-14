@@ -314,6 +314,13 @@ function migration_definitions(): array {
                 INDEX idx_session_log_created (created_at)
             ) ENGINE=InnoDB");
         },
+        '2026111402_adapter_status' => static function (PDO $pdo): void {
+            if (!database_column_exists($pdo, 'sessions', 'adapter_status')) {
+                $pdo->exec('ALTER TABLE sessions
+                    ADD COLUMN adapter_status VARCHAR(255) NULL,
+                    ADD COLUMN adapter_seen_at TIMESTAMP NULL DEFAULT NULL');
+            }
+        },
     ];
 }
 

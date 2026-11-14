@@ -110,6 +110,21 @@ test_case('Adapter-Log nimmt nur gültige Einträge und begrenzt Text und Zeit',
     expect_same(SESSION_LOG_MAX_TEXT, mb_strlen($rows[2]['text']));
 });
 
+test_case('Adapter-Zustand nimmt nur Wahrheitswerte und meldet sein Alter', static function (): void {
+    expect_same(null, normalize_adapter_status(null));
+    expect_same(null, normalize_adapter_status(['game' => 1, 'round' => false]));
+    expect_same(['game' => true, 'round' => false, 'version' => ''], normalize_adapter_status(['game' => true, 'round' => false]));
+    expect_same(20, mb_strlen(normalize_adapter_status(['game' => true, 'round' => true, 'version' => str_repeat('1', 50)])['version']));
+
+    $now = new DateTimeImmutable('2026-11-14 12:00:30', app_time_zone());
+    expect_same(null, adapter_status_view(['adapter_status' => null, 'adapter_seen_at' => null], $now), 'Ältere Adapter melden nichts');
+    $view = adapter_status_view([
+        'adapter_status' => '{"game":true,"round":false,"version":"1.5.0"}',
+        'adapter_seen_at' => '2026-11-14 12:00:00',
+    ], $now);
+    expect_same(['game' => true, 'round' => false, 'version' => '1.5.0', 'age' => 30], $view);
+});
+
 test_case('Alarmierung akzeptiert nur verfügbare Status', static function (): void {
     expect_true(vehicle_available_for_alarm(['game_vehicle_id' => '1_HLF_1', 'type' => 'HLF', 'status' => 1]));
     expect_true(vehicle_available_for_alarm(['game_vehicle_id' => '1_HLF_1', 'type' => 'HLF', 'status' => 2]));

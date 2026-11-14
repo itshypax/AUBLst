@@ -1,5 +1,5 @@
 import type { LogCursor } from './log-stream';
-import type { LogRow, StateResponse, VehiclePosition, VehicleStatusChange } from './types';
+import type { AdapterView, LogRow, StateResponse, VehiclePosition, VehicleStatusChange } from './types';
 
 const CHANNEL_NAME = 'aublst-polling-sync:v1';
 const HEARTBEAT_INTERVAL_MS = 2_000;
@@ -14,6 +14,7 @@ export interface PollingSnapshot {
   logsHealthy: boolean;
   lastSuccessfulSync: number | null;
   lastSuccessfulLogPoll: number | null;
+  adapter: AdapterView | null;
   lastError: string;
   logError: string;
 }
@@ -21,7 +22,7 @@ export interface PollingSnapshot {
 interface PollingHandlers {
   onLeaderChange: (leader: boolean) => void;
   onState: (state: StateResponse, receivedAt: number) => void;
-  onLogs: (rows: LogRow[], cursor: LogCursor, receivedAt: number) => void;
+  onLogs: (rows: LogRow[], cursor: LogCursor, receivedAt: number, adapter: AdapterView | null) => void;
   onStatusHistory: (rows: VehicleStatusChange[]) => void;
   onPositions: (positions: VehiclePosition[], revision: number) => void;
   onLogAcknowledged: (id: number, updatedAt: string) => void;
@@ -36,7 +37,15 @@ type PollingMessage =
   | { type: 'snapshot-request'; sender: string; scope: string }
   | { type: 'snapshot'; sender: string; scope: string; target: string; snapshot: PollingSnapshot }
   | { type: 'state'; sender: string; scope: string; state: StateResponse; receivedAt: number }
-  | { type: 'logs'; sender: string; scope: string; rows: LogRow[]; cursor: LogCursor; receivedAt: number }
+  | {
+      type: 'logs';
+      sender: string;
+      scope: string;
+      rows: LogRow[];
+      cursor: LogCursor;
+      receivedAt: number;
+      adapter: AdapterView | null;
+    }
   | { type: 'status-history'; sender: string; scope: string; rows: VehicleStatusChange[] }
   | { type: 'positions'; sender: string; scope: string; positions: VehiclePosition[]; revision: number }
   | { type: 'log-acknowledged'; sender: string; scope: string; id: number; updatedAt: string }
@@ -118,7 +127,7 @@ function onMessage(event: MessageEvent<PollingMessage>): void {
   } else if (message.type === 'state') {
     handlers?.onState(message.state, message.receivedAt);
   } else if (message.type === 'logs') {
-    handlers?.onLogs(message.rows, message.cursor, message.receivedAt);
+    handlers?.onLogs(message.rows, message.cursor, message.receivedAt, message.adapter ?? null);
   } else if (message.type === 'status-history') {
     handlers?.onStatusHistory(message.rows);
   } else if (message.type === 'positions') {
@@ -185,9 +194,15 @@ export function broadcastPollingState(state: StateResponse, receivedAt: number):
   post({ type: 'state', sender: windowId, scope, state, receivedAt });
 }
 
-export function broadcastPollingLogs(rows: LogRow[], cursor: LogCursor, receivedAt: number): void {
-  if (!channel || !scope || !leader || !rows.length) return;
-  post({ type: 'logs', sender: windowId, scope, rows, cursor, receivedAt });
+// Geht auch ohne neue Zeilen raus: Der Adapter-Zustand ändert sich unabhängig vom Funk.
+export function broadcastPollingLogs(
+  rows: LogRow[],
+  cursor: LogCursor,
+  receivedAt: number,
+  adapter: AdapterView | null,
+): void {
+  if (!channel || !scope || !leader) return;
+  post({ type: 'logs', sender: windowId, scope, rows, cursor, receivedAt, adapter });
 }
 
 export function broadcastPositions(positions: VehiclePosition[], revision: number): void {

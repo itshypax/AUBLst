@@ -21,7 +21,11 @@ function action_logs(PDO $pdo): void {
           AND (state = 'active' OR state = 'disabled')
         ORDER BY updated_at ASC, id ASC LIMIT 100");
     $stmt->execute([$sid, $since, $since, $sinceId]);
-    respond_json(200, ['logs' => $stmt->fetchAll()]);
+    respond_json(200, [
+        'logs' => $stmt->fetchAll(),
+        // Fährt beim Funk-Abruf mit, der ohnehin alle zwei Sekunden läuft.
+        'adapter' => adapter_status_view($session, new DateTimeImmutable('now', app_time_zone())),
+    ]);
 }
 
 function action_log_viewed(PDO $pdo): void {

@@ -18,6 +18,13 @@ function action_adapter_log(PDO $pdo): void {
     }
     $rows = normalize_adapter_log_entries($entries, new DateTimeImmutable('now', app_time_zone()));
 
+    // Ab Adapter 1.5 kommt bei jeder Lieferung mit, ob Spiel und Runde laufen.
+    $status = normalize_adapter_status($data['status'] ?? null);
+    if ($status !== null) {
+        $stmt = $pdo->prepare('UPDATE sessions SET adapter_status = ?, adapter_seen_at = CURRENT_TIMESTAMP WHERE id = ?');
+        $stmt->execute([json_encode($status), (int)$session['id']]);
+    }
+
     $count = $pdo->prepare('SELECT COUNT(*) FROM session_log WHERE session_id = ?');
     $count->execute([(int)$session['id']]);
     $room = max(0, SESSION_LOG_MAX_PER_SESSION - (int)$count->fetchColumn());
@@ -57,6 +64,26 @@ function normalize_adapter_log_entries(array $entries, DateTimeImmutable $now): 
         ];
     }
     return $rows;
+}
+
+function normalize_adapter_status(mixed $status): ?array {
+    if (!is_array($status) || !is_bool($status['game'] ?? null) || !is_bool($status['round'] ?? null)) return null;
+    $version = $status['version'] ?? null;
+    return [
+        'game' => $status['game'],
+        'round' => $status['round'],
+        'version' => is_string($version) ? mb_substr($version, 0, 20) : '',
+    ];
+}
+
+// Für die Leitstelle: der letzte gemeldete Zustand und wie alt er ist. Das Alter
+// rechnet der Server, damit eine falsch gehende Uhr im Browser nichts verfälscht.
+function adapter_status_view(array $session, DateTimeImmutable $now): ?array {
+    $status = json_decode((string)($session['adapter_status'] ?? ''), true);
+    $seen = $session['adapter_seen_at'] ?? null;
+    if (!is_array($status) || !is_string($seen)) return null;
+    $status['age'] = max(0, $now->getTimestamp() - (new DateTimeImmutable($seen, app_time_zone()))->getTimestamp());
+    return $status;
 }
 
 function action_session_log_list(PDO $pdo): void {
