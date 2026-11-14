@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { formatDay, formatLogTime, formatMetric, groupSessionLog, metricSeries, type MetricsDay, type SessionLogEntry } from './operator';
+import {
+  formatBytes,
+  formatDay,
+  formatLogTime,
+  formatMetric,
+  groupSessionLog,
+  metricSeries,
+  sessionIsStale,
+  type AdminSession,
+  type MetricsDay,
+  type SessionLogEntry,
+} from './admin';
 
 const days: MetricsDay[] = [
   { day: '2026-09-05', metrics: { active_events: { count: 4, sum: 10, average: 2.5, max: 5 } } },
@@ -39,5 +50,31 @@ describe('Betreiber-Kennzahlen', () => {
     expect(all.map((group) => group.problems)).toEqual([1, 1]);
     expect(groupSessionLog(entries, 'warn').map((group) => group.sessionId)).toEqual([1]);
     expect(formatLogTime('2026-11-14 09:05:03')).toBe('14.11. 09:05:03');
+  });
+});
+
+describe('Zentrale', () => {
+  const session: AdminSession = {
+    id: 3,
+    token: 'ABC123',
+    mod_id: 'AUBMP',
+    has_pin: true,
+    created_at: '2026-11-14 09:00:00',
+    last_activity_at: '2026-11-14 10:00:00',
+    players: 2,
+    vehicles: 14,
+    open_events: 1,
+  };
+  const now = Date.parse('2026-11-14T10:00:00');
+
+  it('hält eine Sitzung erst nach Ablauf der Lebensdauer für still', () => {
+    expect(sessionIsStale(session, 3600, now + 3599_000)).toBe(false);
+    expect(sessionIsStale(session, 3600, now + 3601_000)).toBe(true);
+  });
+
+  it('nennt Bildgrößen in kB und MB', () => {
+    expect(formatBytes(0)).toBe('–');
+    expect(formatBytes(2048)).toBe('2 kB');
+    expect(formatBytes(3 * 1024 * 1024)).toBe('3.0 MB');
   });
 });

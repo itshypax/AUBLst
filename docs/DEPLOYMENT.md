@@ -92,10 +92,10 @@ FROM anonymous_metrics
 ORDER BY metric_day DESC, metric_name;
 ```
 
-Dieselben Zahlen zeigt die Betreiberansicht unter `/?view=betreiber` als
-Tabelle je Tag mit kleinen Balken. Sie ist nur erreichbar, wenn
-`OPERATOR_KEY` gesetzt ist; die Seite fragt den Schlüssel einmal ab und merkt
-ihn für den Tab. Falsche Eingaben zählen wie falsche PINs in die Sperre.
+Dieselben Zahlen zeigt die Zentrale unter `/admin/` im Bereich Messwerte als
+Tabelle je Tag mit kleinen Balken. Die Zentrale ist nur erreichbar, wenn
+`OPERATOR_KEY` gesetzt ist; sie fragt den Schlüssel einmal ab und merkt ihn
+für den Tab. Falsche Eingaben zählen wie falsche PINs in die Sperre.
 
 Mit `ENABLE_ANONYMOUS_METRICS=false` lässt sich die Sammlung vollständig
 abschalten. Vorhandene Zeilen werden dabei nicht automatisch gelöscht.

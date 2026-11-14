@@ -27,7 +27,7 @@ if (!defined('AUTH_MAX_FAILURES')) define('AUTH_MAX_FAILURES', max(3, (int)(gete
 if (!defined('AUTH_WINDOW_SECONDS')) define('AUTH_WINDOW_SECONDS', max(60, (int)(getenv('AUTH_WINDOW_SECONDS') ?: 300)));
 if (!defined('AUTH_BLOCK_SECONDS')) define('AUTH_BLOCK_SECONDS', max(60, (int)(getenv('AUTH_BLOCK_SECONDS') ?: 300)));
 if (!defined('ENABLE_ANONYMOUS_METRICS')) define('ENABLE_ANONYMOUS_METRICS', env_flag('ENABLE_ANONYMOUS_METRICS', true));
-// Schlüssel für die Betreiberansicht der Tagesaggregate (?view=betreiber). Leer: Ansicht aus.
+// Schlüssel für die Zentrale unter /admin/. Leer: Zentrale aus.
 if (!defined('OPERATOR_KEY')) define('OPERATOR_KEY', trim((string)(getenv('OPERATOR_KEY') ?: '')));
 if (!defined('ENABLE_REALTIME_STREAM')) define('ENABLE_REALTIME_STREAM', env_flag('ENABLE_REALTIME_STREAM', true));
 if (!defined('STATE_CACHE_SECONDS')) define('STATE_CACHE_SECONDS', max(0, (int)(getenv('STATE_CACHE_SECONDS') ?: 5)));

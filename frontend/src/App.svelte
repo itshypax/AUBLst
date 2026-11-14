@@ -48,11 +48,9 @@
     location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '::1';
   const routingEditorRequested = import.meta.env.DEV && localHostname && pageParams.get('routing_editor') === '1';
   const monitorRequested = pageParams.get('view') === 'monitor' || pageParams.get('monitor') === '1';
-  const operatorRequested = pageParams.get('view') === 'betreiber';
   const routingEditorModId = pageParams.get('mod_id')?.trim() ?? '';
   let RoutingEditorComponent = $state<null | (typeof import('./components/RoutingEditorPage.svelte'))['default']>(null);
   let AlarmMonitorComponent = $state<null | (typeof import('./components/AlarmMonitorPage.svelte'))['default']>(null);
-  let OperatorComponent = $state<null | (typeof import('./components/OperatorPage.svelte'))['default']>(null);
   let ActionsComponent = $state<null | (typeof import('./components/ActionsModal.svelte'))['default']>(null);
   let HospitalAssignmentComponent = $state<
     null | (typeof import('./components/HospitalAssignmentModal.svelte'))['default']
@@ -66,13 +64,10 @@
     void import('./components/RoutingEditorPage.svelte').then((module) => (RoutingEditorComponent = module.default));
   } else if (monitorRequested) {
     void import('./components/AlarmMonitorPage.svelte').then((module) => (AlarmMonitorComponent = module.default));
-  } else if (operatorRequested) {
-    void import('./components/OperatorPage.svelte').then((module) => (OperatorComponent = module.default));
   }
 
-  // Die Betreiberansicht braucht nur die Einstellungen (api_base), keine Sitzung.
   if (!routingEditorRequested) initSettings();
-  if (!routingEditorRequested && !operatorRequested) {
+  if (!routingEditorRequested) {
     void loadGroupOverrides();
     void loadSoundManifest().then(() => {
       configureSounds(app.soundEnabled, app.soundVolume, app.soundProfile);
@@ -111,7 +106,7 @@
     }
   });
 
-  const stopUiSync = monitorRequested || operatorRequested
+  const stopUiSync = monitorRequested
     ? () => undefined
     : startUiSync({
         onOpenEvent: (eventId, hostedHere) => openEventFromSync(eventId, hostedHere),
@@ -127,7 +122,7 @@
   onDestroy(stopUiSync);
 
   $effect(() => {
-    if (monitorRequested || operatorRequested) return;
+    if (monitorRequested) return;
     updateUiSyncPresence(
       uiSyncScope(app.apiBase, app.sessionToken),
       activeWorkspace.id,
@@ -188,7 +183,7 @@
   // Geteilter Link (?layout=CODE): sobald eine Sitzung steht, das Layout vom
   // Server als eigene Kopie mit neuem Code übernehmen. Ohne Schreibrecht
   // bleibt es eine lokale Kopie ohne Code.
-  const sharedLayoutCode = monitorRequested || routingEditorRequested || operatorRequested ? null : sharedLayoutCodeFromUrl();
+  const sharedLayoutCode = monitorRequested || routingEditorRequested ? null : sharedLayoutCodeFromUrl();
   let sharedLayoutApplied = false;
   $effect(() => {
     if (!sharedLayoutCode || sharedLayoutApplied || !app.stateHealthy) return;
@@ -214,8 +209,6 @@
   {#if RoutingEditorComponent}<RoutingEditorComponent modId={routingEditorModId} />{/if}
 {:else if monitorRequested}
   {#if AlarmMonitorComponent}<AlarmMonitorComponent />{/if}
-{:else if operatorRequested}
-  {#if OperatorComponent}<OperatorComponent />{/if}
 {:else}
   <Topbar
     onResetLayout={resetLayout}

@@ -1,17 +1,41 @@
 <?php
 declare(strict_types=1);
 
-function action_mods_put(PDO $pdo): void {
-    $data = get_json_input();
-    $mod_id = $data['mod_id'] ?? null;
-    $image_b64 = $data['image_base64'] ?? null;
-    $mime = $data['mime_type'] ?? 'image/jpeg';
-    $name = $data['name'] ?? null;
-    if (!$mod_id || !$image_b64) respond_json(400, ['error' => 'mod_id and image_base64 required']);
+const MOD_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MOD_IMAGE_MAX_BYTES = 16 * 1024 * 1024;
 
-    $image_b64 = preg_replace('#^data:[^;]+;base64,#', '', $image_b64);
+// Legt eine Mod an oder ändert Name und Kartenbild. Ohne image_base64 bleibt
+// ein vorhandenes Bild stehen, damit sich der Name allein ändern lässt.
+function action_mods_put(PDO $pdo): void {
+    require_operator_key($pdo);
+    $data = get_json_input();
+    $mod_id = trim((string)($data['mod_id'] ?? ''));
+    if (!preg_match('/^[A-Za-z0-9_.-]{1,255}$/', $mod_id)) {
+        respond_json(400, ['error' => 'Die Mod-Kennung darf nur Buchstaben, Ziffern, Punkt, Strich und Unterstrich enthalten.']);
+    }
+    $name = isset($data['name']) ? mb_substr(trim((string)$data['name']), 0, 255) : null;
+    if ($name === '') $name = null;
+
+    $image_b64 = $data['image_base64'] ?? null;
+    if ($image_b64 === null || $image_b64 === '') {
+        $stmt = $pdo->prepare('INSERT INTO mods (mod_id, name) VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE name = VALUES(name), updated_at = CURRENT_TIMESTAMP');
+        $stmt->execute([$mod_id, $name]);
+        respond_json(200, ['ok' => true, 'mod_id' => $mod_id]);
+    }
+
+    // Der Mime-Typ geht beim Abruf als Content-Type wieder raus, deshalb nur
+    // die drei Bildformate, die auch die Karte anzeigen kann.
+    $mime = (string)($data['mime_type'] ?? 'image/jpeg');
+    if (!in_array($mime, MOD_IMAGE_MIME_TYPES, true)) {
+        respond_json(400, ['error' => 'Erlaubt sind JPEG, PNG und WebP.']);
+    }
+    $image_b64 = preg_replace('#^data:[^;]+;base64,#', '', (string)$image_b64);
     $bin = base64_decode($image_b64, true);
-    if ($bin === false) respond_json(400, ['error' => 'Invalid base64 for image']);
+    if ($bin === false || $bin === '') respond_json(400, ['error' => 'Das Kartenbild ließ sich nicht lesen.']);
+    if (strlen($bin) > MOD_IMAGE_MAX_BYTES) {
+        respond_json(400, ['error' => 'Das Kartenbild ist größer als ' . (MOD_IMAGE_MAX_BYTES / 1024 / 1024) . ' MB.']);
+    }
 
     $stmt = $pdo->prepare('INSERT INTO mods (mod_id, name, map_image, mime_type)
         VALUES (?, ?, ?, ?)

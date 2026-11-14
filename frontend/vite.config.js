@@ -174,6 +174,14 @@ const appCommitDate = process.env.VITE_APP_COMMIT_DATE?.trim() || gitValue(['log
 
 export default defineConfig({
   base: './',
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(dirname(fileURLToPath(import.meta.url)), 'index.html'),
+        admin: resolve(dirname(fileURLToPath(import.meta.url)), 'admin/index.html'),
+      },
+    },
+  },
   plugins: [routingEditorPlugin(), svelte()],
   define: {
     'import.meta.env.VITE_APP_COMMIT': JSON.stringify(appCommit),

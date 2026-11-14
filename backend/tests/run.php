@@ -11,6 +11,7 @@ require_once __DIR__ . '/../src/actions/state.php';
 require_once __DIR__ . '/../src/actions/layouts.php';
 require_once __DIR__ . '/../src/actions/system.php';
 require_once __DIR__ . '/../src/actions/session_log.php';
+require_once __DIR__ . '/../src/actions/admin.php';
 
 $tests = [];
 
@@ -40,6 +41,43 @@ test_case('Betreiberansicht fasst Messwerte je Tag zusammen', static function ()
     expect_same(2.5, $days[0]['metrics']['active_events']['average']);
     expect_same(3, $days[0]['metrics']['events_created']['count']);
     expect_same(0.0, $days[1]['metrics']['state_load_ms']['average'], 'Ohne Stichproben bleibt der Mittelwert 0');
+});
+
+test_case('Mod-Übersicht nennt die Datei vor der Datenbank', static function (): void {
+    $row = [
+        'mod_id' => 'AUBMP',
+        'name' => 'Auenburg',
+        'mime_type' => 'image/png',
+        'meters_per_world_unit' => 0.1,
+        'updated_at' => '2026-11-14 10:00:00',
+        'image_bytes' => 2048,
+        'routing_graph' => json_encode(['nodes' => [['id' => 'a']], 'edges' => []]),
+        'sessions' => 3,
+    ];
+
+    $only_database = admin_mod_row($row, null, null);
+    expect_same('database', $only_database['map_source']);
+    expect_same('image/png', $only_database['map_mime_type']);
+    expect_same('database', $only_database['routing_source']);
+    expect_same(1, $only_database['routing_nodes']);
+
+    $routing_file = tempnam(sys_get_temp_dir(), 'routing');
+    file_put_contents($routing_file, json_encode(['nodes' => [['id' => 'a'], ['id' => 'b']], 'edges' => [['id' => 'e']], 'bma_zones' => []]));
+    try {
+        $with_files = admin_mod_row($row, ['file' => '/maps/AUBMP_2.webp', 'content_rect' => null], $routing_file);
+    } finally {
+        unlink($routing_file);
+    }
+    expect_same('file', $with_files['map_source']);
+    expect_same('AUBMP_2.webp', $with_files['map_file']);
+    expect_same('file', $with_files['routing_source']);
+    expect_same(2, $with_files['routing_nodes'], 'Die Datei sticht den Graphen aus der Datenbank');
+    expect_same(1, $with_files['routing_edges']);
+
+    $empty = admin_mod_row(['mod_id' => 'leer', 'name' => null, 'image_bytes' => 0, 'routing_graph' => null], null, null);
+    expect_same('none', $empty['map_source']);
+    expect_same('none', $empty['routing_source']);
+    expect_same(null, $empty['map_mime_type']);
 });
 
 test_case('Sitzungs-Log wird nach 24 Stunden gelöscht', static function (): void {

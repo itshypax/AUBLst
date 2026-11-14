@@ -47,8 +47,8 @@ Wiederholte falsche Sitzungs- oder PIN-Eingaben werden vorübergehend gesperrt.
 ### Kartenbilder
 
 Kartenbild als `backend/maps/<mod_id>.jpg` (oder `.png`/`.webp`) ablegen,
-fertig. Der Upload per `mods_put` (Base64 in die Datenbank) funktioniert
-weiterhin, Dateien haben aber Vorrang.
+fertig. Alternativ lädt die Zentrale das Bild in die Datenbank; Dateien haben
+aber Vorrang.
 
 ### Fahrzeuggrafiken
 
@@ -145,6 +145,16 @@ Original bleibt unberührt. Eine Liste aller Layouts gibt es nicht. Ältere
 Ansichten mit vier festen Bereichen werden beim ersten Laden ins Raster
 umgerechnet.
 
+### Zentrale
+
+Unter `/admin/` liegt die Zentrale für den Betreiber: Mods (Name und
+Kartenbild setzen, Herkunft von Karte und Straßennetz sehen), laufende
+Sitzungen mit Spieler-, Fahrzeug- und Einsatzzahlen zum Beenden, die
+Tagesaggregate und das Adapter-Log der letzten 24 Stunden. Sie fragt einmal
+den `OPERATOR_KEY` ab und merkt ihn für den Tab; ohne gesetzten Schlüssel
+antwortet der Server mit 404. Das Straßennetz zeichnet weiterhin der
+Routing-Editor, der nur lokal läuft.
+
 ### Fahrzeug-Gruppierung
 
 Die Fahrzeugübersicht trennt Feuerwehr und Rettungsdienst per Tab und
@@ -176,8 +186,6 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
 - `POST api.php?action=update_vehicles` – Fahrzeugstatus/-position melden
 - `POST api.php?action=update_hospitals` – Bettenbelegung melden
 - `POST api.php?action=update_events` – Einsätze anlegen/aktualisieren
-- `POST api.php?action=mods_put` – Kartenbild für eine Mod hochladen
-  (optional, siehe Kartenbilder)
 - `GET  api.php?action=commands_pending&session_token=…&last_id=0` – Befehle abholen.
   Die Antwort enthält `poll_ms`, wann der Adapter wieder fragen soll: 1000, solange
   eine Leitstelle die Sitzung offen hat (Stream oder `state` in den letzten
@@ -206,10 +214,14 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
   aber alle 15 Sekunden.
 - `POST api.php?action=status_history` – letzte 500 Fahrzeugstatusänderungen
 - `POST api.php?action=metrics_summary` – Tagesaggregate der letzten 30 Tage
-  für die Betreiberansicht; braucht `operator_key` (siehe `OPERATOR_KEY`).
+  für die Zentrale; braucht `operator_key` (siehe `OPERATOR_KEY`).
 - `POST api.php?action=session_log_list`: die neuesten 5000 Adapter-Log-Einträge
-  der letzten 24 Stunden für die Betreiberansicht, je Sitzung gruppiert und
-  nach Level filterbar; braucht ebenfalls `operator_key`.
+  der letzten 24 Stunden, je Sitzung gruppiert und nach Level filterbar;
+  braucht ebenfalls `operator_key`.
+- `POST api.php?action=admin_mods` / `mods_put` – Mods auflisten und Name oder
+  Kartenbild setzen; `mods_put` ohne `image_base64` ändert nur den Namen.
+- `POST api.php?action=admin_sessions` / `admin_session_delete` – laufende
+  Sitzungen mit Zählern, einzelne beenden. Alle vier brauchen `operator_key`.
 - `POST api.php?action=layouts_get` / `layouts_put` / `layouts_delete`
   – geteilte Arbeitsansichten, unabhängig von Sitzungen. Jedes Layout hat
   einen sechsstelligen Code; `layouts_put` ohne Code legt ein neues an, mit Code
