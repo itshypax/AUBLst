@@ -118,10 +118,10 @@ test_case('Monitor-Sitzungsdaten enthalten Kartengrenzen ohne interne Felder', s
         'map_image_version' => map_image_version_for_mod('AUBMP'),
         'monitor_show_hospital_capacity' => true,
         'map_content_rect' => [
-            'x' => 52.0,
-            'y' => 100.0,
-            'width' => 2048.0,
-            'height' => 2048.0,
+            'x' => 104.0,
+            'y' => 200.0,
+            'width' => 4096.0,
+            'height' => 4096.0,
         ],
         'map_bounds' => [
             'min_x' => -100.5,
@@ -136,7 +136,7 @@ test_case('AUBMP verwendet das neue Kartenbild mit separater Spielarea', static 
     $map = local_map_definition('AUBMP');
     expect_true($map !== null);
     expect_same('AUBMP_2.webp', basename((string)$map['file']));
-    expect_same(['x' => 52.0, 'y' => 100.0, 'width' => 2048.0, 'height' => 2048.0], $map['content_rect']);
+    expect_same(['x' => 104.0, 'y' => 200.0, 'width' => 4096.0, 'height' => 4096.0], $map['content_rect']);
 });
 
 test_case('Klinikkapazitäten verwenden Rot, Gelb und Grün mit den neuen Grenzen', static function (): void {
