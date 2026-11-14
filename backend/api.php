@@ -111,6 +111,9 @@ try {
     if ($action === 'map_asset') {
         action_map_asset();
     }
+    if ($action === 'commands_pending') {
+        commands_pending_from_cache();
+    }
     $pdo = pdo_conn();
     if (in_array($action, DISPATCHER_WRITE_ACTIONS, true)) {
         $request = get_json_input();

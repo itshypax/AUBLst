@@ -186,6 +186,7 @@ function action_events_assign(PDO $pdo): void {
     touch_session($pdo, $sid);
     $pdo->commit();
     revision_cache_refresh($pdo, $sid);
+    command_cache_bump($sid);
 
     respond_json(200, ['ok' => true]);
 }
@@ -446,6 +447,7 @@ function action_events_unassign(PDO $pdo): void {
     touch_session($pdo, $sid);
     $pdo->commit();
     revision_cache_refresh($pdo, $sid);
+    command_cache_bump($sid);
 
     respond_json(200, ['ok' => true]);
 }

@@ -486,6 +486,32 @@ test_case('Layout-Nutzdaten brauchen eine nicht leere Fensterliste in Größe', 
     expect_true(validate_layout_payload(['panels' => [['note' => str_repeat('x', 70000)]]]) !== null);
 });
 
+test_case('Adapter fragt schnell nur, solange eine Leitstelle offen ist', static function (): void {
+    expect_same(COMMAND_POLL_IDLE_MS, command_poll_interval(null, 1000));
+    expect_same(COMMAND_POLL_ACTIVE_MS, command_poll_interval(990, 1000));
+    expect_same(COMMAND_POLL_ACTIVE_MS, command_poll_interval(1000 - DISPATCHER_SEEN_SECONDS, 1000));
+    expect_same(COMMAND_POLL_IDLE_MS, command_poll_interval(999 - DISPATCHER_SEEN_SECONDS, 1000));
+});
+
+// Braucht APCu im CLI (php -d apc.enable_cli=1), sonst gibt es keinen Cache zu prüfen.
+test_case('Leer-Marke für Befehle verfällt mit jedem neuen Befehl, auch nach dem Commit', static function (): void {
+    if (!revision_cache_available() || !apcu_enabled()) return;
+    $sid = 990001;
+    $token = 'zz01';
+    apcu_delete(command_revision_key($sid));
+    command_cache_mark_empty($token, $sid, command_cache_revision($sid));
+    expect_same($sid, command_cache_known_empty($token), 'Leerer Abruf wird gemerkt');
+
+    command_cache_bump($sid); // Insert in einer Transaktion
+    command_cache_mark_empty($token, $sid, command_cache_revision($sid)); // Abruf vor dem Commit sieht nichts
+    command_cache_bump($sid); // nach dem Commit
+    expect_same(null, command_cache_known_empty($token), 'Nach dem Commit geht der Abruf wieder an die Datenbank');
+
+    command_cache_mark_empty($token, $sid, command_cache_revision($sid));
+    command_cache_forget_token($token);
+    expect_same(null, command_cache_known_empty($token), 'Ein neu vergebener Code erbt keine Marke');
+});
+
 $failed = 0;
 foreach ($tests as $name => $test) {
     try {

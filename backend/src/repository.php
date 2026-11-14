@@ -79,6 +79,80 @@ function revision_cache_refresh(PDO $pdo, $session_id): void {
     revision_cache_store($session_id, (int)$row['revision'], (int)($row['position_revision'] ?? 0));
 }
 
+// Der Adapter fragt jede Sekunde nach Befehlen, meist ohne Treffer. Solche leeren
+// Abrufe beantwortet api.php aus dem APCu: Jeder neue Befehl erhöht die
+// Befehlsrevision der Sitzung, und eine Leer-Marke gilt nur für die Revision, bei
+// der die Datenbank nichts Offenes hatte. Ohne APCu geht jeder Abruf an die Datenbank.
+const COMMAND_CACHE_TTL_SECONDS = 60;
+const COMMAND_POLL_ACTIVE_MS = 1000;
+const COMMAND_POLL_IDLE_MS = 5000;
+const DISPATCHER_SEEN_SECONDS = 30;
+
+function command_revision_key($session_id): string {
+    return 'aublst:cmdrev:' . (int)$session_id;
+}
+
+// Ein neuer Zähler beginnt zufällig, damit eine alte Leer-Marke nach einem
+// verdrängten Eintrag nicht zufällig wieder passt.
+function command_cache_revision($session_id): ?int {
+    if (!revision_cache_available()) return null;
+    $key = command_revision_key($session_id);
+    apcu_add($key, random_int(1, 1 << 40));
+    $success = false;
+    $value = apcu_fetch($key, $success);
+    return $success ? (int)$value : null;
+}
+
+// In einer Transaktion zusätzlich nach dem Commit aufrufen. Sonst merkt sich ein
+// Abruf zwischen Insert und Commit die neue Revision als leer, und der Befehl
+// bliebe bis zum Ablauf der Marke liegen.
+function command_cache_bump($session_id): void {
+    if (command_cache_revision($session_id) === null) return;
+    apcu_inc(command_revision_key($session_id));
+}
+
+function command_cache_mark_empty(string $token, $session_id, ?int $revision): void {
+    if ($revision === null) return;
+    apcu_store('aublst:cmdempty:' . $token, [(int)$session_id, $revision], COMMAND_CACHE_TTL_SECONDS);
+}
+
+// Die Sitzungs-ID, wenn seit der letzten leeren Datenbankabfrage kein Befehl dazukam.
+function command_cache_known_empty(string $token): ?int {
+    if (!revision_cache_available()) return null;
+    $success = false;
+    $marker = apcu_fetch('aublst:cmdempty:' . $token, $success);
+    if (!$success || !is_array($marker) || count($marker) !== 2) return null;
+    [$sid, $revision] = $marker;
+    $current = apcu_fetch(command_revision_key($sid), $success);
+    return $success && (int)$current === (int)$revision ? (int)$sid : null;
+}
+
+// Ein Code kann nach dem Löschen seiner Sitzung neu vergeben werden.
+function command_cache_forget_token(string $token): void {
+    if (revision_cache_available()) apcu_delete('aublst:cmdempty:' . $token);
+}
+
+function dispatcher_seen($session_id): void {
+    if (revision_cache_available()) {
+        apcu_store('aublst:seen:' . (int)$session_id, time(), DISPATCHER_SEEN_SECONDS * 2);
+    }
+}
+
+// Ohne offene Leitstelle schickt niemand Befehle, dann reicht der langsame Takt.
+// Ohne APCu weiß der Server das nicht und bleibt beim schnellen.
+function command_poll_ms($session_id): int {
+    if (!revision_cache_available()) return COMMAND_POLL_ACTIVE_MS;
+    $success = false;
+    $seen = apcu_fetch('aublst:seen:' . (int)$session_id, $success);
+    return command_poll_interval($success ? (int)$seen : null, time());
+}
+
+function command_poll_interval(?int $seen_at, int $now): int {
+    return $seen_at !== null && $now - $seen_at <= DISPATCHER_SEEN_SECONDS
+        ? COMMAND_POLL_ACTIVE_MS
+        : COMMAND_POLL_IDLE_MS;
+}
+
 function mark_session_activity(PDO $pdo, $session_id): void {
     $stmt = $pdo->prepare('UPDATE sessions SET last_activity_at = CURRENT_TIMESTAMP WHERE id = ?');
     $stmt->execute([$session_id]);
@@ -752,7 +826,9 @@ function em4_display_text(string $text): string {
 function insert_command(PDO $pdo, $session_id, string $type, array $payload): int {
     $stmt = $pdo->prepare('INSERT INTO commands (session_id, type, payload) VALUES (?, ?, ?)');
     $stmt->execute([$session_id, $type, json_encode($payload, JSON_UNESCAPED_UNICODE)]);
-    return (int)$pdo->lastInsertId();
+    $id = (int)$pdo->lastInsertId();
+    command_cache_bump($session_id);
+    return $id;
 }
 
 function insert_alarm_history(PDO $pdo, $session_id, int $command_id, array $event, array $vehicle, ?array $player, ?string $mode): void {

@@ -138,9 +138,14 @@ function action_stream(PDO $pdo): void {
     $pollInterval = revision_cache_available() ? STREAM_POLL_CACHED_US : STREAM_POLL_DATABASE_US;
     $nextHeartbeat = 0.0;
     $sendFrame("retry: 1500\n\n");
+    $nextSeen = 0.0;
 
     while (!connection_aborted() && microtime(true) < $deadline) {
         $now = microtime(true);
+        if ($now >= $nextSeen) {
+            dispatcher_seen($sid);
+            $nextSeen = $now + 10.0;
+        }
         $cached = $now < $nextDatabaseRead ? revision_cache_fetch($sid) : null;
         if ($cached !== null) {
             [$revision, $positionRevision] = $cached;

@@ -113,6 +113,7 @@ function create_session(PDO $pdo, ?string $mod_id, ?string $pin, ?array $bounds)
                 $stmt = $pdo->prepare('INSERT INTO sessions (token, mod_id, pin) VALUES (?, ?, ?)');
                 $stmt->execute([$token, $mod_id, $pin]);
             }
+            command_cache_forget_token($token);
             $stmt = $pdo->prepare('SELECT * FROM sessions WHERE token = ?');
             $stmt->execute([$token]);
             return $stmt->fetch();

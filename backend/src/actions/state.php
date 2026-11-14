@@ -175,6 +175,7 @@ function action_monitor_state(PDO $pdo): void {
 function action_state(PDO $pdo): void {
     $token = request_value('session_token');
     $session = require_session($pdo, $token);
+    dispatcher_seen($session['id']);
     state_not_modified($session);
     $sid = (int)$session['id'];
     $revision = (int)($session['revision'] ?? 0);

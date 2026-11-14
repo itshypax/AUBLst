@@ -178,7 +178,11 @@ Eigene Kürzel kommen in eine `groups.json` neben der `index.html`
 - `POST api.php?action=update_events` – Einsätze anlegen/aktualisieren
 - `POST api.php?action=mods_put` – Kartenbild für eine Mod hochladen
   (optional, siehe Kartenbilder)
-- `GET  api.php?action=commands_pending&session_token=…&last_id=0` – Befehle abholen
+- `GET  api.php?action=commands_pending&session_token=…&last_id=0` – Befehle abholen.
+  Die Antwort enthält `poll_ms`, wann der Adapter wieder fragen soll: 1000, solange
+  eine Leitstelle die Sitzung offen hat (Stream oder `state` in den letzten
+  30 Sekunden), sonst 5000. Leere Abrufe beantwortet der Server mit APCu ohne
+  Datenbank; ohne APCu gilt immer 1000 und jeder Abruf geht an die Datenbank.
 - `POST api.php?action=commands_ack` – Befehle quittieren (`{command_ids:[…]}`)
 - `POST api.php?action=adapter_log`: Fenster-Log des Adapters
   (`{entries:[{time, level, text}]}`, höchstens 50 Einträge je Aufruf, Text bis
