@@ -587,6 +587,15 @@ test_case('Adapter-API v1: Routentabelle und adapter-api.yaml stimmen überein',
 });
 
 $failed = 0;
+test_case('Alarmierung erbt den Spieler des Einsatzes', static function (): void {
+    expect_same(['player_id' => 7, 'adopt' => false], assign_player_choice(null, 7));
+    expect_same(['player_id' => 7, 'adopt' => false], assign_player_choice('', '7'));
+    expect_same(['player_id' => 3, 'adopt' => false], assign_player_choice(3, 7));
+    expect_same(['player_id' => 3, 'adopt' => true], assign_player_choice(3, null));
+    expect_same(['player_id' => null, 'adopt' => false], assign_player_choice(null, null));
+    expect_same(['player_id' => null, 'adopt' => false], assign_player_choice(0, 0));
+});
+
 foreach ($tests as $name => $test) {
     try {
         $test();

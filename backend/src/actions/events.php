@@ -85,7 +85,9 @@ function action_events_assign(PDO $pdo): void {
         respond_json(400, ['error' => 'Keine Fahrzeuge ausgewählt.']);
     }
     $vehicle_ids = array_values(array_unique(array_map('intval', $vehicle_ids)));
-    $player_id = $data['player_id'] ?? null;
+    $choice = assign_player_choice($data['player_id'] ?? null, $event['assigned_player_id'] ?? null);
+    $player_id = $choice['player_id'];
+    $adopt_player = $choice['adopt'];
     $game_player_id = null;
     $player = null;
     $modes = $data['modes'] ?? null;
@@ -168,6 +170,11 @@ function action_events_assign(PDO $pdo): void {
             $stmt = $pdo->prepare('UPDATE vehicles SET assigned_player_id = ? WHERE id = ? AND session_id = ?');
             $stmt->execute([$player_id, $vid, $sid]);
         }
+    }
+    if ($adopt_player && $player_id) {
+        $stmt = $pdo->prepare('UPDATE events SET assigned_player_id = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND session_id = ? AND assigned_player_id IS NULL');
+        $stmt->execute([$player_id, $event_id, $sid]);
     }
     $alarmNames = array_map(
         static fn(int $id): string => (string)($vehicles_by_id[$id]['name'] ?? $vehicles_by_id[$id]['game_vehicle_id'] ?? "Fahrzeug #$id"),
@@ -385,6 +392,48 @@ function action_events_set_leader(PDO $pdo): void {
     $pdo->commit();
     revision_cache_refresh($pdo, $sid);
     respond_json(200, ['ok' => true]);
+}
+
+// Der zuständige Spieler eines Einsatzes. Neu alarmierte Einheiten gehen an ihn,
+// solange die Alarmierung keinen eigenen Spieler nennt.
+function action_events_set_player(PDO $pdo): void {
+    $data = get_json_input();
+    $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
+    $sid = $session['id'];
+    $event_id = (int)($data['event_id'] ?? 0);
+    if (!$event_id) respond_json(400, ['error' => 'event_id wird benötigt.']);
+
+    $raw = $data['player_id'] ?? null;
+    $player_id = ($raw === null || $raw === '' || (int)$raw <= 0) ? null : (int)$raw;
+
+    $stmt = $pdo->prepare("SELECT id FROM events WHERE id = ? AND session_id = ? AND status = 'active'");
+    $stmt->execute([$event_id, $sid]);
+    if (!$stmt->fetchColumn()) respond_json(404, ['error' => 'Der Einsatz ist nicht mehr aktiv.']);
+
+    $player = null;
+    if ($player_id !== null) {
+        $stmt = $pdo->prepare('SELECT id, name, player_uid FROM players WHERE id = ? AND session_id = ?');
+        $stmt->execute([$player_id, $sid]);
+        $player = $stmt->fetch();
+        if (!$player) respond_json(404, ['error' => 'Der Spieler gehört nicht zu dieser Sitzung.']);
+    }
+
+    $stmt = $pdo->prepare('UPDATE events SET assigned_player_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND session_id = ?');
+    $stmt->execute([$player_id, $event_id, $sid]);
+
+    record_event_journal(
+        $pdo,
+        $sid,
+        $event_id,
+        'dispatcher',
+        'player_changed',
+        $player === null
+            ? 'Kein Spieler mehr zuständig'
+            : 'Zuständig: ' . (string)($player['name'] ?: $player['player_uid'])
+    );
+    touch_session($pdo, $sid);
+    respond_json(200, ['ok' => true, 'player_id' => $player_id]);
 }
 
 function action_events_unassign(PDO $pdo): void {

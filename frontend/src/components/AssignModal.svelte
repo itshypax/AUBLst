@@ -28,7 +28,7 @@
   let search = $state('');
   let sortByDistance = $state(true);
   let selected = $state<number[]>([]);
-  let playerId = $state('');
+  let playerId = $state(initialEvent.assigned_player_id ? String(initialEvent.assigned_player_id) : '');
   let assigned = $state<AssignedVehicle[] | null>(null);
   let eventLogs = $state<LogRow[]>([]);
   let feedbackRows = $state<EventFeedback[]>([]);

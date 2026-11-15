@@ -54,6 +54,7 @@
   let alarmTransitionVehicleIds = $state<Set<number>>(new Set());
   let alarmTransitionEventId = $state<number | null>(null);
   let errorMsg = $state('');
+  let playerBusy = $state(false);
 
   const QUICK_UNITS = [
     { label: 'POL', gameVehicleId: 'FUSTW', name: 'Streifenwagen' },
@@ -370,6 +371,22 @@
     }
   }
 
+  // Der zuständige Spieler gilt für alles, was ab jetzt alarmiert wird;
+  // bereits fahrende Fahrzeuge bleiben bei ihrem Spieler.
+  async function setEventPlayer(value: string): Promise<void> {
+    if (!currentEvent || playerBusy) return;
+    playerBusy = true;
+    errorMsg = '';
+    try {
+      await api('events_set_player', { event_id: currentEvent.id, player_id: value ? Number(value) : null });
+      await refreshState();
+    } catch (error) {
+      errorMsg = (error as Error).message;
+    } finally {
+      playerBusy = false;
+    }
+  }
+
   async function sendHome(vehicle: Vehicle): Promise<void> {
     if (returning.has(vehicle.id)) return;
     returning = new Set(returning).add(vehicle.id);
@@ -442,6 +459,20 @@
           class="leader-name">{medicalLeaderVehicle ? displayName(medicalLeaderVehicle) : 'nicht bestimmt'}</span
         ></span
       >
+      <label class="incident-player">
+        <span class="leader-label">Spieler</span>
+        <select
+          value={currentEvent?.assigned_player_id ? String(currentEvent.assigned_player_id) : ''}
+          disabled={!canWrite() || playerBusy}
+          title="Neu alarmierte Einheiten gehen an diesen Spieler"
+          onchange={(event) => void setEventPlayer(event.currentTarget.value)}
+        >
+          <option value="">niemand</option>
+          {#each app.players as player (player.id)}
+            <option value={String(player.id)}>{player.name || player.player_id || `Spieler #${player.id}`}</option>
+          {/each}
+        </select>
+      </label>
     </div>
 
     <div class="dispatch-toolbar">
@@ -747,6 +778,18 @@
     min-width: 0;
     align-items: center;
     gap: 5px;
+  }
+  .incident-player {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
+  }
+  .incident-player select {
+    max-width: 150px;
+    height: 22px;
+    padding: 0 4px;
+    font-size: 11px;
   }
   .leader-dot {
     width: 7px;

@@ -44,6 +44,8 @@ export interface EventItem {
   y: number;
   status: 'active' | 'completed' | 'canceled';
   created_by: 'game' | 'frontend';
+  // Spieler, der den Einsatz fährt; neue Einheiten gehen an ihn.
+  assigned_player_id?: number | null;
   created_at?: string;
   updated_at?: string;
 }

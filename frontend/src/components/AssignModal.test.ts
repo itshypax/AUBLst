@@ -53,6 +53,16 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Alarmierungsdialog', () => {
+  it('startet mit dem zuständigen Spieler des Einsatzes', async () => {
+    app.assignEvent = { ...app.assignEvent!, assigned_player_id: 1 };
+
+    render(AssignModal);
+
+    const select = await screen.findByLabelText<HTMLSelectElement>('Spieler');
+    expect(select.value).toBe('1');
+  });
+
+
   it('zeigt den Fahrzeugnamen ohne technische Kennung an', async () => {
     render(AssignModal);
 

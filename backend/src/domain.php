@@ -29,6 +29,16 @@ function vehicle_supports_multiple_assignments(array $vehicle): bool {
     return is_untracked_alarm_unit($vehicle);
 }
 
+// Wer eine Alarmierung im Spiel bekommt: die Wahl im Alarmdialog, sonst der
+// zuständige Spieler des Einsatzes. Ist noch keiner zuständig, wird es der
+// erste ausdrücklich gewählte ("adopt").
+function assign_player_choice($requested, $event_player): array {
+    $requested = (int)$requested > 0 ? (int)$requested : null;
+    $event_player = (int)$event_player > 0 ? (int)$event_player : null;
+    if ($requested === null) return ['player_id' => $event_player, 'adopt' => false];
+    return ['player_id' => $requested, 'adopt' => $event_player === null];
+}
+
 function is_hospital_transport_vehicle(array $vehicle): bool {
     $text = strtoupper(implode(' ', array_filter([
         $vehicle['game_vehicle_id'] ?? null,

@@ -125,11 +125,13 @@ CREATE TABLE IF NOT EXISTS events (
   y DOUBLE,
   status ENUM('active','completed','canceled') DEFAULT 'active',
   created_by ENUM('game','frontend') DEFAULT 'game',
+  assigned_player_id INT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uniq_event_game (session_id, game_event_id),
   INDEX idx_session_status (session_id, status),
-  CONSTRAINT fk_events_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+  CONSTRAINT fk_events_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_events_player FOREIGN KEY (assigned_player_id) REFERENCES players(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 ALTER TABLE events AUTO_INCREMENT = 1000;

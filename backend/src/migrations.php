@@ -321,6 +321,16 @@ function migration_definitions(): array {
                     ADD COLUMN adapter_seen_at TIMESTAMP NULL DEFAULT NULL');
             }
         },
+        // Zuständiger Spieler je Einsatz: neue Einheiten gehen an ihn, bis
+        // der Disponent wechselt.
+        '2026111501_event_player' => static function (PDO $pdo): void {
+            if (!database_column_exists($pdo, 'events', 'assigned_player_id')) {
+                $pdo->exec('ALTER TABLE events
+                    ADD COLUMN assigned_player_id INT NULL,
+                    ADD CONSTRAINT fk_events_player FOREIGN KEY (assigned_player_id)
+                        REFERENCES players(id) ON DELETE SET NULL');
+            }
+        },
     ];
 }
 

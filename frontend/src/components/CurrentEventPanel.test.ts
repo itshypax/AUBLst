@@ -57,6 +57,28 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Aktueller Einsatz', () => {
+  it('setzt den zuständigen Spieler und zeigt den gesetzten an', async () => {
+    app.players = [
+      { id: 2, player_id: 'uid-2', name: 'Lena' },
+      { id: 3, player_id: 'uid-3', name: 'Tim' },
+    ];
+    const event = { ...app.assignEvent!, assigned_player_id: 3 };
+    app.events = [event];
+    app.assignEvent = event;
+
+    const { container } = render(CurrentEventPanel);
+
+    const select = container.querySelector<HTMLSelectElement>('.incident-player select')!;
+    expect(select.value).toBe('3');
+
+    await fireEvent.change(select, { target: { value: '2' } });
+
+    await waitFor(() =>
+      expect(mocks.api).toHaveBeenCalledWith('events_set_player', { event_id: 1030, player_id: 2 }),
+    );
+  });
+
+
   it('zeigt Position und Zeit gemeinsam links vom Alarmieren-Button', () => {
     const timedEvent = { ...app.assignEvent!, created_at: '2026-08-15 18:36:42' };
     app.assignEvent = timedEvent;
