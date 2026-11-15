@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { monitorUrl } from '../lib/app-url';
   import FaIcon from './FaIcon.svelte';
   import { CircleAlert, ClipboardList, Clock, KeyRound, LayoutGrid, Moon, Play, RadioTower, RefreshCw, Settings, Sun, Volume2, VolumeX, Wifi, WifiOff } from '../lib/fontawesome-icons';
   import { pollLogs, refreshState, switchSession } from '../lib/polling';
@@ -92,9 +93,7 @@
   }
 
   function openAlarmMonitor(): void {
-    const url = new URL(location.href);
-    url.searchParams.set('view', 'monitor');
-    url.searchParams.delete('monitor');
+    const url = new URL(monitorUrl(new URL(location.href)));
     url.searchParams.delete('wache');
     url.searchParams.delete('pin');
     if (app.sessionToken) url.searchParams.set('session_token', app.sessionToken);

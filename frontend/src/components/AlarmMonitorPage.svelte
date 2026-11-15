@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { controlRoomPath, monitorPath } from '../lib/app-url';
   import AlarmMonitorMap from './AlarmMonitorMap.svelte';
   import FaIcon from './FaIcon.svelte';
   import {
@@ -19,6 +20,7 @@
     WifiOff,
   } from '../lib/fontawesome-icons';
   import {
+    MONITOR_FIRE_ONLY,
     MONITOR_STATIONS,
     MONITOR_STATIONS_STORAGE,
     additionalVehiclesAssignedToEvent,
@@ -222,10 +224,10 @@
     localStorage.setItem(MONITOR_STATIONS_STORAGE, value);
     localStorage.removeItem('alarmMonitorStation');
     const next = new URLSearchParams(location.search);
-    next.set('view', 'monitor');
-    next.set('wache', value);
+    next.delete('view');
     next.delete('monitor');
-    history.replaceState(null, '', `${location.pathname}?${next.toString()}${location.hash}`);
+    next.set('wache', value);
+    history.replaceState(null, '', `${monitorPath()}?${next.toString()}${location.hash}`);
   }
 
   async function connect(): Promise<void> {
@@ -259,10 +261,19 @@
   // Der letzte aktive Knopf bleibt, damit nie eine leere Auswahl entsteht.
   function toggleDraftStation(station: MonitorStation): void {
     if (draftStations.includes(station)) {
-      if (draftStations.length > 1) draftStations = draftStations.filter((item) => item !== station);
+      const stations = draftStations.filter((item) => item !== MONITOR_FIRE_ONLY);
+      if (stations.length > 1) draftStations = draftStations.filter((item) => item !== station);
       return;
     }
-    draftStations = parseMonitorStations([...draftStations, station].join(','));
+    // RD und "ohne RD" widersprechen sich, der zuletzt gedrückte Knopf gewinnt.
+    const kept = station === 'RD' ? draftStations.filter((item) => item !== MONITOR_FIRE_ONLY) : draftStations;
+    draftStations = parseMonitorStations([...kept, station].join(','));
+  }
+
+  function toggleFireOnly(): void {
+    draftStations = draftStations.includes(MONITOR_FIRE_ONLY)
+      ? draftStations.filter((item) => item !== MONITOR_FIRE_ONLY)
+      : parseMonitorStations([...draftStations.filter((item) => item !== 'RD'), MONITOR_FIRE_ONLY].join(','));
   }
 
   function stationButtonLabel(station: MonitorStation): string {
@@ -285,7 +296,7 @@
     next.delete('session_token');
     next.delete('pin');
     const query = next.toString();
-    return `${location.pathname}${query ? `?${query}` : ''}${location.hash}`;
+    return `${controlRoomPath()}${query ? `?${query}` : ''}${location.hash}`;
   }
 
   async function toggleFullscreen(): Promise<void> {
@@ -358,6 +369,15 @@
             </button>
           {/each}
         </div>
+        <button
+          class="station-modifier"
+          class:active={draftStations.includes(MONITOR_FIRE_ONLY)}
+          aria-pressed={draftStations.includes(MONITOR_FIRE_ONLY)}
+          onclick={toggleFireOnly}
+        >
+          Ohne Rettungsdienst
+          <small>RTW, NEF und KTW der gewählten Wachen bleiben draußen</small>
+        </button>
       </fieldset>
 
       <button class="entry-connect" disabled={connecting} onclick={() => void connect()}>
@@ -792,6 +812,26 @@
     font-weight: 800;
   }
   .station-options button.active {
+    border-color: #e8524a;
+    background: #342022;
+  }
+  .station-modifier {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: #202226;
+    border-color: #383b40;
+    color: #f2f3f5;
+  }
+  .station-modifier small {
+    color: #9a9da4;
+    font-size: 11px;
+    font-weight: 400;
+  }
+  .station-modifier.active {
     border-color: #e8524a;
     background: #342022;
   }

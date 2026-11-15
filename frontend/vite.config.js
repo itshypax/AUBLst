@@ -172,6 +172,18 @@ function gitValue(args) {
 const appCommit = process.env.VITE_APP_COMMIT?.trim() || gitValue(['rev-parse', '--short=8', 'HEAD']) || 'dev';
 const appCommitDate = process.env.VITE_APP_COMMIT_DATE?.trim() || gitValue(['log', '-1', '--format=%cI']);
 
+function monitorPathPlugin() {
+  const serve = (server) => {
+    server.middlewares.use((request, _response, next) => {
+      const [path] = (request.url ?? '').split('?');
+      if (/^\/monitor\/?$/.test(path)) request.url = '/index.html';
+      next();
+    });
+  };
+
+  return { name: 'aublst-monitor-path', configureServer: serve, configurePreviewServer: serve };
+}
+
 export default defineConfig({
   base: './',
   build: {
@@ -182,7 +194,7 @@ export default defineConfig({
       },
     },
   },
-  plugins: [routingEditorPlugin(), svelte()],
+  plugins: [monitorPathPlugin(), routingEditorPlugin(), svelte()],
   define: {
     'import.meta.env.VITE_APP_COMMIT': JSON.stringify(appCommit),
     'import.meta.env.VITE_APP_COMMIT_DATE': JSON.stringify(appCommitDate),

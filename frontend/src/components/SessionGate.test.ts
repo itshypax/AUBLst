@@ -26,7 +26,7 @@ describe('Session-Einstieg', () => {
     expect(screen.getByLabelText('Sitzungscode')).toBeTruthy();
     expect(screen.getByLabelText(/PIN/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Alarmmonitor für Spieler' }).getAttribute('href')).toContain(
-      'view=monitor',
+      '/monitor',
     );
   });
 

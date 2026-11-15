@@ -2,6 +2,11 @@ Options -Indexes
 RewriteEngine On
 RewriteRule ^frontend(?:/(.*))?$ /$1 [R=308,L,NE]
 
+# Der Alarmmonitor liegt unter /monitor, ausgeliefert wird dieselbe Seite.
+# Ohne Schrägstrich am Ende, sonst sucht die Seite ihre Dateien unter /monitor/.
+RewriteRule ^monitor/$ monitor [R=308,L,NE]
+RewriteRule ^monitor$ index.html [L]
+
 <IfModule mod_headers.c>
   <FilesMatch "\.(?:js|css|webp|png|jpg|jpeg|svg|woff2|mp3|m4a|wav)$">
     Header set Cache-Control "public, max-age=3600"

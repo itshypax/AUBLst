@@ -5,22 +5,29 @@ import type { Assignment, EventItem, Vehicle } from './types';
 // Wache 1 bis 4 wie bisher (alles mit dieser Kennung), RD ist der gesamte
 // Rettungsdienst. Ein Monitor kann mehrere davon zugleich zeigen.
 export const MONITOR_STATIONS = ['1', '2', '3', '4', 'RD'] as const;
-export type MonitorStation = (typeof MONITOR_STATIONS)[number];
+// Kein Ort, sondern ein Zusatz zur Auswahl: lässt den Rettungsdienst der
+// gewählten Wachen weg, wenn ihn ein eigener Spieler disponiert. Steht in
+// derselben Liste, damit URL und Speicher unverändert bleiben.
+export const MONITOR_FIRE_ONLY = 'FW';
+export type MonitorStation = (typeof MONITOR_STATIONS)[number] | typeof MONITOR_FIRE_ONLY;
+const MONITOR_KEYS: readonly MonitorStation[] = [...MONITOR_STATIONS, MONITOR_FIRE_ONLY];
 export const MONITOR_STATIONS_STORAGE = 'alarmMonitorStations';
 
 export function isMonitorStation(value: string | null | undefined): value is MonitorStation {
-  return MONITOR_STATIONS.includes(value as MonitorStation);
+  return MONITOR_KEYS.includes(value as MonitorStation);
 }
 
 // Kommaliste aus URL oder Speicher; unbekannte Werte fallen weg, die
-// Reihenfolge ist immer 1, 2, 3, 4, RD.
+// Reihenfolge ist immer 1, 2, 3, 4, RD, FW. Der Zusatz allein wäre keine
+// Auswahl und fällt ohne Wache weg.
 export function parseMonitorStations(value: string | null | undefined): MonitorStation[] {
   const seen = new Set<MonitorStation>();
   for (const part of (value ?? '').split(',')) {
     const key = part.trim().toUpperCase();
     if (isMonitorStation(key)) seen.add(key);
   }
-  return MONITOR_STATIONS.filter((item) => seen.has(item));
+  const items = MONITOR_KEYS.filter((item) => seen.has(item));
+  return items.some((item) => item !== MONITOR_FIRE_ONLY) ? items : [];
 }
 
 export function serializeMonitorStations(stations: readonly MonitorStation[]): string {
@@ -28,15 +35,19 @@ export function serializeMonitorStations(stations: readonly MonitorStation[]): s
 }
 
 export function monitorStationsLabel(stations: readonly MonitorStation[]): string {
-  const items = parseMonitorStations(stations.join(','));
+  const items = parseMonitorStations(stations.join(',')).filter((item) => item !== MONITOR_FIRE_ONLY);
   if (!items.length) return '';
+  const suffix = stations.includes(MONITOR_FIRE_ONLY) ? ' ohne RD' : '';
   if (items.every((item) => item === 'RD')) return 'RD';
-  return `Wache ${items.join(' + ')}`;
+  return `Wache ${items.join(' + ')}${suffix}`;
 }
 
 function belongsToStations(vehicle: Vehicle, stations: readonly MonitorStation[]): boolean {
-  if (stations.includes(station(vehicle) as MonitorStation)) return true;
-  return stations.includes('RD') && mainTab(vehicle) === 'rescue';
+  const rescue = mainTab(vehicle) === 'rescue';
+  if (stations.includes(station(vehicle) as MonitorStation)) {
+    if (!rescue || !stations.includes(MONITOR_FIRE_ONLY)) return true;
+  }
+  return rescue && stations.includes('RD');
 }
 
 export function monitorVehicles(vehicles: Vehicle[], stations: readonly MonitorStation[]): Vehicle[] {

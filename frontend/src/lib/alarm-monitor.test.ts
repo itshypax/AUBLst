@@ -149,6 +149,29 @@ describe('Alarmmonitor', () => {
     expect(additionalVehiclesAssignedToEvent(fleet, assignments, 11, ['1', '2'])).toEqual([]);
   });
 
+  it('lässt mit dem Zusatz FW den Rettungsdienst der Wachen weg', () => {
+    const fleet = [
+      ...vehicles,
+      {
+        id: 5,
+        game_vehicle_id: '1_RTW_A',
+        name: '1-RTW-A',
+        type: 'RTW',
+        modes: null,
+        x: 0,
+        y: 0,
+        status: 2,
+        assigned_player_id: null,
+      },
+    ];
+
+    expect(monitorVehicles(fleet, ['1', 'FW']).map((vehicle) => vehicle.id)).toEqual([2, 1]);
+    expect(monitorVehicles(fleet, ['1']).map((vehicle) => vehicle.id)).toEqual([2, 1, 5]);
+    expect(parseMonitorStations('fw')).toEqual([]);
+    expect(parseMonitorStations('fw,1')).toEqual(['1', 'FW']);
+    expect(monitorStationsLabel(['1', 'FW'])).toBe('Wache 1 ohne RD');
+  });
+
   it('ordnet einer Wache nur aktive Einsätze ihrer Fahrzeuge zu', () => {
     expect(monitorEvents(events, assignments, vehicles, ['1']).map((event) => event.id)).toEqual([11, 10]);
     expect(monitorEvents(events, assignments, vehicles, ['2']).map((event) => event.id)).toEqual([11]);

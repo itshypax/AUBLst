@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { monitorRequested as isMonitorRequested, normalizeMonitorUrl } from './lib/app-url';
   import AssignModal from './components/AssignModal.svelte';
   import ConfirmDialog from './components/ConfirmDialog.svelte';
   import ConnectionLostBanner from './components/ConnectionLostBanner.svelte';
@@ -47,7 +48,8 @@
   const localHostname =
     location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '::1';
   const routingEditorRequested = import.meta.env.DEV && localHostname && pageParams.get('routing_editor') === '1';
-  const monitorRequested = pageParams.get('view') === 'monitor' || pageParams.get('monitor') === '1';
+  const monitorRequested = isMonitorRequested();
+  if (monitorRequested) normalizeMonitorUrl();
   const routingEditorModId = pageParams.get('mod_id')?.trim() ?? '';
   let RoutingEditorComponent = $state<null | (typeof import('./components/RoutingEditorPage.svelte'))['default']>(null);
   let AlarmMonitorComponent = $state<null | (typeof import('./components/AlarmMonitorPage.svelte'))['default']>(null);

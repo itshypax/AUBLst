@@ -1,5 +1,6 @@
 <script lang="ts">
   import FaIcon from './FaIcon.svelte';
+  import { monitorPath } from '../lib/app-url';
   import { CircleAlert, FlaskConical, KeyRound, LoaderCircle, RadioTower, ServerCog } from '../lib/fontawesome-icons';
   import { createDemoSession } from '../lib/demo-session';
   import { dismissibleDetails } from '../lib/dismissible-details';
@@ -63,13 +64,14 @@
     if (event.key === 'Enter' && !connecting) void connect();
   }
 
-  function monitorUrl(): string {
+  function monitorLink(): string {
     const params = new URLSearchParams(location.search);
-    params.set('view', 'monitor');
+    params.delete('view');
     params.delete('monitor');
     params.delete('pin');
     params.delete('session_token');
-    return `${location.pathname}?${params.toString()}${location.hash}`;
+    const query = params.toString();
+    return `${monitorPath()}${query ? `?${query}` : ''}${location.hash}`;
   }
 </script>
 
@@ -95,7 +97,7 @@
       <button class="demo" disabled={connecting} onclick={() => void openDemo()}>
         {#if activeAction === 'demo'}<span class="spinner"><FaIcon icon={LoaderCircle} size={15} /></span> Demo wird angelegt{:else}<FaIcon icon={FlaskConical} size={15} /> Demo-Sitzung anlegen{/if}
       </button>
-      <a class="monitor-link" href={monitorUrl()}><FaIcon icon={RadioTower} size={15} /> Alarmmonitor für Spieler</a>
+      <a class="monitor-link" href={monitorLink()}><FaIcon icon={RadioTower} size={15} /> Alarmmonitor für Spieler</a>
 
       <details class="server-settings" use:dismissibleDetails>
         <summary><FaIcon icon={ServerCog} size={14} /> Serveradresse</summary>

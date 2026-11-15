@@ -92,11 +92,17 @@ https://example.org/leitstelle/?session_token=a1b2&pin=1234
 Für Spieler gibt es zusätzlich einen schreibgeschützten Alarmmonitor:
 
 ```text
-https://example.org/leitstelle/?view=monitor
+https://example.org/leitstelle/monitor
 ```
 
+Alte Links mit `?view=monitor` führen weiter dorthin und schreiben sich selbst
+auf den Pfad um.
+
 Dort werden Raumcode und Wachen gewählt: Wache 1–4 und „RD“ für den gesamten
-Rettungsdienst, auch mehrere zugleich (`?wache=1,4` oder `?wache=RD`). Der
+Rettungsdienst, auch mehrere zugleich (`?wache=1,4` oder `?wache=RD`).
+Mit dem Schalter „Ohne Rettungsdienst“ bleiben RTW, NEF und KTW der gewählten
+Wachen außen vor (`?wache=1,2,FW`), etwa wenn ein eigener Spieler den
+Rettungsdienst disponiert. Der
 Monitor zeigt nur laufende Einsätze, denen mindestens ein Fahrzeug der
 gewählten Wachen zugeordnet ist; eine PIN wird dafür nicht benötigt. Aktive
 Lagemeldungen wie „Tramverkehr eingestellt“ laufen unter der Kopfzeile als

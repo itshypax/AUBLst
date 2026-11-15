@@ -1,4 +1,5 @@
 import { api, apiGet, fetchMapImage } from './api';
+import { monitorRequested } from './app-url';
 import { advanceLogCursor, INITIAL_LOG_CURSOR, mergeLogRows } from './log-stream';
 import { SoundAlertTracker } from './sound-alerts';
 import { soundCuesForLogs } from './sound-events';
@@ -94,10 +95,7 @@ let logController: AbortController | null = null;
 let statusHistoryController: AbortController | null = null;
 let generation = 0;
 let started = false;
-let readOnlySession =
-  typeof location !== 'undefined' &&
-  (new URLSearchParams(location.search).get('view') === 'monitor' ||
-    new URLSearchParams(location.search).get('monitor') === '1');
+let readOnlySession = typeof location !== 'undefined' && monitorRequested();
 let lastState: StateResponse | null = null;
 let lastRevision = -1;
 let realtimeConnected = false;
