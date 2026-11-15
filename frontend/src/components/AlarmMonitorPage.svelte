@@ -627,7 +627,7 @@
 
       <section class="map-panel">
         {#if primaryEvent}
-          <AlarmMonitorMap incidents={mapIncidents} {focusEventId} />
+          <AlarmMonitorMap incidents={mapIncidents} {focusEventId} {calledIds} />
         {:else}
           <div class="map-standby"><FaIcon icon={RadioTower} size={38} /><span>Bereit für Alarmierung</span></div>
         {/if}

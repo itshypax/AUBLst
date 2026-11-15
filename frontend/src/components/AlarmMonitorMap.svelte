@@ -12,6 +12,7 @@
     type Point,
   } from '../lib/mapview';
   import { app } from '../lib/state.svelte';
+  import { statusClass, statusCode, statusDisplay } from '../lib/status';
   import type { EventItem, Vehicle } from '../lib/types';
 
   export interface AlarmMonitorIncident {
@@ -19,8 +20,11 @@
     vehicles: Vehicle[];
   }
 
-  let { incidents, focusEventId = null }: { incidents: AlarmMonitorIncident[]; focusEventId?: number | null } =
-    $props();
+  let {
+    incidents,
+    focusEventId = null,
+    calledIds = new Set<number>(),
+  }: { incidents: AlarmMonitorIncident[]; focusEventId?: number | null; calledIds?: ReadonlySet<number> } = $props();
 
   let frame: HTMLDivElement;
   let image = $state<HTMLImageElement>();
@@ -28,7 +32,7 @@
   // Wie bei rescuetrack: eine Fahne je Ort und Status, mehrere Fahrzeuge
   // am selben Ort stehen untereinander in derselben Fahne.
   let vehicleFlags = $state<
-    Array<{ key: string; status: number; names: string[]; point: Point; labelOffset: number }>
+    Array<{ key: string; status: string; color: string; names: string[]; point: Point; labelOffset: number }>
   >([]);
   // Größe der Fahne, ohne sie zu messen: 12 px Schrift, 15 px je Zeile.
   const LABEL_CHARACTER_WIDTH = 7;
@@ -62,12 +66,20 @@
     const points = incidents.flatMap((incident) =>
       incident.vehicles.map((vehicle) => {
         const point = toScreen(worldToCanvas(vehicle, app.mapBounds, view), view);
-        return { ...point, vehicle, key: `${incident.event.id}:${vehicle.id}`, name: vehicleDisplayName(vehicle) };
+        const called = calledIds.has(vehicle.id) && statusCode(vehicle.status) !== 0;
+        return {
+          ...point,
+          key: `${incident.event.id}:${vehicle.id}`,
+          name: vehicleDisplayName(vehicle),
+          status: statusDisplay(vehicle.status, { alarmFrom: vehicle.alarm_from_status, called }),
+          color: `var(--${statusClass(vehicle.status, called)}-start, var(--status-6-start))`,
+        };
       }),
     );
-    const flags = groupNearby(points, (item) => item.vehicle.status).map((group) => ({
+    const flags = groupNearby(points, (item) => item.status).map((group) => ({
       key: group.map((item) => item.key).join(','),
-      status: group[0].vehicle.status,
+      status: group[0].status,
+      color: group[0].color,
       names: group.map((item) => item.name),
       point: { x: group[0].x, y: group[0].y },
     }));
@@ -85,6 +97,7 @@
   $effect(() => {
     void incidents;
     void focusEventId;
+    void calledIds;
     void app.mapBounds;
     void app.mapContentRect;
     void app.mapImageUrl;
@@ -125,7 +138,7 @@
     <span
       class="vehicle-marker"
       class:grouped={flag.names.length > 1}
-      style={`left:${flag.point.x}px;top:${flag.point.y}px;--vehicle-color:var(--status-${flag.status}-start)`}
+      style={`left:${flag.point.x}px;top:${flag.point.y}px;--vehicle-color:${flag.color}`}
       title={`Status ${flag.status}: ${flag.names.join(', ')}`}
     >
       <span class="vehicle-flag" style={`translate:0 ${flag.labelOffset}px`}>
@@ -181,28 +194,28 @@
   .event-marker {
     position: absolute;
     z-index: 3;
-    translate: -11px -50%;
+    translate: -7px -50%;
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 5px;
   }
   .event-marker > span {
-    width: 22px;
-    height: 22px;
+    width: 14px;
+    height: 14px;
     flex: 0 0 auto;
     rotate: 45deg;
-    border: 4px solid #fff;
+    border: 3px solid #fff;
     background: #737980;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
   }
   .event-marker strong {
-    max-width: 220px;
-    padding: 5px 7px;
+    max-width: 200px;
+    padding: 3px 6px;
     overflow: hidden;
     border: 1px solid #fff;
     background: rgba(10, 11, 12, 0.9);
     color: #fff;
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1.15;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -268,7 +281,8 @@
     top: 4px;
   }
   .vehicle-flag b {
-    min-width: 22px;
+    min-width: 12px;
+    padding: 0 6px;
     font-size: 15px;
     font-weight: 800;
     text-align: center;

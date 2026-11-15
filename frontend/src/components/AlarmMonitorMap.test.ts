@@ -50,4 +50,32 @@ describe('Alarmmonitor-Karte', () => {
     expect(container.querySelector('.vehicle-marker .vehicle-name')?.textContent).toBe('Florian Auenburg 1-HLF-1');
     expect(container.querySelector('img')?.style.transform).toContain('scale(2.4)');
   });
+
+  it('zeigt alarmierte Fahrzeuge wie überall mit C', async () => {
+    const event = {
+      id: 11,
+      game_event_id: '48',
+      name: 'Brand',
+      x: 500,
+      y: -250,
+      status: 'active' as const,
+      created_by: 'game' as const,
+    };
+    const vehicle = {
+      id: 2,
+      game_vehicle_id: '1_DLK_1',
+      name: '1-DLK-1',
+      type: 'DLK',
+      modes: null,
+      x: 400,
+      y: -200,
+      status: 0,
+      alarm_from_status: 2,
+      assigned_player_id: null,
+    };
+
+    const { container } = render(AlarmMonitorMap, { props: { incidents: [{ event, vehicles: [vehicle] }] } });
+
+    await waitFor(() => expect(container.querySelector('.vehicle-flag b')?.textContent).toBe('2C'));
+  });
 });
