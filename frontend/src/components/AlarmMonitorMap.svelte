@@ -1,7 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { vehicleDisplayName } from '../lib/classify';
-  import { fitMapPoints, focusMapView, toScreen, worldToCanvas, type MapView, type Point } from '../lib/mapview';
+  import {
+    fitMapPoints,
+    focusMapView,
+    spreadLabels,
+    toScreen,
+    worldToCanvas,
+    type MapView,
+    type Point,
+  } from '../lib/mapview';
   import { app } from '../lib/state.svelte';
   import type { EventItem, Vehicle } from '../lib/types';
 
@@ -16,7 +24,12 @@
   let frame: HTMLDivElement;
   let image = $state<HTMLImageElement>();
   let eventPoints = $state<Array<{ incident: AlarmMonitorIncident; point: Point }>>([]);
-  let vehiclePoints = $state<Array<{ vehicle: Vehicle; point: Point; eventId: number }>>([]);
+  let vehiclePoints = $state<Array<{ vehicle: Vehicle; point: Point; eventId: number; name: string; labelOffset: number }>>(
+    [],
+  );
+  // Breite der Beschriftung, ohne sie zu messen: Monospace, 11 px.
+  const LABEL_CHARACTER_WIDTH = 6.8;
+  const LABEL_PADDING = 24;
   let mapTransform = $state('none');
 
   function updatePositions(): void {
@@ -42,13 +55,20 @@
       incident,
       point: toScreen(worldToCanvas(incident.event, app.mapBounds, view), view),
     }));
-    vehiclePoints = incidents.flatMap((incident) =>
-      incident.vehicles.map((vehicle) => ({
-        vehicle,
-        eventId: incident.event.id,
-        point: toScreen(worldToCanvas(vehicle, app.mapBounds, view), view),
-      })),
+    const points = incidents.flatMap((incident) =>
+      incident.vehicles.map((vehicle) => {
+        const name = vehicleDisplayName(vehicle);
+        return {
+          vehicle,
+          eventId: incident.event.id,
+          name,
+          point: toScreen(worldToCanvas(vehicle, app.mapBounds, view), view),
+          width: name.length * LABEL_CHARACTER_WIDTH + LABEL_PADDING,
+        };
+      }),
     );
+    const offsets = spreadLabels(points.map((item) => ({ x: item.point.x, y: item.point.y, width: item.width })));
+    vehiclePoints = points.map((item, index) => ({ ...item, labelOffset: offsets[index] }));
   }
 
   $effect(() => {
@@ -94,8 +114,11 @@
     <span
       class="vehicle-marker status-{marker.vehicle.status}"
       style={`left:${marker.point.x}px;top:${marker.point.y}px`}
-      title={vehicleDisplayName(marker.vehicle)}>{vehicleDisplayName(marker.vehicle)}</span
+      title={marker.name}
     >
+      <i class="vehicle-dot" aria-hidden="true"></i>
+      <span class="vehicle-name" style={`translate:0 ${marker.labelOffset}px`}>{marker.name}</span>
+    </span>
   {/each}
 
   <div class="coordinates">{incidents.length === 1 ? '1 Einsatzstelle' : `${incidents.length} Einsatzstellen`}</div>
@@ -174,17 +197,14 @@
   .event-marker.focused > span {
     background: #e8524a;
   }
+  /* Einsatzmittel liegen über den Einsatzstellen: sie bewegen sich, die Stelle nicht. */
   .vehicle-marker {
     position: absolute;
-    z-index: 2;
+    z-index: 4;
     display: flex;
     align-items: center;
-    min-width: 58px;
-    height: 24px;
-    padding: 0 7px;
-    translate: -50% -50%;
-    border: 2px solid #f4f5f6;
-    background: var(--status-6-start);
+    gap: 5px;
+    translate: -7px -50%;
     color: #fff;
     font:
       750 11px ui-monospace,
@@ -192,37 +212,83 @@
       Consolas,
       monospace;
     white-space: nowrap;
+  }
+  .vehicle-dot {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+    border: 2px solid #f4f5f6;
+    border-radius: 50%;
+    background: var(--status-6-start);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.55);
   }
-  .vehicle-marker.status-0 {
+  .vehicle-name {
+    padding: 3px 6px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-left-width: 3px;
+    border-left-color: var(--status-6-start);
+    background: rgba(10, 11, 12, 0.88);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.55);
+  }
+  .vehicle-marker.status-0 .vehicle-dot {
     background: var(--status-0-start);
   }
-  .vehicle-marker.status-1 {
+  .vehicle-marker.status-0 .vehicle-name {
+    border-left-color: var(--status-0-start);
+  }
+  .vehicle-marker.status-1 .vehicle-dot {
     background: var(--status-1-start);
   }
-  .vehicle-marker.status-2 {
+  .vehicle-marker.status-1 .vehicle-name {
+    border-left-color: var(--status-1-start);
+  }
+  .vehicle-marker.status-2 .vehicle-dot {
     background: var(--status-2-start);
   }
-  .vehicle-marker.status-3 {
+  .vehicle-marker.status-2 .vehicle-name {
+    border-left-color: var(--status-2-start);
+  }
+  .vehicle-marker.status-3 .vehicle-dot {
     background: var(--status-3-start);
   }
-  .vehicle-marker.status-4 {
+  .vehicle-marker.status-3 .vehicle-name {
+    border-left-color: var(--status-3-start);
+  }
+  .vehicle-marker.status-4 .vehicle-dot {
     background: var(--status-4-start);
   }
-  .vehicle-marker.status-5 {
+  .vehicle-marker.status-4 .vehicle-name {
+    border-left-color: var(--status-4-start);
+  }
+  .vehicle-marker.status-5 .vehicle-dot {
     background: var(--status-5-start);
   }
-  .vehicle-marker.status-6 {
+  .vehicle-marker.status-5 .vehicle-name {
+    border-left-color: var(--status-5-start);
+  }
+  .vehicle-marker.status-6 .vehicle-dot {
     background: var(--status-6-start);
   }
-  .vehicle-marker.status-7 {
+  .vehicle-marker.status-6 .vehicle-name {
+    border-left-color: var(--status-6-start);
+  }
+  .vehicle-marker.status-7 .vehicle-dot {
     background: var(--status-7-start);
   }
-  .vehicle-marker.status-8 {
+  .vehicle-marker.status-7 .vehicle-name {
+    border-left-color: var(--status-7-start);
+  }
+  .vehicle-marker.status-8 .vehicle-dot {
     background: var(--status-8-start);
   }
-  .vehicle-marker.status-9 {
+  .vehicle-marker.status-8 .vehicle-name {
+    border-left-color: var(--status-8-start);
+  }
+  .vehicle-marker.status-9 .vehicle-dot {
     background: var(--status-9-start);
+  }
+  .vehicle-marker.status-9 .vehicle-name {
+    border-left-color: var(--status-9-start);
   }
   .coordinates {
     position: absolute;

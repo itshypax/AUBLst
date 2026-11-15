@@ -47,7 +47,7 @@ describe('Alarmmonitor-Karte', () => {
     });
 
     await waitFor(() => expect(container.querySelector('.event-marker strong')?.textContent).toBe('Wohnungsbrand'));
-    expect(container.querySelector('.vehicle-marker')?.textContent).toBe('Florian Auenburg 1-HLF-1');
+    expect(container.querySelector('.vehicle-marker .vehicle-name')?.textContent).toBe('Florian Auenburg 1-HLF-1');
     expect(container.querySelector('img')?.style.transform).toContain('scale(2.4)');
   });
 });

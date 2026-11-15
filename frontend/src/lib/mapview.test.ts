@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canvasToWorld, fitMapPoints, focusMapView, screenPointInMapContent, toScreen, worldToCanvas, type MapView } from './mapview';
+import { canvasToWorld, fitMapPoints, focusMapView, screenPointInMapContent, spreadLabels, toScreen, worldToCanvas, type MapView } from './mapview';
 
 const bounds = { min_x: 0, min_y: 0, max_x: 1000, max_y: 500 };
 const baseView: MapView = {
@@ -52,5 +52,29 @@ describe('Kartenausschnitt', () => {
 
     expect(screenPoints.every((point) => point.x >= 0 && point.x <= 1000)).toBe(true);
     expect(screenPoints.every((point) => point.y >= 0 && point.y <= 500)).toBe(true);
+  });
+});
+
+describe('Beschriftungen auf der Karte', () => {
+  it('schiebt sich überdeckende Namen nach unten, der Rest bleibt', () => {
+    const offsets = spreadLabels(
+      [
+        { x: 100, y: 100, width: 60 },
+        { x: 100, y: 100, width: 60 },
+        { x: 100, y: 104, width: 60 },
+        { x: 400, y: 100, width: 60 },
+      ],
+      22,
+      2,
+    );
+
+    expect(offsets[0]).toBe(0);
+    expect(offsets[1]).toBe(24);
+    expect(offsets[2]).toBe(44);
+    expect(offsets[3]).toBe(0);
+  });
+
+  it('lässt weit auseinander liegende Namen in Ruhe', () => {
+    expect(spreadLabels([{ x: 0, y: 0, width: 50 }, { x: 0, y: 60, width: 50 }])).toEqual([0, 0]);
   });
 });

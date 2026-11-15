@@ -125,3 +125,35 @@ export function fitMapPoints(points: Point[], bounds: MapBounds, view: MapView, 
     },
   };
 }
+
+// Einsatzmittel liegen oft dicht beieinander oder genau übereinander. Die
+// Beschriftungen rutschen deshalb so weit nach unten, bis sie frei stehen; der
+// Punkt selbst bleibt an der echten Position.
+export function spreadLabels(
+  labels: readonly { x: number; y: number; width: number }[],
+  height = 22,
+  gap = 2,
+): number[] {
+  const order = labels.map((label, index) => ({ ...label, index })).sort((a, b) => a.y - b.y || a.x - b.x);
+  const placed: { x: number; y: number; width: number }[] = [];
+  const offsets = new Array<number>(labels.length).fill(0);
+
+  for (const label of order) {
+    let y = label.y;
+    let moved = true;
+    while (moved) {
+      moved = false;
+      for (const other of placed) {
+        const overlapsX = label.x < other.x + other.width + gap && other.x < label.x + label.width + gap;
+        const overlapsY = Math.abs(y - other.y) < height + gap;
+        if (overlapsX && overlapsY) {
+          y = other.y + height + gap;
+          moved = true;
+        }
+      }
+    }
+    placed.push({ x: label.x, y, width: label.width });
+    offsets[label.index] = y - label.y;
+  }
+  return offsets;
+}
