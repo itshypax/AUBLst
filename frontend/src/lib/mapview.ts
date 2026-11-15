@@ -130,12 +130,14 @@ export function fitMapPoints(points: Point[], bounds: MapBounds, view: MapView, 
 // Beschriftungen rutschen deshalb so weit nach unten, bis sie frei stehen; der
 // Punkt selbst bleibt an der echten Position.
 export function spreadLabels(
-  labels: readonly { x: number; y: number; width: number }[],
+  labels: readonly { x: number; y: number; width: number; height?: number }[],
   height = 22,
   gap = 2,
 ): number[] {
-  const order = labels.map((label, index) => ({ ...label, index })).sort((a, b) => a.y - b.y || a.x - b.x);
-  const placed: { x: number; y: number; width: number }[] = [];
+  const order = labels
+    .map((label, index) => ({ ...label, height: label.height ?? height, index }))
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+  const placed: { x: number; y: number; width: number; height: number }[] = [];
   const offsets = new Array<number>(labels.length).fill(0);
 
   for (const label of order) {
@@ -145,15 +147,33 @@ export function spreadLabels(
       moved = false;
       for (const other of placed) {
         const overlapsX = label.x < other.x + other.width + gap && other.x < label.x + label.width + gap;
-        const overlapsY = Math.abs(y - other.y) < height + gap;
+        const overlapsY = y < other.y + other.height + gap && other.y < y + label.height + gap;
         if (overlapsX && overlapsY) {
-          y = other.y + height + gap;
+          y = other.y + other.height + gap;
           moved = true;
         }
       }
     }
-    placed.push({ x: label.x, y, width: label.width });
+    placed.push({ x: label.x, y, width: label.width, height: label.height });
     offsets[label.index] = y - label.y;
   }
   return offsets;
+}
+
+// Fasst Punkte mit gleichem Schlüssel zusammen, die auf dem Bildschirm
+// höchstens radius Pixel vom ersten Punkt der Gruppe entfernt liegen.
+export function groupNearby<T extends { x: number; y: number }>(
+  items: readonly T[],
+  key: (item: T) => string | number,
+  radius = 10,
+): T[][] {
+  const groups: T[][] = [];
+  for (const item of items) {
+    const group = groups.find(
+      (candidate) => key(candidate[0]) === key(item) && Math.hypot(candidate[0].x - item.x, candidate[0].y - item.y) <= radius,
+    );
+    if (group) group.push(item);
+    else groups.push([item]);
+  }
+  return groups;
 }

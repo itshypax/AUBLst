@@ -4,6 +4,7 @@
   import {
     fitMapPoints,
     focusMapView,
+    groupNearby,
     spreadLabels,
     toScreen,
     worldToCanvas,
@@ -24,12 +25,15 @@
   let frame: HTMLDivElement;
   let image = $state<HTMLImageElement>();
   let eventPoints = $state<Array<{ incident: AlarmMonitorIncident; point: Point }>>([]);
-  let vehiclePoints = $state<Array<{ vehicle: Vehicle; point: Point; eventId: number; name: string; labelOffset: number }>>(
-    [],
-  );
-  // Breite der Beschriftung, ohne sie zu messen: Monospace, 11 px.
-  const LABEL_CHARACTER_WIDTH = 6.8;
-  const LABEL_PADDING = 24;
+  // Wie bei rescuetrack: eine Fahne je Ort und Status, mehrere Fahrzeuge
+  // am selben Ort stehen untereinander in derselben Fahne.
+  let vehicleFlags = $state<
+    Array<{ key: string; status: number; names: string[]; point: Point; labelOffset: number }>
+  >([]);
+  // Größe der Fahne, ohne sie zu messen: 12 px Schrift, 15 px je Zeile.
+  const LABEL_CHARACTER_WIDTH = 7;
+  const LABEL_PADDING = 36;
+  const LABEL_LINE = 15;
   let mapTransform = $state('none');
 
   function updatePositions(): void {
@@ -57,18 +61,25 @@
     }));
     const points = incidents.flatMap((incident) =>
       incident.vehicles.map((vehicle) => {
-        const name = vehicleDisplayName(vehicle);
-        return {
-          vehicle,
-          eventId: incident.event.id,
-          name,
-          point: toScreen(worldToCanvas(vehicle, app.mapBounds, view), view),
-          width: name.length * LABEL_CHARACTER_WIDTH + LABEL_PADDING,
-        };
+        const point = toScreen(worldToCanvas(vehicle, app.mapBounds, view), view);
+        return { ...point, vehicle, key: `${incident.event.id}:${vehicle.id}`, name: vehicleDisplayName(vehicle) };
       }),
     );
-    const offsets = spreadLabels(points.map((item) => ({ x: item.point.x, y: item.point.y, width: item.width })));
-    vehiclePoints = points.map((item, index) => ({ ...item, labelOffset: offsets[index] }));
+    const flags = groupNearby(points, (item) => item.vehicle.status).map((group) => ({
+      key: group.map((item) => item.key).join(','),
+      status: group[0].vehicle.status,
+      names: group.map((item) => item.name),
+      point: { x: group[0].x, y: group[0].y },
+    }));
+    const offsets = spreadLabels(
+      flags.map((flag) => ({
+        x: flag.point.x,
+        y: flag.point.y,
+        width: Math.max(...flag.names.map((name) => name.length)) * LABEL_CHARACTER_WIDTH + LABEL_PADDING,
+        height: flag.names.length * LABEL_LINE + 6,
+      })),
+    );
+    vehicleFlags = flags.map((flag, index) => ({ ...flag, labelOffset: offsets[index] }));
   }
 
   $effect(() => {
@@ -110,14 +121,19 @@
     </span>
   {/each}
 
-  {#each vehiclePoints as marker (`${marker.eventId}:${marker.vehicle.id}`)}
+  {#each vehicleFlags as flag (flag.key)}
     <span
-      class="vehicle-marker status-{marker.vehicle.status}"
-      style={`left:${marker.point.x}px;top:${marker.point.y}px`}
-      title={marker.name}
+      class="vehicle-marker"
+      class:grouped={flag.names.length > 1}
+      style={`left:${flag.point.x}px;top:${flag.point.y}px;--vehicle-color:var(--status-${flag.status}-start)`}
+      title={`Status ${flag.status}: ${flag.names.join(', ')}`}
     >
-      <i class="vehicle-dot" aria-hidden="true"></i>
-      <span class="vehicle-name" style={`translate:0 ${marker.labelOffset}px`}>{marker.name}</span>
+      <span class="vehicle-flag" style={`translate:0 ${flag.labelOffset}px`}>
+        <b>{flag.status}</b>
+        <span class="vehicle-names">
+          {#each flag.names as name, index (index)}<span class="vehicle-name">{name}</span>{/each}
+        </span>
+      </span>
     </span>
   {/each}
 
@@ -201,94 +217,64 @@
   .vehicle-marker {
     position: absolute;
     z-index: 4;
+    width: 0;
+    height: 0;
+    --vehicle-color: var(--status-6-start);
+  }
+  /* Einzelnes Fahrzeug: die obere linke Ecke der Fahne ist die Position.
+     Der Haken hängt an der Fahne, damit er beim Ausweichen mitgeht. */
+  .vehicle-flag::before,
+  .vehicle-marker.grouped::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: -6px;
+    width: 9px;
+    height: 6px;
+    border-top: 3px solid var(--vehicle-color);
+    border-left: 3px solid var(--vehicle-color);
+  }
+  /* Mehrere Fahrzeuge am selben Ort: Ring auf der Position, Fahne daneben. */
+  .grouped .vehicle-flag::before {
+    content: none;
+  }
+  .vehicle-marker.grouped::before {
+    left: -8px;
+    top: -8px;
+    width: 16px;
+    height: 16px;
+    border: 3px solid var(--vehicle-color);
+    border-radius: 50%;
+    box-sizing: border-box;
+  }
+  .vehicle-flag {
+    position: absolute;
+    left: 0;
+    top: 0;
     display: flex;
-    align-items: center;
-    gap: 5px;
-    translate: -7px -50%;
+    align-items: flex-start;
+    padding: 3px 8px 3px 0;
+    background: var(--vehicle-color);
     color: #fff;
     font:
-      750 11px ui-monospace,
-      'Cascadia Mono',
-      Consolas,
-      monospace;
+      600 12px/15px system-ui,
+      'Segoe UI',
+      sans-serif;
     white-space: nowrap;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
   }
-  .vehicle-dot {
-    width: 14px;
-    height: 14px;
-    flex: 0 0 auto;
-    border: 2px solid #f4f5f6;
-    border-radius: 50%;
-    background: var(--status-6-start);
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.55);
+  .grouped .vehicle-flag {
+    left: 8px;
+    top: 4px;
   }
-  .vehicle-name {
-    padding: 3px 6px;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    border-left-width: 3px;
-    border-left-color: var(--status-6-start);
-    background: rgba(10, 11, 12, 0.88);
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.55);
+  .vehicle-flag b {
+    min-width: 22px;
+    font-size: 15px;
+    font-weight: 800;
+    text-align: center;
   }
-  .vehicle-marker.status-0 .vehicle-dot {
-    background: var(--status-0-start);
-  }
-  .vehicle-marker.status-0 .vehicle-name {
-    border-left-color: var(--status-0-start);
-  }
-  .vehicle-marker.status-1 .vehicle-dot {
-    background: var(--status-1-start);
-  }
-  .vehicle-marker.status-1 .vehicle-name {
-    border-left-color: var(--status-1-start);
-  }
-  .vehicle-marker.status-2 .vehicle-dot {
-    background: var(--status-2-start);
-  }
-  .vehicle-marker.status-2 .vehicle-name {
-    border-left-color: var(--status-2-start);
-  }
-  .vehicle-marker.status-3 .vehicle-dot {
-    background: var(--status-3-start);
-  }
-  .vehicle-marker.status-3 .vehicle-name {
-    border-left-color: var(--status-3-start);
-  }
-  .vehicle-marker.status-4 .vehicle-dot {
-    background: var(--status-4-start);
-  }
-  .vehicle-marker.status-4 .vehicle-name {
-    border-left-color: var(--status-4-start);
-  }
-  .vehicle-marker.status-5 .vehicle-dot {
-    background: var(--status-5-start);
-  }
-  .vehicle-marker.status-5 .vehicle-name {
-    border-left-color: var(--status-5-start);
-  }
-  .vehicle-marker.status-6 .vehicle-dot {
-    background: var(--status-6-start);
-  }
-  .vehicle-marker.status-6 .vehicle-name {
-    border-left-color: var(--status-6-start);
-  }
-  .vehicle-marker.status-7 .vehicle-dot {
-    background: var(--status-7-start);
-  }
-  .vehicle-marker.status-7 .vehicle-name {
-    border-left-color: var(--status-7-start);
-  }
-  .vehicle-marker.status-8 .vehicle-dot {
-    background: var(--status-8-start);
-  }
-  .vehicle-marker.status-8 .vehicle-name {
-    border-left-color: var(--status-8-start);
-  }
-  .vehicle-marker.status-9 .vehicle-dot {
-    background: var(--status-9-start);
-  }
-  .vehicle-marker.status-9 .vehicle-name {
-    border-left-color: var(--status-9-start);
+  .vehicle-names {
+    display: grid;
   }
   .coordinates {
     position: absolute;

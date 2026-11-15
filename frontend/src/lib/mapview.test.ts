@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canvasToWorld, fitMapPoints, focusMapView, screenPointInMapContent, spreadLabels, toScreen, worldToCanvas, type MapView } from './mapview';
+import { canvasToWorld, fitMapPoints, focusMapView, groupNearby, screenPointInMapContent, spreadLabels, toScreen, worldToCanvas, type MapView } from './mapview';
 
 const bounds = { min_x: 0, min_y: 0, max_x: 1000, max_y: 500 };
 const baseView: MapView = {
@@ -76,5 +76,27 @@ describe('Beschriftungen auf der Karte', () => {
 
   it('lässt weit auseinander liegende Namen in Ruhe', () => {
     expect(spreadLabels([{ x: 0, y: 0, width: 50 }, { x: 0, y: 60, width: 50 }])).toEqual([0, 0]);
+  });
+
+  it('rechnet mit der Höhe jeder einzelnen Beschriftung', () => {
+    expect(
+      spreadLabels([
+        { x: 0, y: 0, width: 50, height: 40 },
+        { x: 0, y: 10, width: 50, height: 20 },
+      ]),
+    ).toEqual([0, 32]);
+  });
+
+  it('fasst nur nahe Punkte mit gleichem Schlüssel zusammen', () => {
+    const groups = groupNearby(
+      [
+        { x: 0, y: 0, status: 2 },
+        { x: 4, y: 3, status: 2 },
+        { x: 4, y: 3, status: 3 },
+        { x: 40, y: 0, status: 2 },
+      ],
+      (item) => item.status,
+    );
+    expect(groups.map((group) => group.length)).toEqual([2, 1, 1]);
   });
 });
