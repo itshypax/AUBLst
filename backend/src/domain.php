@@ -49,7 +49,7 @@ function is_hospital_transport_vehicle(array $vehicle): bool {
 }
 
 function hospital_reservation_can_be_created(array $vehicle, bool $hasReservation): bool {
-    return $hasReservation || in_array((int)($vehicle['status'] ?? -1), [4, 5, 7], true);
+    return $hasReservation || in_array((int)($vehicle['status'] ?? -1), [3, 4, 5, 7], true);
 }
 
 function hospital_reservation_should_clear($status): bool {

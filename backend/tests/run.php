@@ -204,7 +204,7 @@ test_case('Klinikzuweisung gilt nur für RTW und ITW', static function (): void 
 });
 
 test_case('Klinikvormerkung folgt dem Statusablauf', static function (): void {
-    foreach ([4, 5, 7] as $status) {
+    foreach ([3, 4, 5, 7] as $status) {
         expect_true(hospital_reservation_can_be_created(['status' => $status], false));
     }
     expect_true(!hospital_reservation_can_be_created(['status' => 2], false));
