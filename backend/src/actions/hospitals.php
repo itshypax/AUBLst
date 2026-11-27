@@ -63,6 +63,7 @@ function action_hospital_reservation_set(PDO $pdo): void {
             status = 'reserved', baseline_available = VALUES(baseline_available), arrived_at = NULL,
             updated_at = CURRENT_TIMESTAMP");
     $stmt->execute([$sid, $vehicle_id, $hospital_id, $bed_type, (int)$hospital[$available_column]]);
+    send_hospital_assignment($pdo, $session, (string)$vehicle['game_vehicle_id'], (string)$hospital['game_hospital_id']);
     $vehicleLabel = trim((string)($vehicle['name'] ?? '')) ?: (string)$vehicle['game_vehicle_id'];
     $hospitalLabel = trim((string)($hospital['name'] ?? '')) ?: 'Klinik #' . $hospital_id;
     record_vehicle_event_journal(
@@ -88,6 +89,7 @@ function action_hospital_reservation_clear(PDO $pdo): void {
     $stmt = $pdo->prepare('DELETE FROM hospital_reservations WHERE session_id = ? AND vehicle_id = ?');
     $stmt->execute([$sid, $vehicle_id]);
     if ($vehicle) {
+        send_hospital_assignment($pdo, $session, (string)$vehicle['game_vehicle_id'], '-1');
         $vehicleLabel = trim((string)($vehicle['name'] ?? '')) ?: (string)$vehicle['game_vehicle_id'];
         record_vehicle_event_journal($pdo, $sid, $vehicle_id, 'hospital_cleared', 'Klinikvormerkung für ' . $vehicleLabel . ' aufgehoben');
     }

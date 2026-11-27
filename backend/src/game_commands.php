@@ -39,9 +39,40 @@ function game_sync_payloads(array $announced, array $reservations): array {
     if (!in_array(505, $codes, true)) return $payloads;
     foreach ($reservations as $reservation) {
         if (($reservation['status'] ?? '') !== 'reserved') continue;
-        $payloads[] = ['code' => 505, 'fields' => [(string)$reservation['game_vehicle_id'], (int)$reservation['game_hospital_id']]];
+        $payloads[] = ['code' => 505, 'fields' => [(string)$reservation['game_vehicle_id'], $reservation['game_hospital_id']]];
     }
     return $payloads;
+}
+
+// Beim adapter_log, höchstens alle 30 s je Sitzung. Bleibt der Abgleich aus,
+// fällt die Mod nach 90 s auf das Verhalten der AUBMP zurück.
+function send_game_sync(PDO $pdo, array $session, DateTimeImmutable $now): void {
+    if (!game_command_enabled($session, 501, $now)) return;
+    $sid = (int)$session['id'];
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM commands WHERE session_id = ? AND type = 'game_command'
+        AND JSON_EXTRACT(payload, '$.code') = 501 AND created_at > NOW() - INTERVAL " . GAME_COMMAND_SYNC_SECONDS . " SECOND");
+    $stmt->execute([$sid]);
+    if ((int)$stmt->fetchColumn() > 0) return;
+
+    $stmt = $pdo->prepare("SELECT v.game_vehicle_id, h.game_hospital_id, r.status FROM hospital_reservations r
+        JOIN vehicles v ON v.id = r.vehicle_id AND v.session_id = r.session_id
+        JOIN hospitals h ON h.id = r.hospital_id AND h.session_id = r.session_id
+        WHERE r.session_id = ? AND r.status = 'reserved'");
+    $stmt->execute([$sid]);
+    $status = adapter_status_view($session, $now);
+    $payloads = game_sync_payloads($status['game_features']['commands'] ?? [], $stmt->fetchAll());
+    // Eine Transaktion, damit 501 und die 505 im selben Abruf beim Adapter landen.
+    $pdo->beginTransaction();
+    foreach ($payloads as $payload) {
+        insert_game_command($pdo, $sid, $payload['code'], $payload['fields']);
+    }
+    $pdo->commit();
+}
+
+// Klinikzuweisung ins Spiel, -1 nimmt sie zurück.
+function send_hospital_assignment(PDO $pdo, array $session, string $game_vehicle_id, string $game_hospital_id): void {
+    if (!game_command_enabled($session, 505, new DateTimeImmutable('now', app_time_zone()))) return;
+    insert_game_command($pdo, (int)$session['id'], 505, [$game_vehicle_id, $game_hospital_id]);
 }
 
 function insert_game_command(PDO $pdo, int $session_id, int $code, array $fields): bool {

@@ -91,7 +91,12 @@ paths:
               schema:
                 type: object
                 properties:
-                  commands: { type: array, items: { type: object } }
+                  commands:
+                    type: array
+                    description: >-
+                      Typ game_command (payload {"code": 505, "fields": ["1_RTW_A", "2"]}) kommt nur,
+                      wenn der Adapter game_command meldet und die Mod den Code in game_features nennt.
+                    items: { type: object }
                   poll_ms: { type: integer, enum: [1000, 5000] }
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
@@ -134,6 +139,14 @@ paths:
                     game: { type: boolean }
                     round: { type: boolean }
                     version: { type: string, maxLength: 20 }
+                    game_command:
+                      type: integer
+                      description: Ab Adapter 1.6. Der Adapter schreibt Befehle vom Typ game_command als "<code>|<feld>|...|" in die Sync-Datei.
+                    game_features:
+                      type: object
+                      description: Ab Adapter 1.6. Die Codes, die die Mod mit ihrer f-Zeile gemeldet hat, fehlt nach 30 s ohne Meldung.
+                      properties:
+                        commands: { type: array, maxItems: 16, items: { type: integer, minimum: 500, maximum: 999 } }
       responses:
         "200": { description: Gespeichert }
         "401": { $ref: "#/components/responses/Error" }

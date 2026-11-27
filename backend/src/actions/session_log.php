@@ -23,6 +23,9 @@ function action_adapter_log(PDO $pdo): void {
     if ($status !== null) {
         $stmt = $pdo->prepare('UPDATE sessions SET adapter_status = ?, adapter_seen_at = CURRENT_TIMESTAMP WHERE id = ?');
         $stmt->execute([json_encode($status), (int)$session['id']]);
+        $stmt = $pdo->prepare('SELECT * FROM sessions WHERE id = ?');
+        $stmt->execute([(int)$session['id']]);
+        send_game_sync($pdo, $stmt->fetch(), new DateTimeImmutable('now', app_time_zone()));
     }
 
     $count = $pdo->prepare('SELECT COUNT(*) FROM session_log WHERE session_id = ?');
