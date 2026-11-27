@@ -150,10 +150,15 @@
             ondblclick={() => doubleClick(entry)}
             oncontextmenu={(event) => openMenu(event, entry)}
             onkeydown={(event) => onRowKeydown(event, entry)}
-            aria-label={`${vehicleName(entry)}, ${entry.event?.name || 'ohne Einsatzbezug'}`}
+            aria-label={`${entry.urgent ? 'Status 0, ' : ''}${vehicleName(entry)}, ${entry.event?.name || 'ohne Einsatzbezug'}`}
           >
             <td class="time">{timeOf(entry)}</td>
-            <td><span class="request-text">{vehicleName(entry)}</span></td>
+            <td>
+              <span class="request-text"
+                >{#if entry.urgent}<span class="status-urgent" title="Dringender Sprechwunsch (Status 0)">0</span
+                  >{/if}{vehicleName(entry)}</span
+              >
+            </td>
           </tr>
         {/each}
       </tbody>
@@ -275,6 +280,24 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 600;
+  }
+  /* Eigene Klasse: .status-0 heißt alarmiert. */
+  .status-urgent {
+    display: inline-block;
+    min-width: 18px;
+    margin-right: 6px;
+    padding: 0 4px;
+    border: 1px solid #fff;
+    border-radius: 3px;
+    background: #b3261e;
+    color: #fff;
+    font:
+      700 12px/16px ui-monospace,
+      'Cascadia Mono',
+      Consolas,
+      monospace;
+    text-align: center;
+    vertical-align: 1px;
   }
   tbody tr.unacknowledged {
     background-color: var(--speech-alert-bg);
