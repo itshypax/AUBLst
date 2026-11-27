@@ -69,11 +69,24 @@ function normalize_adapter_log_entries(array $entries, DateTimeImmutable $now): 
 function normalize_adapter_status(mixed $status): ?array {
     if (!is_array($status) || !is_bool($status['game'] ?? null) || !is_bool($status['round'] ?? null)) return null;
     $version = $status['version'] ?? null;
-    return [
+    $normalized = [
         'game' => $status['game'],
         'round' => $status['round'],
         'version' => is_string($version) ? mb_substr($version, 0, 20) : '',
     ];
+    // Ab Adapter 1.6: Spielbefehle und die Codes, die die Mod versteht. Die
+    // Grenzen halten den Zustand unter den 255 Zeichen der Spalte.
+    $gameCommand = $status['game_command'] ?? null;
+    if (is_int($gameCommand) && $gameCommand >= 1 && $gameCommand <= 99) {
+        $normalized['game_command'] = $gameCommand;
+    }
+    $codes = $status['game_features']['commands'] ?? null;
+    if (is_array($codes)) {
+        $codes = array_values(array_unique(array_filter($codes,
+            static fn($code): bool => is_int($code) && $code >= 500 && $code <= 999)));
+        $normalized['game_features'] = ['commands' => array_slice($codes, 0, 16)];
+    }
+    return $normalized;
 }
 
 // Für die Leitstelle: der letzte gemeldete Zustand und wie alt er ist. Das Alter

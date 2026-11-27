@@ -331,6 +331,11 @@ function migration_definitions(): array {
                         REFERENCES players(id) ON DELETE SET NULL');
             }
         },
+        // Befehle für Submods, siehe game_commands.php.
+        '2026112701_game_command' => static function (PDO $pdo): void {
+            $pdo->exec("ALTER TABLE commands MODIFY type
+                ENUM('move','alarm','assign','unassign','event_delete','event_create','game_command') NOT NULL");
+        },
     ];
 }
 
