@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "default_profile": "standard",
   "profiles": [
     {
@@ -9,6 +9,7 @@
         "new-incident": "assets/phone.wav",
         "radio-message": "assets/Alarm.wav",
         "speech-request": "assets/sprechwunsch.mp3",
+        "urgent-speech-request": "assets/status0.wav",
         "alarm-level-increase": "assets/Alarm.wav",
         "resource-shortage": "assets/Alarm.wav",
         "ship-blocked": "none",

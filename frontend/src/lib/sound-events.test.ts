@@ -42,4 +42,9 @@ describe('Soundereignisse', () => {
     const speech = row('Sprechwunsch', 'Florian Auenburg 1-HLF-1 mit Sprechwunsch');
     expect(soundCuesForLogs([speech, row('S1', 'Fahrzeug meldet Status 1')])).toEqual(['speech-request']);
   });
+
+  it('gibt Status 0 einen eigenen Ton statt des normalen Sprechwunsch-Tons', () => {
+    const urgent = { ...row('Sprechwunsch', 'Rettung Auenburg 2-RTW-A mit Sprechwunsch'), meta: '{"priority":"urgent"}' };
+    expect(soundCuesForLogs([urgent, row('S1', 'Fahrzeug meldet Status 1')])).toEqual(['urgent-speech-request']);
+  });
 });

@@ -1,4 +1,4 @@
-import { isSpeechRequest } from './speech-requests';
+import { isSpeechRequest, isUrgentSpeechRequest } from './speech-requests';
 import { decodeEntities } from './text';
 import type { SoundCue } from './sounds';
 import type { LogRow } from './types';
@@ -8,6 +8,7 @@ function textOf(row: LogRow): string {
 }
 
 export function soundCueForLog(row: LogRow): SoundCue | null {
+  if (isUrgentSpeechRequest(row)) return 'urgent-speech-request';
   if (isSpeechRequest(row)) return 'speech-request';
   const text = textOf(row);
 
@@ -37,6 +38,7 @@ export function soundCuesForLogs(rows: LogRow[]): SoundCue[] {
       hasUnclassified = true;
     }
   }
-  if (hasUnclassified && !cues.includes('speech-request') && !cues.includes('radio-message')) cues.push('radio-message');
+  const speech = cues.includes('speech-request') || cues.includes('urgent-speech-request');
+  if (hasUnclassified && !speech && !cues.includes('radio-message')) cues.push('radio-message');
   return cues;
 }

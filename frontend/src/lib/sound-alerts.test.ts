@@ -148,4 +148,29 @@ describe('zeitabhängige Tonhinweise', () => {
       config,
     )).toEqual(['speech-request-timeout']);
   });
+
+  it('wiederholt den Status-0-Ton alle 10 Sekunden, bis der Sprechwunsch quittiert ist', () => {
+    const tracker = new SoundAlertTracker();
+    const urgent: LogRow = {
+      id: 30,
+      type: 'vehicle',
+      entity_id: '1_TEST_1',
+      event_id: null,
+      message: 'Sprechwunsch',
+      long_message: '1-TEST-1 mit Sprechwunsch',
+      state: 'active',
+      acknowledged: false,
+      meta: '{"priority":"urgent"}',
+      created_at: '2026-08-15 12:00:00',
+      updated_at: '2026-08-15 12:00:00',
+    };
+    const now = Date.parse('2026-08-15T12:00:01');
+    const run = (row: LogRow, at: number) => tracker.update(state([vehicle(1, 5)], [], [row]), at, config);
+    expect(run(urgent, now)).toEqual([]);
+    expect(run(urgent, now + 9_000)).toEqual([]);
+    expect(run(urgent, now + 10_000)).toEqual(['urgent-speech-request']);
+    expect(run(urgent, now + 13_000)).toEqual([]);
+    expect(run(urgent, now + 20_000)).toEqual(['urgent-speech-request']);
+    expect(run({ ...urgent, acknowledged: true }, now + 40_000)).toEqual([]);
+  });
 });

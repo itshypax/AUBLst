@@ -2,6 +2,7 @@ export type SoundCue =
   | 'new-incident'
   | 'radio-message'
   | 'speech-request'
+  | 'urgent-speech-request'
   | 'unassigned-vehicle-status-3'
   | 'unassigned-vehicle-status-4'
   | 'vehicle-c-timeout'
@@ -60,6 +61,7 @@ export const SOUND_CUES: ReadonlyArray<{ id: SoundCue; label: string }> = [
   { id: 'new-incident', label: 'Neuer Einsatz' },
   { id: 'radio-message', label: 'Funkmeldung' },
   { id: 'speech-request', label: 'Sprechwunsch' },
+  { id: 'urgent-speech-request', label: 'Dringender Sprechwunsch (Status 0)' },
   { id: 'unassigned-vehicle-status-3', label: 'Fahrzeug ohne Einsatz in Status 3' },
   { id: 'unassigned-vehicle-status-4', label: 'Fahrzeug ohne Einsatz in Status 4' },
   { id: 'vehicle-c-timeout', label: 'Fahrzeug zu lange in C' },
@@ -89,6 +91,7 @@ const FALLBACK_STANDARD: CompiledSoundProfile = {
     'new-incident': './assets/phone.wav',
     'radio-message': './assets/Alarm.wav',
     'speech-request': './assets/sprechwunsch.mp3',
+    'urgent-speech-request': './assets/status0.wav',
   },
   repeats: {},
   browserTitles: [],

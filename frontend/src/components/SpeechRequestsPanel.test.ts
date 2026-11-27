@@ -124,4 +124,12 @@ describe('Sprechwunsch-Tabelle', () => {
     expect(app.focusPoint).toMatchObject({ x: 0, y: 0 });
     expect(app.highlightedVehicleId).toBeNull();
   });
+
+  it('hebt Status 0 als eigene Zeile hervor, ohne Zusatzzeichen am Fahrzeug', () => {
+    app.logs = [{ ...app.logs[0], meta: '{"priority":"urgent"}' }];
+    render(SpeechRequestsPanel);
+    const row = screen.getByRole('row', { name: /^Status 0, 4-RTW-B/ });
+    expect(row.classList.contains('urgent')).toBe(true);
+    expect(row.querySelectorAll('td')[1].textContent?.trim()).toBe('4-RTW-B');
+  });
 });
