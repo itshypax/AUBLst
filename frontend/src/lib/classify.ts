@@ -6,11 +6,9 @@ export type MainTab = 'fire' | 'rescue';
 const RESCUE_TYPES = new Set(['RTW', 'KTW', 'NKTW', 'GRTW', 'ITW', 'NEF', 'NAW', 'RTH', 'ITH', 'GWSAN', 'GWRH']);
 const RESCUE_STATIONS = new Set(['72', '74', '6', '7', 'CHRISTOPH']);
 
-// Die Hypax-Submod nummeriert ihre NEF als 3 vor der Wache, 35_NEF_A steht an der Klinik
-// (Wache 4); ihre externen Rettungswachen heißen 6 und 7 statt 72 und 74. Der 5_ITW_A steht
-// ebenfalls an der Klinik.
-const SUBMOD_NEF_STATIONS: Record<string, string> = { '32': '2', '34': '4', '35': '4', '36': '6', '37': '7' };
-const CLINIC_STATION = '5';
+// Die Hypax-Submod nummeriert ihre NEF als 3 vor der Wache; 35_NEF_A und 5_ITW_A stehen an
+// der Klinik (Wache 5), ihre externen Rettungswachen heißen 6 und 7 statt 72 und 74.
+const SUBMOD_NEF_STATIONS: Record<string, string> = { '32': '2', '34': '4', '35': '5', '36': '6', '37': '7' };
 
 // Einheiten ohne Kartenposition; alarmierbar, aber nicht in der Übersicht
 const HIDDEN_IDS = new Set(['ASF', 'BSW', 'JA', 'FUSTW', 'TD']);
@@ -20,7 +18,7 @@ const ACTION_PREFIX = 'FS_LST';
 
 // Die Feuerwehrboote (Wache 0) hängen unter Wache 4
 const FIRE_ORDER = ['1', '11', '2', '3', '31', '4', '0'];
-const RESCUE_ORDER = ['1', 'CHRISTOPH', '2', '72', '6', '3', '4', '74', '7'];
+const RESCUE_ORDER = ['1', 'CHRISTOPH', '2', '72', '6', '3', '5', '4', '74', '7'];
 
 const OTHER_KEY = '_other';
 
@@ -34,7 +32,6 @@ function idParts(v: Vehicle): string[] {
 
 export function station(v: Vehicle): string {
   const [first = '', type] = idParts(v);
-  if (first === CLINIC_STATION) return '4';
   return (type === 'NEF' && SUBMOD_NEF_STATIONS[first]) || first;
 }
 
@@ -188,7 +185,8 @@ export function actionUnits(vehicles: Vehicle[]): Vehicle[] {
 // Die vier Hauptwachen stehen nebeneinander, Anbauwachen und Boote
 // darunter im selben Strang
 const FIRE_COLUMNS = [['1', '11'], ['2'], ['3', '31'], ['4', '0']];
-const RESCUE_COLUMNS = [['1', 'CHRISTOPH'], ['2', '72', '6'], ['3'], ['4', '74', '7']];
+// Wache 5 (Klinik) steht unter Wache 3, die Spalte ist sonst die kürzeste
+const RESCUE_COLUMNS = [['1', 'CHRISTOPH'], ['2', '72', '6'], ['3', '5'], ['4', '74', '7']];
 
 export function stationColumns(vehicles: Vehicle[], tab: MainTab): StationGroup[][] {
   const groups = stationGroups(vehicles, tab);
@@ -220,7 +218,7 @@ export function stationColumns(vehicles: Vehicle[], tab: MainTab): StationGroup[
 const MIXED_COLUMNS: [MainTab, string][][] = [
   [['fire', '1'], ['rescue', '1'], ['fire', '11'], ['rescue', 'CHRISTOPH']],
   [['fire', '2'], ['rescue', '2'], ['rescue', '72'], ['rescue', '6']],
-  [['fire', '3'], ['rescue', '3'], ['fire', '31']],
+  [['fire', '3'], ['rescue', '3'], ['fire', '31'], ['rescue', '5']],
   [['fire', '4'], ['rescue', '4'], ['fire', '0'], ['rescue', '74'], ['rescue', '7']],
 ];
 
@@ -257,6 +255,7 @@ const ALARM_LAYOUT: { key: string; label: string; stations: string[] }[] = [
   { key: '2', label: 'Wache 2', stations: ['2'] },
   { key: '3', label: 'Wache 3', stations: ['3'] },
   { key: '4', label: 'Wache 4', stations: ['4'] },
+  { key: '5', label: 'Wache 5', stations: ['5'] },
   { key: 'boote', label: 'Feuerwehrboote', stations: ['0'] },
   { key: 'fw-extern', label: 'Feuerwehr extern', stations: ['11', '31'] },
   { key: 'rd-extern', label: 'Rettungsdienst extern', stations: ['72', '74', '6', '7'] },
