@@ -8,6 +8,7 @@ require_once __DIR__ . '/src/database.php';
 require_once __DIR__ . '/src/domain.php';
 require_once __DIR__ . '/src/session.php';
 require_once __DIR__ . '/src/repository.php';
+require_once __DIR__ . '/src/game_commands.php';
 require_once __DIR__ . '/src/actions/sessions.php';
 require_once __DIR__ . '/src/actions/mods.php';
 require_once __DIR__ . '/src/actions/state.php';

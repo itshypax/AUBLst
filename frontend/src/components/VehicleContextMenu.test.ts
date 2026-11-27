@@ -172,7 +172,7 @@ describe('Fahrzeugmenü', () => {
     expect(target.querySelector('span')?.classList.contains('event-name')).toBe(true);
   });
 
-  it.each([4, 5, 7])('bietet einem RTW in Status %i die Klinikzuweisung an', (status) => {
+  it.each([3, 4, 5, 7])('bietet einem RTW in Status %i die Klinikzuweisung an', (status) => {
     app.vehicles[0] = { ...app.vehicles[0], game_vehicle_id: '72_RTW_1', name: '72-RTW-1', type: 'RTW', status };
     render(VehicleContextMenu);
 

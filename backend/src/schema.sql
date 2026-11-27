@@ -228,7 +228,7 @@ CREATE TABLE IF NOT EXISTS vehicle_position_history (
 CREATE TABLE IF NOT EXISTS commands (
   id INT AUTO_INCREMENT PRIMARY KEY,
   session_id INT NOT NULL,
-  type ENUM('move','alarm','assign','unassign','event_delete','event_create') NOT NULL,
+  type ENUM('move','alarm','assign','unassign','event_delete','event_create','game_command') NOT NULL,
   payload JSON NOT NULL,
   processed TINYINT(1) DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

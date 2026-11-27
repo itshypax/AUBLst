@@ -7,6 +7,7 @@ require_once __DIR__ . '/../src/http.php';
 require_once __DIR__ . '/../src/adapter_api.php';
 require_once __DIR__ . '/../src/migrations.php';
 require_once __DIR__ . '/../src/repository.php';
+require_once __DIR__ . '/../src/game_commands.php';
 require_once __DIR__ . '/../src/actions/mods.php';
 require_once __DIR__ . '/../src/actions/state.php';
 require_once __DIR__ . '/../src/actions/layouts.php';
@@ -126,6 +127,51 @@ test_case('Adapter-Zustand nimmt nur Wahrheitswerte und meldet sein Alter', stat
     expect_same(['game' => true, 'round' => false, 'version' => '1.5.0', 'age' => 30], $view);
 });
 
+test_case('Adapter-Zustand übernimmt Spielbefehle nur in gültiger Form', static function (): void {
+    $s = normalize_adapter_status(['game' => true, 'round' => true, 'version' => '1.6.0', 'game_command' => 1,
+        'game_features' => ['commands' => [501, 505, 'x', 42, 506]]]);
+    expect_same(1, $s['game_command']);
+    expect_same([501, 505, 506], $s['game_features']['commands']);
+    $old = normalize_adapter_status(['game' => true, 'round' => true, 'version' => '1.5.1']);
+    expect_true(!isset($old['game_command']) && !isset($old['game_features']));
+    $many = normalize_adapter_status(['game' => true, 'round' => true, 'game_command' => 1,
+        'game_features' => ['commands' => range(500, 540)]]);
+    expect_same(16, count($many['game_features']['commands']));
+    expect_true(strlen(json_encode($many)) <= 255);
+});
+
+test_case('Spielbefehle nur mit frischem Adapter und gemeldetem Code', static function (): void {
+    $now = new DateTimeImmutable('2026-11-27 12:00:20', app_time_zone());
+    $status = ['game' => true, 'round' => true, 'version' => '1.6.0', 'game_command' => 1, 'game_features' => ['commands' => [501, 505]]];
+    $session = ['adapter_status' => json_encode($status), 'adapter_seen_at' => '2026-11-27 12:00:10'];
+    expect_true(game_command_enabled($session, 505, $now));
+    expect_true(!game_command_enabled($session, 506, $now));
+    expect_true(!game_command_enabled(['adapter_seen_at' => '2026-11-27 12:00:00'] + $session, 505, $now));
+    unset($status['game_command']);
+    expect_true(!game_command_enabled(['adapter_status' => json_encode($status)] + $session, 505, $now));
+    expect_true(!game_command_enabled(['adapter_status' => null, 'adapter_seen_at' => null], 505, $now));
+});
+
+test_case('Spielbefehlfelder bleiben eine Zeile', static function (): void {
+    expect_true(game_command_fields_valid(['1_RTW_A', 2, -1]));
+    expect_true(!game_command_fields_valid(['1|RTW']));
+    expect_true(!game_command_fields_valid(["a\nb"]));
+    expect_true(!game_command_fields_valid([str_repeat('a', 65)]));
+    expect_true(!game_command_fields_valid([['nested']]));
+});
+
+test_case('Abgleich schickt Freischaltung und nur offene Vormerkungen', static function (): void {
+    $payloads = game_sync_payloads([501, 505, 506, 507], [
+        ['game_vehicle_id' => '1_RTW_A', 'game_hospital_id' => 2, 'status' => 'reserved'],
+        ['game_vehicle_id' => '2_RTW_A', 'game_hospital_id' => 0, 'status' => 'arrived'],
+    ]);
+    expect_same([['code' => 501, 'fields' => [505, 506]], ['code' => 505, 'fields' => ['1_RTW_A', 2]]], $payloads);
+    expect_same([['code' => 501, 'fields' => [506]]], game_sync_payloads([501, 506], [
+        ['game_vehicle_id' => '1_RTW_A', 'game_hospital_id' => 2, 'status' => 'reserved'],
+    ]));
+    expect_same([], game_sync_payloads([505], []));
+});
+
 test_case('Alarmierung akzeptiert nur verfügbare Status', static function (): void {
     expect_true(vehicle_available_for_alarm(['game_vehicle_id' => '1_HLF_1', 'type' => 'HLF', 'status' => 1]));
     expect_true(vehicle_available_for_alarm(['game_vehicle_id' => '1_HLF_1', 'type' => 'HLF', 'status' => 2]));
@@ -158,7 +204,7 @@ test_case('Klinikzuweisung gilt nur für RTW und ITW', static function (): void 
 });
 
 test_case('Klinikvormerkung folgt dem Statusablauf', static function (): void {
-    foreach ([4, 5, 7] as $status) {
+    foreach ([3, 4, 5, 7] as $status) {
         expect_true(hospital_reservation_can_be_created(['status' => $status], false));
     }
     expect_true(!hospital_reservation_can_be_created(['status' => 2], false));

@@ -77,7 +77,7 @@ function action_log_acknowledge(PDO $pdo): void {
     $session = require_session($pdo, $data['session_token'] ?? null, $data['pin'] ?? null, true);
     $sid = $session['id'];
 
-    $stmt = $pdo->prepare('SELECT id, occurrence_id, event_id FROM activity_logs WHERE session_id = ? AND id = ?');
+    $stmt = $pdo->prepare('SELECT id, occurrence_id, event_id, entity_id, message, long_message FROM activity_logs WHERE session_id = ? AND id = ?');
     $stmt->execute([$sid, $mid]);
     $log = $stmt->fetch();
     if (!$log) respond_json(404, ['error' => 'Log entry not found']);
@@ -106,6 +106,12 @@ function action_log_acknowledge(PDO $pdo): void {
         . implode(',', array_fill(0, count($ids), '?')) . ')');
     $stmt->execute(array_merge([$sid], $ids));
     $updatedAt = $stmt->fetchColumn();
+    // Quittierter Sprechwunsch: das Fahrzeug bekommt im Spiel die Sprechaufforderung (J).
+    $entity = (string)($log['entity_id'] ?? '');
+    if ($entity !== '' && message_is_speech_request($log)
+        && game_command_enabled($session, 506, new DateTimeImmutable('now', app_time_zone()))) {
+        insert_game_command($pdo, (int)$sid, 506, [$entity]);
+    }
     touch_session($pdo, $sid);
     respond_json(200, ['ok' => true, 'ids' => $ids, 'updated_at' => $updatedAt ?: null]);
 }

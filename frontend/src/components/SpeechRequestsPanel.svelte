@@ -144,16 +144,19 @@
         {#each entries as entry (entry.key)}
           <tr
             class:unacknowledged={!isAcknowledged(entry)}
+            class:urgent={entry.urgent}
             class:busy={dismissing.has(entry.key)}
             tabindex="0"
             onclick={() => singleClick(entry)}
             ondblclick={() => doubleClick(entry)}
             oncontextmenu={(event) => openMenu(event, entry)}
             onkeydown={(event) => onRowKeydown(event, entry)}
-            aria-label={`${vehicleName(entry)}, ${entry.event?.name || 'ohne Einsatzbezug'}`}
+            aria-label={`${entry.urgent ? 'Status 0, ' : ''}${vehicleName(entry)}, ${entry.event?.name || 'ohne Einsatzbezug'}`}
           >
             <td class="time">{timeOf(entry)}</td>
-            <td><span class="request-text">{vehicleName(entry)}</span></td>
+            <td>
+              <span class="request-text">{vehicleName(entry)}</span>
+            </td>
           </tr>
         {/each}
       </tbody>
@@ -292,8 +295,30 @@
       background-color: transparent;
     }
   }
+  /* Status 0: rot/weiß im schnellen Wechsel, nach dem Quittieren dauerhaft rot. */
+  .speech-panel tbody tr.urgent,
+  .speech-panel tbody tr.urgent td {
+    background-color: #d0261c;
+    color: #fff;
+  }
+  .speech-panel tbody tr.urgent.unacknowledged,
+  .speech-panel tbody tr.urgent.unacknowledged td {
+    animation: speech-request-urgent 0.5s step-end infinite;
+  }
+  @keyframes speech-request-urgent {
+    0%, 49% {
+      background-color: #d0261c;
+      color: #fff;
+    }
+    50%, 100% {
+      background-color: #fff;
+      color: #b3261e;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
-    tbody tr.unacknowledged {
+    tbody tr.unacknowledged,
+    .speech-panel tbody tr.urgent.unacknowledged,
+    .speech-panel tbody tr.urgent.unacknowledged td {
       animation: none;
     }
   }

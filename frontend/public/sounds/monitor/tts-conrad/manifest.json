@@ -79,11 +79,22 @@
     "74_NEF_A",
     "74_RTW_A",
     "74_RTW_B",
+    "32_NEF_A",
+    "34_NEF_A",
+    "35_NEF_A",
+    "36_NEF_A",
+    "37_NEF_A",
+    "5_ITW_A",
+    "2_MLF_1",
+    "6_RTW_A",
+    "6_RTW_B",
+    "7_RTW_A",
+    "7_RTW_B",
     "Christoph_82",
     "Christoph_84",
     "0_KLB_1",
     "0_FLB_1"
   ],
   "pause_seconds": 0.5,
-  "files": 53
+  "files": 64
 }

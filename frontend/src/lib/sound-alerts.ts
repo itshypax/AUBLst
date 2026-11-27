@@ -20,17 +20,21 @@ function addCue(cues: SoundCue[], cue: SoundCue): void {
   if (!cues.includes(cue)) cues.push(cue);
 }
 
+const URGENT_REPEAT_MS = 10_000;
+
 export class SoundAlertTracker {
   private unassignedVehicleWarnings = new UnassignedVehicleWarningTracker();
   private cStatusSince = new Map<number, number>();
   private announcedCStatuses = new Set<number>();
   private announcedSpeechRequests = new Set<string>();
+  private urgentPlayedAt = new Map<string, number>();
 
   reset(): void {
     this.unassignedVehicleWarnings.reset();
     this.cStatusSince.clear();
     this.announcedCStatuses.clear();
     this.announcedSpeechRequests.clear();
+    this.urgentPlayedAt.clear();
   }
 
   update(state: SoundAlertState, now: number, config: SoundAlertConfig): SoundCue[] {
@@ -81,6 +85,19 @@ export class SoundAlertTracker {
     for (const entry of buildSpeechRequestEntries(state.logs, state.vehicles, state.events, state.assignments)) {
       const occurrence = `${entry.key}:${entry.requestedAt}`;
       activeSpeechRequests.add(occurrence);
+      // Status 0 meldet sich erneut, bis jemand quittiert. Den ersten Ton spielt schon der Logeingang.
+      // shortcut: läuft im Takt der Zustandsabfrage (3 bis 7 s, versteckt 15 s), also "etwa" alle 10 s.
+      const acknowledged = entry.rows.every((row) => row.acknowledged === true || Number(row.acknowledged) === 1);
+      if (entry.urgent && !acknowledged) {
+        const playedAt = this.urgentPlayedAt.get(occurrence);
+        if (playedAt === undefined) this.urgentPlayedAt.set(occurrence, now);
+        else if (now - playedAt >= URGENT_REPEAT_MS) {
+          addCue(cues, 'urgent-speech-request');
+          this.urgentPlayedAt.set(occurrence, now);
+        }
+      } else {
+        this.urgentPlayedAt.delete(occurrence);
+      }
       const requestedAt = timestamp(entry.requestedAt);
       if (
         config.speechRequestTimeoutSeconds > 0
@@ -94,6 +111,9 @@ export class SoundAlertTracker {
     }
     for (const occurrence of this.announcedSpeechRequests) {
       if (!activeSpeechRequests.has(occurrence)) this.announcedSpeechRequests.delete(occurrence);
+    }
+    for (const occurrence of this.urgentPlayedAt.keys()) {
+      if (!activeSpeechRequests.has(occurrence)) this.urgentPlayedAt.delete(occurrence);
     }
 
     return cues;

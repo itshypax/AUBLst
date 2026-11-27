@@ -6,6 +6,8 @@
     { "game_vehicle_id": "3_WLF_1", "file": "WLF3.webp" },
     { "game_vehicle_id": "4_GWRH_1", "file": "GWRH.webp" },
     { "game_vehicle_id": "4_NEF_K", "file": "NEF2.webp" },
+    { "game_vehicle_id": "34_NEF_A", "file": "NEF_ASB.webp" },
+    { "game_vehicle_id": "35_NEF_A", "file": "NEF2.webp" },
     { "game_vehicle_id": "2_RTW_Z", "file": "RTW_Reserve.webp" },
     { "game_vehicle_id": "4_RTW_R", "file": "RTW_Reserve.webp" },
     { "game_vehicle_id": "2_ITW_R", "file": "ITW_Reserve.webp" },
@@ -14,8 +16,8 @@
     { "game_vehicle_id": "0_FLB_1", "file": "FLB.webp" },
     { "game_vehicle_id": "0_KLB_1", "file": "KLB.webp" },
 
-    { "type": "RTW", "stations": ["72", "74"], "file": "RTW_Ext.webp" },
-    { "type": "NEF", "stations": ["72", "74"], "file": "NEF_Ext.webp" },
+    { "type": "RTW", "stations": ["72", "74", "6", "7"], "file": "RTW_Ext.webp" },
+    { "type": "NEF", "stations": ["72", "74", "6", "7"], "file": "NEF_Ext.webp" },
 
     { "type": "HLF", "file": "HLF1.webp" },
     { "type": "RTW", "file": "RTW.webp" },

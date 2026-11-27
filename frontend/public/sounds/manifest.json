@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "default_profile": "standard",
   "profiles": [
     {
@@ -9,6 +9,7 @@
         "new-incident": "assets/phone.wav",
         "radio-message": "assets/Alarm.wav",
         "speech-request": "assets/sprechwunsch.mp3",
+        "urgent-speech-request": "assets/status0.wav",
         "alarm-level-increase": "assets/Alarm.wav",
         "resource-shortage": "assets/Alarm.wav",
         "ship-blocked": "none",
@@ -105,6 +106,12 @@
       "74_RTW_A": 240,
       "74_RTW_B": 240,
       "74_NEF_A": 240,
+      "6_RTW_A": 240,
+      "6_RTW_B": 240,
+      "36_NEF_A": 240,
+      "7_RTW_A": 240,
+      "7_RTW_B": 240,
+      "37_NEF_A": 240,
       "CHRISTOPH_84": 240
     },
     "speech_request_timeout_seconds": 120

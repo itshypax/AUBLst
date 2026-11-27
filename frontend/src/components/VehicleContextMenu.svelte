@@ -16,7 +16,7 @@
 
   const isTransportUnit = $derived(Boolean(vehicle && isHospitalTransportUnit(vehicle)));
   const hospitalReservation = $derived(vehicle ? app.hospitalReservations.find((item) => item.vehicle_id === vehicle.id && item.status === 'reserved') : undefined);
-  const canManageHospital = $derived(Boolean(vehicle && isTransportUnit && ([4, 5, 7].includes(Number(vehicle.status)) || hospitalReservation)));
+  const canManageHospital = $derived(Boolean(vehicle && isTransportUnit && ([3, 4, 5, 7].includes(Number(vehicle.status)) || hospitalReservation)));
   const currentEvent = $derived(vehicle ? assignedEventForVehicle(vehicle.id) : undefined);
   const vehicleLocation = $derived(vehicle ? roadLocationLabel(vehicle, app.routing) : null);
   const leaderEvent = $derived(menu.eventId === undefined ? undefined : app.events.find((event) => event.id === menu.eventId && event.status === 'active'));

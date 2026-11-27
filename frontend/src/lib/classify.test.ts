@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Vehicle } from './types';
-import { alarmGroups, alarmVehicleCount, eventCategory, hasLoeschzug, isHospitalTransportUnit, sortVehiclesByAlarmPriority, stationColumnsMixed, vehicleDisplayName, vehicleDisplayNameForIdentifier, vehicleTypeLabel } from './classify';
+import { alarmGroups, alarmVehicleCount, eventCategory, hasLoeschzug, isHospitalTransportUnit, loeschzugFor, sortVehiclesByAlarmPriority, stationColumnsMixed, vehicleDisplayName, vehicleDisplayNameForIdentifier, vehicleTypeLabel } from './classify';
 
 function vehicle(id: number, type: string): Vehicle {
   return {
@@ -121,6 +121,33 @@ describe('Fahrzeugliste ohne Tabtrennung', () => {
     expect(describe(columns[1])).toEqual(['Wache 2/fire', 'Rettungswache 72/rescue']);
     expect(describe(columns[2])).toEqual(['Wache 3/fire']);
     expect(describe(columns[3])).toEqual(['Wache 4/fire', 'Feuerwehrboote/fire', 'Rettungswache 74/rescue']);
+  });
+
+  it('ordnet die NEF und Rettungswachen der Hypax-Submod ihren Wachen zu', () => {
+    const columns = stationColumnsMixed([
+      unit(1, '32_NEF_A'),
+      unit(2, '34_NEF_A'),
+      unit(3, '35_NEF_A'),
+      unit(4, '6_RTW_A'),
+      unit(5, '36_NEF_A'),
+      unit(6, '7_RTW_B'),
+      unit(7, '37_NEF_A'),
+      unit(8, '5_ITW_A'),
+    ]);
+
+    const ids = (group: { vehicles: Vehicle[] }) => group.vehicles.map((v) => v.game_vehicle_id);
+    expect(columns[1].map((group) => group.label)).toEqual(['Wache 2', 'Rettungswache 6']);
+    expect(columns[1].map(ids)).toEqual([['32_NEF_A'], ['36_NEF_A', '6_RTW_A']]);
+    expect(columns[3].map((group) => group.label)).toEqual(['Wache 4', 'Rettungswache 7']);
+    expect(columns[3].map(ids)).toEqual([['5_ITW_A', '34_NEF_A', '35_NEF_A'], ['37_NEF_A', '7_RTW_B']]);
+    expect(alarmGroups([unit(1, '36_NEF_A'), unit(2, '7_RTW_A')]).map((group) => group.label)).toEqual(['Rettungsdienst extern']);
+  });
+
+  it('stellt das MLF der Submod zu den Löschfahrzeugen, aber nicht in den Löschzug', () => {
+    const [wache2] = stationColumnsMixed([unit(1, '2_WLF_1'), unit(2, '2_MLF_1'), unit(3, '2_ELW_1')])[1];
+    const ids = (list: Vehicle[]) => list.map((v) => v.game_vehicle_id);
+    expect(ids(wache2.vehicles)).toEqual(['2_ELW_1', '2_MLF_1', '2_WLF_1']);
+    expect(ids(loeschzugFor(wache2, () => true))).toEqual(['2_ELW_1']);
   });
 
   it('hängt unbekannte Wachen in der letzten Spalte an', () => {
