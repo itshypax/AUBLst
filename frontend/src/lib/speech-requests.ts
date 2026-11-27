@@ -7,6 +7,7 @@ export interface SpeechRequestEntry {
   vehicle?: Vehicle;
   event?: EventItem;
   requestedAt: string;
+  urgent: boolean;
 }
 
 export function isSpeechRequest(row: LogRow): boolean {
@@ -19,6 +20,17 @@ export function isSpeechRequest(row: LogRow): boolean {
     signal === 'status5' ||
     signal === 'fms5'
   );
+}
+
+// Status 0 (dringender Sprechwunsch) kommt als Sprechwunsch mit Priorität,
+// damit Leitstellen ohne diese Prüfung ihn als normalen Sprechwunsch sehen.
+export function isUrgentSpeechRequest(row: LogRow): boolean {
+  if (!isSpeechRequest(row) || !row.meta) return false;
+  try {
+    return (JSON.parse(row.meta) as { priority?: unknown } | null)?.priority === 'urgent';
+  } catch {
+    return false;
+  }
 }
 
 function technicalIdentifier(value: string | null | undefined): string {
@@ -96,6 +108,7 @@ export function buildSpeechRequestEntries(
       if (row.updated_at >= existing.row.updated_at) existing.row = row;
       if (requestTime(row) < existing.requestedAt) existing.requestedAt = requestTime(row);
       if (!existing.event) existing.event = eventForRequest(row, vehicle, events, assignments);
+      if (isUrgentSpeechRequest(row)) existing.urgent = true;
       continue;
     }
     grouped.set(key, {
@@ -105,10 +118,13 @@ export function buildSpeechRequestEntries(
       vehicle,
       event: eventForRequest(row, vehicle, events, assignments),
       requestedAt: requestTime(row),
+      urgent: isUrgentSpeechRequest(row),
     });
   }
 
-  return [...grouped.values()].sort((a, b) => a.requestedAt.localeCompare(b.requestedAt) || a.row.id - b.row.id);
+  return [...grouped.values()].sort(
+    (a, b) => Number(b.urgent) - Number(a.urgent) || a.requestedAt.localeCompare(b.requestedAt) || a.row.id - b.row.id,
+  );
 }
 
 // Aufgerufene Fahrzeuge: offener Sprechwunsch, in der Leitstelle quittiert.

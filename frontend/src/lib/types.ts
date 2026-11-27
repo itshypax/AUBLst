@@ -170,6 +170,8 @@ export interface LogRow {
   acknowledged?: boolean | number;
   created_at?: string;
   updated_at: string;
+  /** Die Meldung, wie das Spiel sie geschickt hat (JSON). */
+  meta?: string | null;
 }
 
 export interface AssignedVehicle {

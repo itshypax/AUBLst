@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Assignment, EventItem, LogRow, Vehicle } from './types';
-import { buildSpeechRequestEntries, calledVehicleIds, isSpeechRequest, speechRequestVehicle } from './speech-requests';
+import {
+  buildSpeechRequestEntries,
+  calledVehicleIds,
+  isSpeechRequest,
+  isUrgentSpeechRequest,
+  speechRequestVehicle,
+} from './speech-requests';
 
 const vehicles: Vehicle[] = [
   { id: 1, game_vehicle_id: '4_RTW_B', name: '4-RTW-B', type: 'RTW', modes: null, x: 0, y: 0, status: 5, assigned_player_id: null },
@@ -90,5 +96,25 @@ describe('Sprechaufforderung', () => {
 
     expect([...calledVehicleIds(rows, vehicles)]).toEqual([1]);
     expect(calledVehicleIds([], vehicles).size).toBe(0);
+  });
+});
+
+describe('Status 0', () => {
+  it('erkennt den dringenden Sprechwunsch an der Priorität', () => {
+    const base = log(1, '4_RTW_B');
+    expect(isUrgentSpeechRequest({ ...base, meta: '{"priority":"urgent"}' })).toBe(true);
+    expect(isUrgentSpeechRequest({ ...base, meta: '{}' })).toBe(false);
+    expect(isUrgentSpeechRequest({ ...base, meta: 'kaputt' })).toBe(false);
+    expect(isUrgentSpeechRequest({ ...base, meta: null })).toBe(false);
+    expect(isUrgentSpeechRequest({ ...base, message: 'Info', long_message: 'Lage', meta: '{"priority":"urgent"}' })).toBe(false);
+  });
+
+  it('stellt dringende Sprechwünsche vor ältere normale', () => {
+    const rows = [log(1, '4_RTW_B'), { ...log(2, '74_RTW_B'), meta: '{"priority":"urgent"}' }];
+    const entries = buildSpeechRequestEntries(rows, vehicles, [], []);
+    expect(entries.map((entry) => [entry.vehicle?.id, entry.urgent])).toEqual([
+      [2, true],
+      [1, false],
+    ]);
   });
 });
