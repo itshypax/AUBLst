@@ -7,8 +7,10 @@ const RESCUE_TYPES = new Set(['RTW', 'KTW', 'NKTW', 'GRTW', 'ITW', 'NEF', 'NAW',
 const RESCUE_STATIONS = new Set(['72', '74', '6', '7', 'CHRISTOPH']);
 
 // Die Hypax-Submod nummeriert ihre NEF als 3 vor der Wache, 35_NEF_A steht an der Klinik
-// (Wache 4); ihre externen Rettungswachen heißen 6 und 7 statt 72 und 74.
+// (Wache 4); ihre externen Rettungswachen heißen 6 und 7 statt 72 und 74. Der 5_ITW_A steht
+// ebenfalls an der Klinik.
 const SUBMOD_NEF_STATIONS: Record<string, string> = { '32': '2', '34': '4', '35': '4', '36': '6', '37': '7' };
+const CLINIC_STATION = '5';
 
 // Einheiten ohne Kartenposition; alarmierbar, aber nicht in der Übersicht
 const HIDDEN_IDS = new Set(['ASF', 'BSW', 'JA', 'FUSTW', 'TD']);
@@ -32,6 +34,7 @@ function idParts(v: Vehicle): string[] {
 
 export function station(v: Vehicle): string {
   const [first = '', type] = idParts(v);
+  if (first === CLINIC_STATION) return '4';
   return (type === 'NEF' && SUBMOD_NEF_STATIONS[first]) || first;
 }
 

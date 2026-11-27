@@ -70,6 +70,9 @@ describe('Alarmmonitor-Ton', () => {
     expect(monitorVehicleSpeechSources('7-RTW-B')).toEqual([
       './sounds/monitor/tts-conrad/callsigns/7_rtw_b.mp3',
     ]);
+    expect(monitorVehicleSpeechSources('5_ITW_A')).toEqual([
+      './sounds/monitor/tts-conrad/callsigns/5_itw_a.mp3',
+    ]);
   });
 
   it('setzt mehrere Fahrzeugnamen ohne Verbindungswort zusammen', () => {

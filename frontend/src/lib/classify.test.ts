@@ -132,13 +132,14 @@ describe('Fahrzeugliste ohne Tabtrennung', () => {
       unit(5, '36_NEF_A'),
       unit(6, '7_RTW_B'),
       unit(7, '37_NEF_A'),
+      unit(8, '5_ITW_A'),
     ]);
 
     const ids = (group: { vehicles: Vehicle[] }) => group.vehicles.map((v) => v.game_vehicle_id);
     expect(columns[1].map((group) => group.label)).toEqual(['Wache 2', 'Rettungswache 6']);
     expect(columns[1].map(ids)).toEqual([['32_NEF_A'], ['36_NEF_A', '6_RTW_A']]);
     expect(columns[3].map((group) => group.label)).toEqual(['Wache 4', 'Rettungswache 7']);
-    expect(columns[3].map(ids)).toEqual([['34_NEF_A', '35_NEF_A'], ['37_NEF_A', '7_RTW_B']]);
+    expect(columns[3].map(ids)).toEqual([['5_ITW_A', '34_NEF_A', '35_NEF_A'], ['37_NEF_A', '7_RTW_B']]);
     expect(alarmGroups([unit(1, '36_NEF_A'), unit(2, '7_RTW_A')]).map((group) => group.label)).toEqual(['Rettungsdienst extern']);
   });
 
