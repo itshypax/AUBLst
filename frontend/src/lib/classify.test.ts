@@ -123,6 +123,25 @@ describe('Fahrzeugliste ohne Tabtrennung', () => {
     expect(describe(columns[3])).toEqual(['Wache 4/fire', 'Feuerwehrboote/fire', 'Rettungswache 74/rescue']);
   });
 
+  it('ordnet die NEF und Rettungswachen der Hypax-Submod ihren Wachen zu', () => {
+    const columns = stationColumnsMixed([
+      unit(1, '32_NEF_A'),
+      unit(2, '34_NEF_A'),
+      unit(3, '35_NEF_A'),
+      unit(4, '6_RTW_A'),
+      unit(5, '36_NEF_A'),
+      unit(6, '7_RTW_B'),
+      unit(7, '37_NEF_A'),
+    ]);
+
+    const ids = (group: { vehicles: Vehicle[] }) => group.vehicles.map((v) => v.game_vehicle_id);
+    expect(columns[1].map((group) => group.label)).toEqual(['Wache 2', 'Rettungswache 6']);
+    expect(columns[1].map(ids)).toEqual([['32_NEF_A'], ['36_NEF_A', '6_RTW_A']]);
+    expect(columns[3].map((group) => group.label)).toEqual(['Wache 4', 'Rettungswache 7']);
+    expect(columns[3].map(ids)).toEqual([['34_NEF_A', '35_NEF_A'], ['37_NEF_A', '7_RTW_B']]);
+    expect(alarmGroups([unit(1, '36_NEF_A'), unit(2, '7_RTW_A')]).map((group) => group.label)).toEqual(['Rettungsdienst extern']);
+  });
+
   it('hängt unbekannte Wachen in der letzten Spalte an', () => {
     const columns = stationColumnsMixed([unit(1, 'STADTWERKE_1'), unit(2, '1_HLF_1')]);
     expect(columns[3].map((group) => group.label)).toEqual(['Weitere']);

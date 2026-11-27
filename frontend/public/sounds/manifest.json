@@ -106,6 +106,12 @@
       "74_RTW_A": 240,
       "74_RTW_B": 240,
       "74_NEF_A": 240,
+      "6_RTW_A": 240,
+      "6_RTW_B": 240,
+      "36_NEF_A": 240,
+      "7_RTW_A": 240,
+      "7_RTW_B": 240,
+      "37_NEF_A": 240,
       "CHRISTOPH_84": 240
     },
     "speech_request_timeout_seconds": 120
