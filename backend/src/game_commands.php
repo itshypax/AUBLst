@@ -35,7 +35,8 @@ function game_command_fields_valid(array $fields): bool {
 function game_sync_payloads(array $announced, array $reservations): array {
     if (!in_array(501, $announced, true)) return [];
     $codes = array_values(array_intersect(GAME_COMMAND_CODES, $announced));
-    $payloads = [['code' => 501, 'fields' => [implode(',', $codes)]]];
+    // Ein Code je Feld, so liest die Mod sie mit demselben strtok wie alle Felder.
+    $payloads = [['code' => 501, 'fields' => $codes]];
     if (!in_array(505, $codes, true)) return $payloads;
     foreach ($reservations as $reservation) {
         if (($reservation['status'] ?? '') !== 'reserved') continue;

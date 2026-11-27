@@ -165,8 +165,8 @@ test_case('Abgleich schickt Freischaltung und nur offene Vormerkungen', static f
         ['game_vehicle_id' => '1_RTW_A', 'game_hospital_id' => 2, 'status' => 'reserved'],
         ['game_vehicle_id' => '2_RTW_A', 'game_hospital_id' => 0, 'status' => 'arrived'],
     ]);
-    expect_same([['code' => 501, 'fields' => ['505,506']], ['code' => 505, 'fields' => ['1_RTW_A', 2]]], $payloads);
-    expect_same([['code' => 501, 'fields' => ['506']]], game_sync_payloads([501, 506], [
+    expect_same([['code' => 501, 'fields' => [505, 506]], ['code' => 505, 'fields' => ['1_RTW_A', 2]]], $payloads);
+    expect_same([['code' => 501, 'fields' => [506]]], game_sync_payloads([501, 506], [
         ['game_vehicle_id' => '1_RTW_A', 'game_hospital_id' => 2, 'status' => 'reserved'],
     ]));
     expect_same([], game_sync_payloads([505], []));
