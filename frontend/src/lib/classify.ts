@@ -126,7 +126,7 @@ export function vehicleAlarmPriority(v: Vehicle): number {
 
   if (type === 'KDOW' || type === 'KDO') return 0;
   if (type.startsWith('ELW')) return 1;
-  if (type.startsWith('HLF')) return 2;
+  if (type.startsWith('HLF') || type === 'MLF') return 2;
   if (type === 'DLK' || type === 'TMF') return 3;
   if ((type.startsWith('GW') && !isGwrh) || type === 'KLAF') return 4;
   if (type.startsWith('AB') || type === 'WLF') return 5;

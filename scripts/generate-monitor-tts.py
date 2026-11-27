@@ -58,6 +58,7 @@ TYPE_TEXT = {
     "klb": "K L B",
     "kmb": "K M B",
     "kran": "Kran",
+    "mlf": "M L F",
     "nef": "N E F",
     "rtw": "R T W",
     "rw": "R W",
@@ -80,7 +81,7 @@ AUENBURG_MONITOR_CALLSIGNS = (
     "4_RTW_A", "4_RTW_B", "4_RTW_R", "4_WLF_1",
     "72_NEF_A", "72_RTW_A", "72_RTW_B", "74_NEF_A", "74_RTW_A", "74_RTW_B",
     # AUBMP Hypax Submod
-    "32_NEF_A", "34_NEF_A", "35_NEF_A", "36_NEF_A", "37_NEF_A", "5_ITW_A", "6_RTW_A", "6_RTW_B", "7_RTW_A", "7_RTW_B",
+    "32_NEF_A", "34_NEF_A", "35_NEF_A", "36_NEF_A", "37_NEF_A", "5_ITW_A", "2_MLF_1", "6_RTW_A", "6_RTW_B", "7_RTW_A", "7_RTW_B",
     "Christoph_82", "Christoph_84", "0_KLB_1", "0_FLB_1",
 )
 
