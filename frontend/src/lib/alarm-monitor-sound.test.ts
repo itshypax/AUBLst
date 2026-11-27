@@ -63,6 +63,15 @@ describe('Alarmmonitor-Ton', () => {
     expect(monitorVehicleSpeechSources('4_KMBD_1')).toEqual([]);
   });
 
+  it('kündigt die neuen NEF- und Rettungswachen-Kennungen der Hypax-Submod an', () => {
+    expect(monitorVehicleSpeechSources('36_NEF_A')).toEqual([
+      './sounds/monitor/tts-conrad/callsigns/36_nef_a.mp3',
+    ]);
+    expect(monitorVehicleSpeechSources('7-RTW-B')).toEqual([
+      './sounds/monitor/tts-conrad/callsigns/7_rtw_b.mp3',
+    ]);
+  });
+
   it('setzt mehrere Fahrzeugnamen ohne Verbindungswort zusammen', () => {
     expect(monitorAnnouncementSources([
       { gameVehicleId: '1_HLF_1', displayName: '1-HLF-1' },

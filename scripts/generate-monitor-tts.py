@@ -66,7 +66,8 @@ TYPE_TEXT = {
     "wlf": "W L F",
 }
 
-# Exakt die regulären Fahrzeuge aus 4_LST/AUBMP.cfg. Versteckte Sammel- und
+# Exakt die regulären Fahrzeuge aus 4_LST/AUBMP.cfg, dazu die Kennungen der
+# Hypax-Submod. Versteckte Sammel- und
 # Aktions-Einheiten gehören nicht zur Fahrzeugansage des Wachmonitors.
 AUENBURG_MONITOR_CALLSIGNS = (
     "1_DLK_1", "1_ELW_1", "1_GWAS_1", "1_HLF_1", "1_HLF_2", "1_KDOW_1", "1_KLAF_1", "1_RTW_A",
@@ -78,6 +79,8 @@ AUENBURG_MONITOR_CALLSIGNS = (
     "4_ELW_1", "4_GWRH_1", "4_GWSAN_1", "4_HLF_1", "4_ITW_A", "4_KMB_1", "4_NEF_A", "4_NEF_K",
     "4_RTW_A", "4_RTW_B", "4_RTW_R", "4_WLF_1",
     "72_NEF_A", "72_RTW_A", "72_RTW_B", "74_NEF_A", "74_RTW_A", "74_RTW_B",
+    # AUBMP Hypax Submod
+    "32_NEF_A", "34_NEF_A", "35_NEF_A", "36_NEF_A", "37_NEF_A", "6_RTW_A", "6_RTW_B", "7_RTW_A", "7_RTW_B",
     "Christoph_82", "Christoph_84", "0_KLB_1", "0_FLB_1",
 )
 

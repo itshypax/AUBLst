@@ -60,6 +60,8 @@ const AUENBURG_MONITOR_CALLSIGNS = new Set([
   '4_ELW_1', '4_GWRH_1', '4_GWSAN_1', '4_HLF_1', '4_ITW_A', '4_KMB_1', '4_NEF_A', '4_NEF_K',
   '4_RTW_A', '4_RTW_B', '4_RTW_R', '4_WLF_1',
   '72_NEF_A', '72_RTW_A', '72_RTW_B', '74_NEF_A', '74_RTW_A', '74_RTW_B',
+  // AUBMP Hypax Submod
+  '32_NEF_A', '34_NEF_A', '35_NEF_A', '36_NEF_A', '37_NEF_A', '6_RTW_A', '6_RTW_B', '7_RTW_A', '7_RTW_B',
   'CHRISTOPH_82', 'CHRISTOPH_84', '0_KLB_1', '0_FLB_1',
 ]);
 
