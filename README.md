@@ -409,6 +409,8 @@ Produktionskonfiguration auf Plesk bleibt beim Hochladen damit erhalten.
 
 - Kartenbild: Antonym (Discord: `@ant_0nym`)
 - Fahrzeugbilder: offizielles Auenburg-Handbuch
+- Fahrzeugbilder der AUBMP Hypax Submod: aus ihren Spielmodellen gerendert
+  (Modelle aus AUBMP, FUBMP und der AUBMP Luki Edition, MLF von Antiphon)
 
 ## Lizenz
 

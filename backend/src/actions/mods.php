@@ -45,7 +45,25 @@ function action_mods_put(PDO $pdo): void {
     respond_json(200, ['ok' => true, 'mod_id' => $mod_id]);
 }
 
+// Eine Submod mit "base" in ihrer map.json nutzt Kartenbild und Straßennetz der Basis-Mod,
+// solange sie keine eigenen hat. So gibt es nur ein Straßennetz zu pflegen. Nur eine Stufe.
+function map_base_mod(string $mod_id): ?string {
+    if (!preg_match('/^[A-Za-z0-9_.-]{1,255}$/', $mod_id)) return null;
+    $file = __DIR__ . '/../../maps/' . $mod_id . '.map.json';
+    if (!is_file($file)) return null;
+    $metadata = json_decode((string)file_get_contents($file), true);
+    $base = is_array($metadata) ? (string)($metadata['base'] ?? '') : '';
+    return preg_match('/^[A-Za-z0-9_.-]{1,255}$/', $base) && strcasecmp($base, $mod_id) !== 0 ? $base : null;
+}
+
 function local_map_definition(string $mod_id): ?array {
+    $own = own_map_definition($mod_id);
+    if ($own) return $own;
+    $base = map_base_mod($mod_id);
+    return $base ? own_map_definition($base) : null;
+}
+
+function own_map_definition(string $mod_id): ?array {
     if (!preg_match('/^[A-Za-z0-9_.-]{1,255}$/', $mod_id)) return null;
     $maps_dir = __DIR__ . '/../../maps/';
     $metadata_file = $maps_dir . $mod_id . '.map.json';
@@ -264,7 +282,10 @@ function normalize_routing_config(array $data): array {
 function routing_file_for_mod(string $mod_id): ?string {
     if (!preg_match('/^[A-Za-z0-9_.-]{1,255}$/', $mod_id)) return null;
     $file = __DIR__ . '/../../maps/' . $mod_id . '.routing.json';
-    return is_file($file) ? $file : null;
+    if (is_file($file)) return $file;
+    $base = map_base_mod($mod_id);
+    $file = $base ? __DIR__ . '/../../maps/' . $base . '.routing.json' : '';
+    return $base && is_file($file) ? $file : null;
 }
 
 function routing_version_for_mod(?string $mod_id): ?string {
