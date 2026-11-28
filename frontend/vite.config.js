@@ -31,6 +31,15 @@ function routingEditorPlugin() {
     return resolve(mapsDirectory, `${modId}.routing.json`);
   }
 
+  // Mirrors map_base_mod in backend/src/actions/mods.php: a submod without its own road
+  // network edits the one of its base mod, so both stay a single file.
+  function editedModId(modId) {
+    const metadataFile = resolve(mapsDirectory, `${modId}.map.json`);
+    if (existsSync(graphFile(modId)) || !existsSync(metadataFile)) return modId;
+    const base = JSON.parse(readFileSync(metadataFile, 'utf8')).base;
+    return validModId(base) ? base : modId;
+  }
+
   function imageFile(modId) {
     const metadataFile = resolve(mapsDirectory, `${modId}.map.json`);
     if (existsSync(metadataFile)) {
@@ -108,8 +117,9 @@ function routingEditorPlugin() {
         const url = new URL(request.url ?? '/', 'http://localhost');
         if (url.pathname !== '/__routing-editor' && url.pathname !== '/__routing-editor-map') return next();
         if (!isLoopbackRequest(request)) return sendJson(response, 403, { error: 'Der Routing-Editor ist nur lokal verfügbar.' });
-        const modId = url.searchParams.get('mod_id');
-        if (!validModId(modId)) return sendJson(response, 400, { error: 'Ungültige oder fehlende mod_id' });
+        const requestedModId = url.searchParams.get('mod_id');
+        if (!validModId(requestedModId)) return sendJson(response, 400, { error: 'Ungültige oder fehlende mod_id' });
+        const modId = editedModId(requestedModId);
 
         if (url.pathname === '/__routing-editor-map') {
           const image = imageFile(modId);

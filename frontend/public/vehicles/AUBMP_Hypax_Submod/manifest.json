@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "extends": "AUBMP",
+  "icons": [
+    { "game_vehicle_id": "1_KDOW_1", "file": "1_KDOW_1.webp" },
+    { "game_vehicle_id": "2_MLF_1", "file": "2_MLF_1.webp" },
+    { "game_vehicle_id": "2_WLF_K_1", "file": "2_WLF_K_1.webp" },
+    { "game_vehicle_id": "3_WLF_1", "file": "3_WLF_1.webp" },
+    { "game_vehicle_id": "4_ORGL_1", "file": "4_ORGL_1.webp" },
+    { "game_vehicle_id": "4_RTW_A", "file": "4_RTW_A.webp" },
+    { "game_vehicle_id": "4_RTW_B", "file": "4_RTW_B.webp" },
+    { "game_vehicle_id": "4_RTW_R", "file": "4_RTW_R.webp" },
+    { "game_vehicle_id": "5_ITW_A", "file": "5_ITW_A.webp" },
+    { "game_vehicle_id": "6_RTW_A", "file": "6_RTW_A.webp" },
+    { "game_vehicle_id": "6_RTW_B", "file": "6_RTW_B.webp" },
+    { "game_vehicle_id": "7_RTW_A", "file": "7_RTW_A.webp" },
+    { "game_vehicle_id": "7_RTW_B", "file": "7_RTW_B.webp" },
+    { "game_vehicle_id": "32_NEF_A", "file": "32_NEF_A.webp" },
+    { "game_vehicle_id": "34_NEF_A", "file": "34_NEF_A.webp" },
+    { "game_vehicle_id": "35_NEF_A", "file": "35_NEF_A.webp" },
+    { "game_vehicle_id": "36_NEF_A", "file": "36_NEF_A.webp" },
+    { "game_vehicle_id": "37_NEF_A", "file": "37_NEF_A.webp" }
+  ]
+}

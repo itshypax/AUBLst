@@ -270,6 +270,14 @@ test_case('AUBMP verwendet das neue Kartenbild mit separater Spielarea', static 
     expect_same(['x' => 104.0, 'y' => 200.0, 'width' => 4096.0, 'height' => 4096.0], $map['content_rect']);
 });
 
+test_case('Die Hypax-Submod teilt Karte und Straßennetz mit AUBMP', static function (): void {
+    expect_same(local_map_definition('AUBMP'), local_map_definition('AUBMP_Hypax_Submod'));
+    expect_same(routing_file_for_mod('AUBMP'), routing_file_for_mod('AUBMP_Hypax_Submod'));
+    expect_true(routing_file_for_mod('AUBMP') !== null);
+    expect_same(null, map_base_mod('../AUBMP'));
+    expect_same(null, local_map_definition('Unbekannt'));
+});
+
 test_case('Klinikkapazitäten verwenden Rot, Gelb und Grün mit den neuen Grenzen', static function (): void {
     expect_same('full', state_hospital_capacity_level(0));
     expect_same('low', state_hospital_capacity_level(1));
