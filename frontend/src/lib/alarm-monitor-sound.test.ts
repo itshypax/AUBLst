@@ -76,6 +76,9 @@ describe('Alarmmonitor-Ton', () => {
     expect(monitorVehicleSpeechSources('2_MLF_1')).toEqual([
       './sounds/monitor/tts-conrad/callsigns/2_mlf_1.mp3',
     ]);
+    expect(monitorVehicleSpeechSources('2-WLF-K-1')).toEqual([
+      './sounds/monitor/tts-conrad/callsigns/2_wlf_k_1.mp3',
+    ]);
   });
 
   it('setzt mehrere Fahrzeugnamen ohne Verbindungswort zusammen', () => {

@@ -81,7 +81,7 @@ AUENBURG_MONITOR_CALLSIGNS = (
     "4_RTW_A", "4_RTW_B", "4_RTW_R", "4_WLF_1",
     "72_NEF_A", "72_RTW_A", "72_RTW_B", "74_NEF_A", "74_RTW_A", "74_RTW_B",
     # AUBMP Hypax Submod
-    "32_NEF_A", "34_NEF_A", "35_NEF_A", "36_NEF_A", "37_NEF_A", "5_ITW_A", "2_MLF_1", "6_RTW_A", "6_RTW_B", "7_RTW_A", "7_RTW_B",
+    "32_NEF_A", "34_NEF_A", "35_NEF_A", "36_NEF_A", "37_NEF_A", "5_ITW_A", "2_MLF_1", "2_WLF_K_1", "6_RTW_A", "6_RTW_B", "7_RTW_A", "7_RTW_B",
     "Christoph_82", "Christoph_84", "0_KLB_1", "0_FLB_1",
 )
 
@@ -93,6 +93,8 @@ def callsign_text(identifier: str) -> str:
         return "K L B Bad Greifszoll"
     if identifier == "0_FLB_1":
         return "F L B Oberschwaben"
+    if identifier == "2_WLF_K_1":
+        return "2, W L F K, 1"
     station, vehicle_type, suffix = identifier.split("_", maxsplit=2)
     spoken_suffix = SPELLING_ALPHABET[suffix.lower()] if suffix.isalpha() else suffix
     return ", ".join((station, TYPE_TEXT[vehicle_type.lower()], spoken_suffix))
